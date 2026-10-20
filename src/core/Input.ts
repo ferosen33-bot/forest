@@ -17,7 +17,15 @@ export const KEY_BINDINGS = {
   // daher zusätzlich C als Ducken-Taste.
   crouch: ['ControlLeft', 'ControlRight', 'KeyC'],
   interact: ['KeyE'],
+  hotbar1: ['Digit1'],
+  hotbar2: ['Digit2'],
+  hotbar3: ['Digit3'],
+  hotbar4: ['Digit4'],
+  hotbar5: ['Digit5'],
+  hotbar6: ['Digit6'],
   inventory: ['Tab', 'KeyI'],
+  /** Im Pointer Lock fängt der Browser Esc selbst ab; hier nur für offene Fenster (Inventar). */
+  cancel: ['Escape'],
   debug: ['F3'],
   /** Debug: Zeitraffer, solange gehalten (nur mit sichtbarer Debug-Anzeige). */
   timeWarp: ['KeyT'],
@@ -30,6 +38,7 @@ export class Input {
   private pressed = new Set<string>();
   private mouseDX = 0;
   private mouseDY = 0;
+  private wheel = 0;
   private mouseButtons = new Set<number>();
   private mousePressed = new Set<number>();
   private _locked = false;
@@ -44,6 +53,7 @@ export class Input {
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mousedown', this.handleMouseDown);
     document.addEventListener('mouseup', this.handleMouseUp);
+    document.addEventListener('wheel', this.handleWheel, { passive: true });
     document.addEventListener('pointerlockchange', this.handleLockChange);
   }
 
@@ -51,16 +61,22 @@ export class Input {
     return this._locked;
   }
 
-  /** Fordert Pointer Lock an (muss aus einer User-Geste heraus aufgerufen werden). */
-  async requestLock(): Promise<void> {
+  /**
+   * Fordert Pointer Lock an (muss aus einer User-Geste heraus aufgerufen werden).
+   * @returns false, wenn der Browser die Anfrage ablehnt.
+   */
+  async requestLock(): Promise<boolean> {
     try {
       // unadjustedMovement liefert rohe Mausdaten ohne OS-Beschleunigung (Chrome).
       await this.element.requestPointerLock({ unadjustedMovement: true });
+      return true;
     } catch {
       try {
         await this.element.requestPointerLock();
+        return true;
       } catch (err) {
         console.warn('Pointer Lock nicht verfügbar:', err);
+        return false;
       }
     }
   }
@@ -96,6 +112,13 @@ export class Input {
     return delta;
   }
 
+  /** Mausrad-Rasten seit dem letzten Aufruf (+1 = nach unten), danach zurückgesetzt. */
+  consumeWheel(): number {
+    const steps = Math.sign(this.wheel);
+    this.wheel = 0;
+    return steps;
+  }
+
   /** Am Ende jedes Frames aufrufen: setzt "gerade gedrückt"-Zustände zurück. */
   endFrame(): void {
     this.pressed.clear();
@@ -109,6 +132,7 @@ export class Input {
     document.removeEventListener('mousemove', this.handleMouseMove);
     document.removeEventListener('mousedown', this.handleMouseDown);
     document.removeEventListener('mouseup', this.handleMouseUp);
+    document.removeEventListener('wheel', this.handleWheel);
     document.removeEventListener('pointerlockchange', this.handleLockChange);
   }
 
@@ -142,6 +166,10 @@ export class Input {
 
   private handleMouseUp = (e: MouseEvent): void => {
     this.mouseButtons.delete(e.button);
+  };
+
+  private handleWheel = (e: WheelEvent): void => {
+    if (this._locked) this.wheel += e.deltaY;
   };
 
   private handleLockChange = (): void => {

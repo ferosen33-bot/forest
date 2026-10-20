@@ -18,6 +18,13 @@ export const CollisionGroup = {
 export const interactionGroups = (membership: number, filter = 0xffff): number =>
   ((membership & 0xffff) << 16) | (filter & 0xffff);
 
+export interface RaycastHit {
+  collider: RAPIER.Collider;
+  distance: number;
+  point: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };
+}
+
 /**
  * Dünner Wrapper um die Rapier-Welt.
  * Rapier läuft als WASM-Modul; `Physics.create()` lädt es asynchron.
@@ -58,6 +65,28 @@ export class Physics {
       .setFriction(0.8)
       .setCollisionGroups(interactionGroups(CollisionGroup.TERRAIN));
     return this.world.createCollider(desc);
+  }
+
+  /**
+   * Strahl von `origin` in Richtung `dir` (normalisiert). Trifft auch Sensoren
+   * (z. B. Beerenbüsche, aufsammelbare Stöcke).
+   */
+  raycast(
+    origin: { x: number; y: number; z: number },
+    dir: { x: number; y: number; z: number },
+    maxDist: number,
+    exclude?: RAPIER.Collider,
+  ): RaycastHit | null {
+    const ray = new RAPIER.Ray(origin, dir);
+    const hit = this.world.castRayAndGetNormal(ray, maxDist, true, undefined, undefined, exclude);
+    if (!hit) return null;
+    const t = hit.timeOfImpact;
+    return {
+      collider: hit.collider,
+      distance: t,
+      point: { x: origin.x + dir.x * t, y: origin.y + dir.y * t, z: origin.z + dir.z * t },
+      normal: { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z },
+    };
   }
 
   /** Senkrechter Strahl nach unten – praktisch zum Platzieren von Objekten. */

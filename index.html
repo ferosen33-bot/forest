@@ -15,7 +15,13 @@
       <div class="underwater" data-ref="underwater"></div>
 
       <div class="crosshair" data-ref="crosshair"></div>
-      <div class="prompt" data-ref="prompt"></div>
+      <div class="hitmarker" data-ref="hitmarker"></div>
+      <div class="prompt" data-ref="prompt">
+        <kbd class="prompt__key" data-ref="promptKey"></kbd>
+        <span class="prompt__action" data-ref="promptAction"></span>
+        <span class="prompt__label" data-ref="promptLabel"></span>
+      </div>
+      <div class="toasts" data-ref="toasts"></div>
 
       <div class="clock" data-ref="clock"></div>
 
@@ -27,7 +33,34 @@
         <div class="stat stat--oxygen" data-ref="oxygenRow"><span class="stat__icon">○</span><div class="stat__bar"><div class="stat__fill" data-ref="oxygen"></div></div></div>
       </div>
 
+      <div class="hotbar-name" data-ref="hotbarName"></div>
+      <div class="hotbar" data-ref="hotbar"></div>
+
       <pre class="debug hidden" data-ref="debug"></pre>
+    </div>
+
+    <!-- Inventar: Rucksack-Raster + Schnellzugriffsleiste, Drag & Drop -->
+    <div id="inventory" class="hidden">
+      <div class="inventory__panel" data-ref="panel">
+        <div class="inventory__main">
+          <h2 class="inventory__title">Rucksack</h2>
+          <div class="inventory__grid" data-ref="grid"></div>
+          <h3 class="inventory__subtitle">Schnellzugriff</h3>
+          <div class="inventory__grid inventory__grid--hotbar" data-ref="hotbarGrid"></div>
+        </div>
+        <aside class="inventory__details">
+          <div class="inventory__icon-wrap"><img class="inventory__icon" data-ref="detailIcon" alt="" /></div>
+          <h3 class="inventory__name" data-ref="detailName">–</h3>
+          <p class="inventory__desc" data-ref="detailDesc">Fahre über einen Gegenstand.</p>
+          <ul class="inventory__hints">
+            <li><kbd>Ziehen</kbd> Verschieben / Stapeln</li>
+            <li><kbd>Shift</kbd>+<kbd>Klick</kbd> Schnellzugriff ↔ Rucksack</li>
+            <li><kbd>Rechtsklick</kbd> Benutzen / Ausrüsten</li>
+            <li>Aus dem Fenster ziehen: Fallenlassen</li>
+            <li><kbd>Tab</kbd> / <kbd>I</kbd> Schließen</li>
+          </ul>
+        </aside>
+      </div>
     </div>
 
     <!-- Menü-Overlay: Laden, Start, Pause, Tod -->
@@ -45,7 +78,10 @@
           <div><kbd>Shift</kbd> Rennen</div>
           <div><kbd>Leertaste</kbd> Springen / Auftauchen</div>
           <div><kbd>Strg</kbd>/<kbd>C</kbd> Ducken / Tauchen</div>
-          <div><kbd>E</kbd> Interagieren</div>
+          <div><kbd>E</kbd> Aufheben / Interagieren</div>
+          <div><kbd>Linksklick</kbd> Schlagen / Essen</div>
+          <div><kbd>1</kbd>–<kbd>6</kbd>/<kbd>Mausrad</kbd> Ausrüsten</div>
+          <div><kbd>Tab</kbd>/<kbd>I</kbd> Inventar</div>
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>
         </div>

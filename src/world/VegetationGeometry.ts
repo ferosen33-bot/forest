@@ -18,7 +18,20 @@ const COLORS = {
   leafLight: new THREE.Color(0x58782f),
   bush: new THREE.Color(0x34522a),
   rock: new THREE.Color(0x7a776f),
+  berry: new THREE.Color(0x9a1b35),
+  berryDark: new THREE.Color(0x4a1550),
+  stick: new THREE.Color(0x6a4e33),
 };
+
+/**
+ * Lage der Blätterbälle eines Busches – wird auch für die Beeren genutzt,
+ * damit diese genau auf der Busch-Oberfläche sitzen.
+ */
+export const BUSH_BLOBS = [
+  { x: 0, y: 0.45, z: 0, r: 0.75 },
+  { x: 0.55, y: 0.35, z: 0.25, r: 0.55 },
+  { x: -0.45, y: 0.32, z: -0.3, r: 0.5 },
+];
 
 /** Färbt eine Geometrie einheitlich ein und entfernt UVs (nicht benötigt, spart Speicher). */
 function paint(geometry: THREE.BufferGeometry, color: THREE.Color): THREE.BufferGeometry {
@@ -36,7 +49,7 @@ function paint(geometry: THREE.BufferGeometry, color: THREE.Color): THREE.Buffer
 }
 
 /** Verschiebt Vertices zufällig, um die perfekte Grundform aufzubrechen. */
-function jitter(geometry: THREE.BufferGeometry, amount: number, seed: number): THREE.BufferGeometry {
+export function jitter(geometry: THREE.BufferGeometry, amount: number, seed: number): THREE.BufferGeometry {
   const noise = createNoise3D(mulberry32(seed));
   const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
@@ -109,12 +122,7 @@ export function createBroadleafGeometry(): THREE.BufferGeometry {
 /** Busch: kleiner Cluster aus Blätterbällen. */
 export function createBushGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
-  const blobs = [
-    { x: 0, y: 0.45, z: 0, r: 0.75 },
-    { x: 0.55, y: 0.35, z: 0.25, r: 0.55 },
-    { x: -0.45, y: 0.32, z: -0.3, r: 0.5 },
-  ];
-  blobs.forEach((b, i) => {
+  BUSH_BLOBS.forEach((b, i) => {
     const ico = new THREE.IcosahedronGeometry(b.r, 0);
     jitter(ico, b.r * 0.2, 41 + i);
     ico.translate(b.x, b.y, b.z);
@@ -127,5 +135,46 @@ export function createBushGeometry(): THREE.BufferGeometry {
 export function createRockGeometry(): THREE.BufferGeometry {
   const ico = new THREE.IcosahedronGeometry(1, 1);
   jitter(ico, 0.28, 61);
+  return merge([paint(ico, COLORS.rock)]);
+}
+
+/** Beeren-Traube, die auf einem Busch sitzt (gleiche Skalierung wie der Busch). */
+export function createBerryGeometry(): THREE.BufferGeometry {
+  const rng = mulberry32(77);
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 16; i++) {
+    const blob = BUSH_BLOBS[i % BUSH_BLOBS.length];
+    // Zufällige Richtung auf der oberen Halbkugel des Blätterballs.
+    const theta = rng() * Math.PI * 2;
+    const y = 0.15 + rng() * 0.8;
+    const r = Math.sqrt(1 - y * y);
+    const berry = new THREE.IcosahedronGeometry(0.055, 0);
+    berry.translate(
+      blob.x + Math.cos(theta) * r * blob.r * 0.98,
+      blob.y + y * blob.r * 0.98,
+      blob.z + Math.sin(theta) * r * blob.r * 0.98,
+    );
+    parts.push(paint(berry, i % 3 === 0 ? COLORS.berryDark : COLORS.berry));
+  }
+  return merge(parts);
+}
+
+/** Herumliegender Ast (flach am Boden, Länge ≈ 0,9 m entlang X). */
+export function createStickGeometry(): THREE.BufferGeometry {
+  const main = new THREE.CylinderGeometry(0.022, 0.034, 0.9, 5);
+  main.rotateZ(Math.PI / 2);
+  main.translate(0, 0.03, 0);
+  const twig = new THREE.CylinderGeometry(0.008, 0.014, 0.2, 4);
+  twig.rotateZ(Math.PI / 2 - 0.7);
+  twig.translate(0.12, 0.05, 0.05);
+  return merge([paint(main, COLORS.stick), paint(twig, COLORS.stick)]);
+}
+
+/** Kleiner, aufsammelbarer Stein. */
+export function createPebbleGeometry(): THREE.BufferGeometry {
+  const ico = new THREE.IcosahedronGeometry(0.13, 0);
+  jitter(ico, 0.03, 91);
+  ico.scale(1.15, 0.7, 1);
+  ico.translate(0, 0.05, 0);
   return merge([paint(ico, COLORS.rock)]);
 }

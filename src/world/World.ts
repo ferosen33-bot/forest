@@ -86,9 +86,9 @@ export class World {
     return best;
   }
 
-  update(elapsed: number, focus: THREE.Vector3): void {
+  update(dt: number, elapsed: number, focus: THREE.Vector3): void {
     this.water.update(elapsed);
     this.water.follow(focus.x, focus.z);
-    this.vegetation.update(elapsed, focus);
+    this.vegetation.update(dt, elapsed, focus);
   }
 }

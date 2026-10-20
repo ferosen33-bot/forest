@@ -2,11 +2,26 @@
  * Minimaler, typisierter Event-Bus zur Entkopplung von Systemen
  * (z. B. Spieler meldet Schaden -> HUD zeigt Treffer-Feedback, Audio spielt Sound).
  */
+import type { Vector3 } from 'three';
+import type { ItemId } from '../entities/items/ItemDefs';
+
 export type GameEvents = {
   'player:damaged': { amount: number; source: DamageSource };
   'player:died': { cause: DamageSource };
   'player:respawned': Record<string, never>;
   'player:drank': { amount: number };
+  'player:ate': { item: ItemId };
+  /** Items wurden ins Inventar aufgenommen. */
+  'item:collected': { item: ItemId; count: number };
+  /** Inventar voll – Rest wurde in die Welt fallengelassen. */
+  'item:inventoryFull': { item: ItemId; dropped: number };
+  /** Ein Werkzeugschlag hat etwas getroffen (für Fadenkreuz-Feedback). */
+  'tool:hit': { target: 'tree' | 'rock' | 'creature' | 'other' };
+  'tree:felled': { kind: 'pine' | 'broadleaf' };
+  /** Ein gefällter Baum schlägt auf dem Boden auf (für Kamerawackeln/Effekte). */
+  'tree:landed': { position: Vector3 };
+  /** Kurze Statusmeldung im HUD. */
+  'hud:message': { text: string };
 };
 
 export type DamageSource = 'fall' | 'starvation' | 'dehydration' | 'drowning' | 'enemy' | 'world';

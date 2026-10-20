@@ -22,6 +22,7 @@ Game.create({
   container: byId('game'),
   hudRoot: byId('hud'),
   menuRoot: byId('menu'),
+  inventoryRoot: byId('inventory'),
   config,
   autostart: params.has('autostart'),
 })

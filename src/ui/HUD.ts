@@ -1,12 +1,20 @@
 import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
+import type { Prompt } from '../systems/InteractionSystem';
+import type { Inventory } from '../systems/Inventory';
+import { getItem, type ItemId } from '../entities/items/ItemDefs';
 import { collectRefs } from './dom';
+import { renderSlot, type IconSet } from './slots';
 
 const REFS = [
   'damage',
   'underwater',
   'crosshair',
+  'hitmarker',
   'prompt',
+  'promptKey',
+  'promptAction',
+  'promptLabel',
   'clock',
   'health',
   'stamina',
@@ -14,39 +22,86 @@ const REFS = [
   'thirst',
   'oxygen',
   'oxygenRow',
+  'toasts',
+  'hotbar',
+  'hotbarName',
   'debug',
 ] as const;
 
 const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen'] as const;
 type BarName = (typeof BARS)[number];
+type RefName = (typeof REFS)[number];
+
+const KEY_LABEL: Record<NonNullable<Prompt['key']>, string> = { E: 'E', LMB: 'Linksklick' };
+const TOAST_TIME = 2.8;
+
+interface Toast {
+  el: HTMLElement;
+  text: HTMLElement;
+  age: number;
+  item?: ItemId;
+  count: number;
+}
 
 /**
  * Heads-Up-Display als DOM-Overlay. Werte werden nur geschrieben, wenn sie sich
  * sichtbar geändert haben – so entstehen pro Frame kaum Style-Recalculations.
  */
 export class HUD {
-  private readonly el: Record<(typeof REFS)[number], HTMLElement>;
+  private readonly el: Record<RefName, HTMLElement>;
   private readonly rows = new Map<BarName, HTMLElement>();
   private readonly cache = new Map<string, string | number | boolean>();
+  private readonly hotbarSlots: HTMLElement[] = [];
+  private readonly toasts: Toast[] = [];
   private damageFlash = 0;
+  private hitTimer = 0;
+  private nameTimer = 0;
+  private lastSelected = -1;
+  private lastSelectedItem: ItemId | null = null;
   debugVisible = false;
 
   constructor(
     private readonly root: HTMLElement,
     events: EventBus,
+    private readonly inventory: Inventory,
+    private readonly icons: IconSet,
   ) {
     this.el = collectRefs(root, REFS);
     for (const name of BARS) this.rows.set(name, this.el[name].closest('.stat') as HTMLElement);
+
+    for (let i = 0; i < inventory.hotbarSize; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const num = document.createElement('span');
+      num.className = 'slot__key';
+      num.textContent = String(i + 1);
+      slot.appendChild(num);
+      this.el.hotbar.appendChild(slot);
+      this.hotbarSlots.push(slot);
+    }
+
     events.on('player:damaged', ({ amount }) => {
       this.damageFlash = Math.min(1, this.damageFlash + 0.25 + amount / 40);
     });
     events.on('player:respawned', () => {
       this.damageFlash = 0;
     });
+    events.on('tool:hit', () => {
+      this.hitTimer = 0.16;
+    });
+    events.on('item:collected', ({ item, count }) => this.itemToast(item, count));
+    events.on('item:inventoryFull', ({ item }) => this.toast(`Inventar voll – ${getItem(item).name} liegt am Boden`, item));
+    events.on('player:ate', ({ item }) => this.toast(`${getItem(item).name} gegessen`, item));
+    events.on('hud:message', ({ text }) => this.toast(text));
   }
 
   set visible(v: boolean) {
     this.root.classList.toggle('hidden', !v);
+  }
+
+  /** Bei offenem Inventar: Fadenkreuz, Hinweis und Schnellzugriffsleiste ausblenden. */
+  set inventoryOpen(open: boolean) {
+    this.root.classList.toggle('is-inventory-open', open);
   }
 
   toggleDebug(): void {
@@ -54,7 +109,7 @@ export class HUD {
     this.el.debug.classList.toggle('hidden', !this.debugVisible);
   }
 
-  update(dt: number, player: Player, clockText: string): void {
+  update(dt: number, player: Player, clockText: string, prompt: Prompt | null, selected: number): void {
     const s = player.stats;
     this.bar('health', s.health / s.max, 0.25);
     this.bar('stamina', s.stamina / s.max, s.exhausted ? 1.01 : 0);
@@ -63,22 +118,104 @@ export class HUD {
     this.bar('oxygen', player.oxygen / 100, 0.3);
     this.toggle('oxygenRow', 'hidden', player.oxygen >= 99.9);
 
-    const prompt = player.interactionPrompt;
-    this.toggle('prompt', 'is-visible', prompt !== null);
-    this.toggle('crosshair', 'is-active', prompt !== null);
-    if (prompt !== null) this.text('prompt', prompt);
+    this.updatePrompt(prompt);
     this.text('clock', clockText);
-
     this.toggle('underwater', 'is-visible', player.headUnderwater);
+
+    this.hitTimer -= dt;
+    this.toggle('hitmarker', 'is-visible', this.hitTimer > 0);
 
     // Treffer-Feedback klingt exponentiell ab; bei niedriger Gesundheit bleibt ein Rest.
     this.damageFlash *= Math.exp(-dt * 2.5);
     const lowHealth = Math.max(0, 0.35 - s.health / s.max) * 1.6;
     this.style('damage', 'opacity', Math.max(this.damageFlash, lowHealth).toFixed(2));
+
+    this.updateHotbar(dt, selected);
+    this.updateToasts(dt);
   }
 
   updateDebug(lines: string[]): void {
     if (this.debugVisible) this.el.debug.textContent = lines.join('\n');
+  }
+
+  // ---------------------------------------------------------------------------
+
+  private updatePrompt(prompt: Prompt | null): void {
+    this.toggle('prompt', 'is-visible', prompt !== null);
+    this.toggle('crosshair', 'is-active', prompt?.key != null);
+    if (!prompt) return;
+    this.toggle('promptKey', 'hidden', prompt.key === null);
+    this.toggle('prompt', 'is-disabled', prompt.key === null);
+    if (prompt.key) this.text('promptKey', KEY_LABEL[prompt.key]);
+    this.text('promptAction', prompt.action);
+    this.text('promptLabel', prompt.label ?? '');
+  }
+
+  private updateHotbar(dt: number, selected: number): void {
+    this.hotbarSlots.forEach((el, i) => {
+      renderSlot(el, this.inventory.get(i), this.icons);
+      this.toggleOn(el, `hotbar${i}:sel`, 'is-selected', i === selected);
+    });
+
+    // Beim Wechsel kurz den Namen des Items einblenden.
+    const item = this.inventory.get(selected)?.id ?? null;
+    if (selected !== this.lastSelected || item !== this.lastSelectedItem) {
+      this.lastSelected = selected;
+      this.lastSelectedItem = item;
+      if (item) {
+        this.text('hotbarName', getItem(item).name);
+        this.nameTimer = 1.6;
+      } else {
+        this.nameTimer = 0;
+      }
+    }
+    this.nameTimer -= dt;
+    this.toggle('hotbarName', 'is-visible', this.nameTimer > 0);
+  }
+
+  private itemToast(item: ItemId, count: number): void {
+    // Gleiche Items hintereinander zusammenfassen ("+3 Stock" statt drei Meldungen).
+    const recent = this.toasts.find((t) => t.item === item && t.age < TOAST_TIME * 0.7 && t.count > 0);
+    if (recent) {
+      recent.count += count;
+      recent.age = 0;
+      recent.text.textContent = `+${recent.count} ${getItem(item).name}`;
+      return;
+    }
+    const t = this.toast(`+${count} ${getItem(item).name}`, item);
+    t.count = count;
+  }
+
+  private toast(text: string, item?: ItemId): Toast {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    if (item) {
+      const img = document.createElement('img');
+      img.src = this.icons[item];
+      img.alt = '';
+      el.appendChild(img);
+    }
+    const span = document.createElement('span');
+    span.textContent = text;
+    el.appendChild(span);
+    this.el.toasts.appendChild(el);
+
+    const toast: Toast = { el, text: span, age: 0, item, count: 0 };
+    this.toasts.push(toast);
+    while (this.toasts.length > 5) this.toasts.shift()!.el.remove();
+    return toast;
+  }
+
+  private updateToasts(dt: number): void {
+    for (let i = this.toasts.length - 1; i >= 0; i--) {
+      const t = this.toasts[i];
+      t.age += dt;
+      t.el.classList.toggle('is-leaving', t.age > TOAST_TIME - 0.4);
+      if (t.age > TOAST_TIME) {
+        t.el.remove();
+        this.toasts.splice(i, 1);
+      }
+    }
   }
 
   // --- Helfer mit Änderungs-Cache ---
@@ -93,20 +230,20 @@ export class HUD {
     this.toggleOn(this.rows.get(name)!, `${name}:low`, 'is-low', ratio < lowThreshold);
   }
 
-  private text(name: (typeof REFS)[number], value: string): void {
+  private text(name: RefName, value: string): void {
     if (this.cache.get(`${name}:text`) === value) return;
     this.cache.set(`${name}:text`, value);
     this.el[name].textContent = value;
   }
 
-  private style(name: (typeof REFS)[number], prop: 'opacity', value: string): void {
+  private style(name: RefName, prop: 'opacity', value: string): void {
     const key = `${name}:${prop}`;
     if (this.cache.get(key) === value) return;
     this.cache.set(key, value);
     this.el[name].style[prop] = value;
   }
 
-  private toggle(name: (typeof REFS)[number], cls: string, on: boolean): void {
+  private toggle(name: RefName, cls: string, on: boolean): void {
     this.toggleOn(this.el[name], `${name}:${cls}`, cls, on);
   }
 

@@ -5,26 +5,40 @@ import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core
 import { deriveSeed, mulberry32, randRange, type RandomFn } from '../utils/random';
 import { smoothstep } from '../utils/math';
 import {
+  createBerryGeometry,
   createBroadleafGeometry,
   createBushGeometry,
+  createPebbleGeometry,
   createPineGeometry,
   createRockGeometry,
+  createStickGeometry,
 } from './VegetationGeometry';
 
-export type VegetationKind = 'pine' | 'broadleaf' | 'bush' | 'rock';
+/**
+ * - `pine`, `broadleaf`: fällbare Bäume
+ * - `rock`: Felsen, an denen Steine abgeschlagen werden
+ * - `bush`: Büsche, manche tragen Beeren (`berries`, eigene Instanz auf dem Busch)
+ * - `stick`, `pebble`: am Boden liegende, aufsammelbare Rohstoffe
+ */
+export type VegetationKind = 'pine' | 'broadleaf' | 'bush' | 'rock' | 'berries' | 'stick' | 'pebble';
 
-/** Ein einzelnes platziertes Objekt. Wird später für Fällen/Abbauen/Ernten referenziert. */
+export const isTree = (kind: VegetationKind): kind is 'pine' | 'broadleaf' => kind === 'pine' || kind === 'broadleaf';
+
+/** Ein einzelnes platziertes Objekt; Grundlage für Fällen, Abbauen und Ernten. */
 export interface VegetationInstance {
   readonly id: number;
   readonly kind: VegetationKind;
   readonly position: THREE.Vector3;
   readonly scale: THREE.Vector3;
   readonly rotationY: number;
+  readonly tilt: THREE.Euler;
   /** Instanced-Mesh-Slot, in dem dieses Objekt gerendert wird. */
   readonly mesh: THREE.InstancedMesh;
   readonly slot: number;
   collider: RAPIER.Collider | null;
   alive: boolean;
+  /** Nur Büsche: zugehörige Beeren-Instanz (null = Busch ohne Beeren). */
+  berries: VegetationInstance | null;
 }
 
 export interface VegetationOptions {
@@ -43,29 +57,59 @@ interface Placement {
   scale: THREE.Vector3;
   rotationY: number;
   tilt: THREE.Euler;
+  /** Für Beeren: der Busch, auf dem sie wachsen. */
+  parent?: Placement;
 }
 
-const KINDS: VegetationKind[] = ['pine', 'broadleaf', 'bush', 'rock'];
+const KINDS: VegetationKind[] = ['pine', 'broadleaf', 'bush', 'rock', 'berries', 'stick', 'pebble'];
+
+/** Diese Arten werfen Schatten (kleine Objekte nicht – spart Shadow-Pass-Kosten). */
+const CASTS_SHADOW = new Set<VegetationKind>(['pine', 'broadleaf', 'rock']);
+
+/** Kleine Details: werden schon in geringer Entfernung ausgeblendet (wären dort nur Pixel). */
+const DETAIL_KINDS = new Set<VegetationKind>(['berries', 'stick', 'pebble']);
+const DETAIL_DISTANCE = 90;
+
+/** Nachwachszeit für Beeren in Spielsekunden. */
+const BERRY_REGROW_TIME = 360;
 
 /** Eine Render-Zelle: alle Instanced Meshes eines Quadrats der Welt. */
 interface VegetationCell {
   group: THREE.Group;
+  /** Meshes kleiner Details (Beeren, Äste, Steinchen) mit kürzerer Sichtweite. */
+  details: THREE.InstancedMesh[];
   centerX: number;
   centerZ: number;
 }
 
+interface Shake {
+  instance: VegetationInstance;
+  time: number;
+  axis: THREE.Vector3;
+  strength: number;
+}
+
 /**
- * Prozedurale Vegetation: Bäume, Büsche und Felsen.
+ * Prozedurale Vegetation: Bäume, Büsche, Felsen und Bodenfunde.
  *
  * - Platzierung per Jittered-Grid + Dichte-Rauschen (Waldgebiete, Lichtungen).
  * - Rendering per InstancedMesh, gruppiert nach Zellen, damit Frustum-Culling für
  *   Kamera und Schattenkamera greift; zusätzlich Distanz-Culling (Zellen im Nebel).
- * - Bäume und Felsen erhalten statische Rapier-Collider.
+ * - Bäume und Felsen erhalten statische Collider; Beerenbüsche und Bodenfunde
+ *   Sensor-Collider, damit sie per Raycast anvisiert, aber durchlaufen werden können.
  */
 export class Vegetation {
   readonly group = new THREE.Group();
   readonly instances: VegetationInstance[] = [];
-  readonly counts: Record<VegetationKind, number> = { pine: 0, broadleaf: 0, bush: 0, rock: 0 };
+  readonly counts: Record<VegetationKind, number> = {
+    pine: 0,
+    broadleaf: 0,
+    bush: 0,
+    rock: 0,
+    berries: 0,
+    stick: 0,
+    pebble: 0,
+  };
 
   private readonly byCollider = new Map<number, VegetationInstance>();
   private readonly cells: VegetationCell[] = [];
@@ -73,8 +117,14 @@ export class Vegetation {
   private readonly geometries: Record<VegetationKind, THREE.BufferGeometry>;
   private readonly materials: { foliage: THREE.MeshStandardMaterial; rock: THREE.MeshStandardMaterial };
   private readonly rockHull: Float32Array;
+  private readonly shakes: Shake[] = [];
+  private readonly regrowQueue: { bush: VegetationInstance; at: number }[] = [];
+  private elapsed = 0;
+
   private readonly tmpMatrix = new THREE.Matrix4();
   private readonly tmpQuat = new THREE.Quaternion();
+  private readonly tmpQuat2 = new THREE.Quaternion();
+  private readonly tmpEuler = new THREE.Euler();
 
   constructor(
     private readonly heightMap: HeightMap,
@@ -88,6 +138,9 @@ export class Vegetation {
       broadleaf: createBroadleafGeometry(),
       bush: createBushGeometry(),
       rock: createRockGeometry(),
+      berries: createBerryGeometry(),
+      stick: createStickGeometry(),
+      pebble: createPebbleGeometry(),
     };
     this.rockHull = this.geometries.rock.getAttribute('position').array as Float32Array;
 
@@ -130,16 +183,21 @@ export class Vegetation {
     };
 
     /** Läuft ein Jittered-Grid über die ganze Insel und ruft `accept` für jeden Kandidaten. */
-    const grid = (spacing: number, accept: (x: number, z: number, h: number, slope: number) => Placement | null) => {
+    const grid = (
+      spacing: number,
+      accept: (x: number, z: number, h: number, slope: number) => Placement | Placement[] | null,
+      allowInClearing = false,
+    ) => {
       for (let gz = -hm.half; gz < hm.half; gz += spacing) {
         for (let gx = -hm.half; gx < hm.half; gx += spacing) {
           const x = gx + rng() * spacing;
           const z = gz + rng() * spacing;
           const h = hm.heightAt(x, z);
-          if (h < water - 2 || inClearing(x, z)) continue;
+          if (h < water - 2 || (!allowInClearing && inClearing(x, z))) continue;
           hm.normalAt(x, z, normal);
           const p = accept(x, z, h, 1 - normal[1]);
-          if (p) perCell[cellIndex(x, z)].push(p);
+          if (!p) continue;
+          for (const placement of Array.isArray(p) ? p : [p]) perCell[cellIndex(x, z)].push(placement);
         }
       }
     };
@@ -156,14 +214,17 @@ export class Vegetation {
       return this.placement(kind, x, h - 0.25, z, s, s * randRange(rng, 0.9, 1.15), s, rng, 0.05);
     });
 
-    // Büsche (bevorzugt am Waldrand)
+    // Büsche (bevorzugt am Waldrand); etwa jeder dritte trägt Beeren.
     grid(5, (x, z, h, slope) => {
       if (h < water + 1.0 || slope > 0.3) return null;
       const d = forestDensity(x, z);
       const edge = 1 - Math.abs(d - 0.45) * 2;
       if (rng() > 0.12 + edge * 0.35) return null;
       const s = randRange(rng, 0.6, 1.35);
-      return this.placement('bush', x, h - 0.1, z, s, s * randRange(rng, 0.8, 1.1), s, rng, 0.1);
+      const bush = this.placement('bush', x, h - 0.1, z, s, s * randRange(rng, 0.8, 1.1), s, rng, 0.1);
+      if (rng() > 0.33) return bush;
+      const berries: Placement = { ...bush, kind: 'berries', parent: bush };
+      return [bush, berries];
     });
 
     // Felsen (häufiger an Hängen und im Gebirge, gelegentlich am Strand)
@@ -183,6 +244,31 @@ export class Vegetation {
         0.25,
       );
     });
+
+    // Herumliegende Äste im Wald – auch in der Spawn-Lichtung, damit man sofort etwas findet.
+    grid(
+      8,
+      (x, z, h, slope) => {
+        if (h < water + 1.2 || slope > 0.3) return null;
+        if (rng() > 0.08 + forestDensity(x, z) * 0.4) return null;
+        const s = randRange(rng, 0.85, 1.15);
+        return this.placement('stick', x, h, z, s, s, s, rng, 0.08);
+      },
+      true,
+    );
+
+    // Kleine Steine: an Stränden, Hängen und im Gebirge.
+    grid(
+      10,
+      (x, z, h, slope) => {
+        if (h < water + 0.3) return null;
+        const beach = 1 - smoothstep(1.5, 3.5, h);
+        if (rng() > 0.05 + beach * 0.3 + smoothstep(0.15, 0.4, slope) * 0.3) return null;
+        const s = randRange(rng, 0.8, 1.3);
+        return this.placement('pebble', x, h - 0.02, z, s, s, s, rng, 0.3);
+      },
+      true,
+    );
 
     return perCell;
   }
@@ -218,7 +304,6 @@ export class Vegetation {
   private build(perCell: Placement[][]): void {
     const colorRng = mulberry32(deriveSeed(this.opts.seed, 'vegetation-color'));
     const tint = new THREE.Color();
-    const euler = new THREE.Euler();
     const cellsPerSide = this.cellsPerSide;
     const size = this.opts.cellSize;
 
@@ -226,6 +311,7 @@ export class Vegetation {
       if (placements.length === 0) return;
       const cell: VegetationCell = {
         group: new THREE.Group(),
+        details: [],
         centerX: ((index % cellsPerSide) + 0.5) * size - this.heightMap.half,
         centerZ: (Math.floor(index / cellsPerSide) + 0.5) * size - this.heightMap.half,
       };
@@ -233,43 +319,51 @@ export class Vegetation {
       this.cells.push(cell);
       this.group.add(cell.group);
 
+      const built = new Map<Placement, VegetationInstance>();
+
       for (const kind of KINDS) {
         const list = placements.filter((p) => p.kind === kind);
         if (list.length === 0) continue;
 
         const mesh = new THREE.InstancedMesh(
           this.geometries[kind],
-          kind === 'rock' ? this.materials.rock : this.materials.foliage,
+          kind === 'rock' || kind === 'pebble' ? this.materials.rock : this.materials.foliage,
           list.length,
         );
         mesh.name = `Vegetation_${kind}_${index}`;
-        mesh.castShadow = kind !== 'bush';
+        mesh.castShadow = CASTS_SHADOW.has(kind);
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
 
         list.forEach((p, slot) => {
-          euler.set(p.tilt.x, p.rotationY, p.tilt.z, 'YXZ');
-          this.tmpQuat.setFromEuler(euler);
-          this.tmpMatrix.compose(p.position, this.tmpQuat, p.scale);
-          mesh.setMatrixAt(slot, this.tmpMatrix);
-
-          // Leichte Farbvariation pro Instanz (multipliziert mit den Vertex-Farben).
-          const v = 0.82 + colorRng() * 0.3;
-          tint.setRGB(v * (0.95 + colorRng() * 0.1), v, v * (0.9 + colorRng() * 0.1));
-          mesh.setColorAt(slot, tint);
-
           const instance: VegetationInstance = {
             id: this.instances.length,
             kind,
             position: p.position,
             scale: p.scale,
             rotationY: p.rotationY,
+            tilt: p.tilt,
             mesh,
             slot,
-            collider: this.createCollider(p),
+            collider: null,
             alive: true,
+            berries: null,
           };
+          mesh.setMatrixAt(slot, this.composeMatrix(instance, this.tmpMatrix));
+
+          // Leichte Farbvariation pro Instanz (multipliziert mit den Vertex-Farben).
+          // Beeren behalten die Farbe ihres Busches nicht – sie sollen leuchten.
+          const v = kind === 'berries' ? 1 : 0.82 + colorRng() * 0.3;
+          tint.setRGB(v * (0.95 + colorRng() * 0.1), v, v * (0.9 + colorRng() * 0.1));
+          mesh.setColorAt(slot, tint);
+
+          if (p.parent) {
+            const bush = built.get(p.parent);
+            if (bush) bush.berries = instance;
+          }
+          instance.collider = this.createCollider(instance, p.kind === 'bush' && placements.some((o) => o.parent === p));
           if (instance.collider) this.byCollider.set(instance.collider.handle, instance);
+          built.set(p, instance);
           this.instances.push(instance);
           this.counts[kind]++;
         });
@@ -278,40 +372,71 @@ export class Vegetation {
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         mesh.computeBoundingSphere();
         cell.group.add(mesh);
+        if (DETAIL_KINDS.has(kind)) cell.details.push(mesh);
       }
     });
   }
 
-  private createCollider(p: Placement): RAPIER.Collider | null {
-    const groups = interactionGroups(CollisionGroup.STATIC);
+  /** Transformationsmatrix einer Instanz (optional mit zusätzlicher Rotation, z. B. beim Wackeln). */
+  private composeMatrix(inst: VegetationInstance, out: THREE.Matrix4, extra?: THREE.Quaternion): THREE.Matrix4 {
+    this.tmpEuler.set(inst.tilt.x, inst.rotationY, inst.tilt.z, 'YXZ');
+    this.tmpQuat.setFromEuler(this.tmpEuler);
+    if (extra) this.tmpQuat.premultiply(extra);
+    return out.compose(inst.position, this.tmpQuat, inst.scale);
+  }
+
+  private createCollider(inst: VegetationInstance, hasBerries: boolean): RAPIER.Collider | null {
+    const solid = interactionGroups(CollisionGroup.STATIC);
+    const p = inst.position;
+    const s = inst.scale;
     let desc: RAPIER.ColliderDesc | null = null;
 
-    if (p.kind === 'pine' || p.kind === 'broadleaf') {
-      // Stamm als Zylinder; die Krone ist (wie im Genre üblich) nicht kollidierend.
-      const radius = (p.kind === 'pine' ? 0.28 : 0.34) * p.scale.x;
-      const halfHeight = 2.4 * p.scale.y;
-      desc = RAPIER.ColliderDesc.cylinder(halfHeight, radius).setTranslation(
-        p.position.x,
-        p.position.y + halfHeight,
-        p.position.z,
-      );
-    } else if (p.kind === 'rock') {
-      // Konvexe Hülle der tatsächlich gerenderten (skalierten, rotierten) Form.
-      const pts = new Float32Array(this.rockHull.length);
-      const v = new THREE.Vector3();
-      const q = this.tmpQuat.setFromEuler(new THREE.Euler(p.tilt.x, p.rotationY, p.tilt.z, 'YXZ'));
-      for (let i = 0; i < pts.length; i += 3) {
-        v.set(this.rockHull[i], this.rockHull[i + 1], this.rockHull[i + 2]).multiply(p.scale).applyQuaternion(q);
-        pts[i] = v.x;
-        pts[i + 1] = v.y;
-        pts[i + 2] = v.z;
+    switch (inst.kind) {
+      case 'pine':
+      case 'broadleaf': {
+        // Stamm als Zylinder; die Krone ist (wie im Genre üblich) nicht kollidierend.
+        const radius = (inst.kind === 'pine' ? 0.28 : 0.34) * s.x;
+        const halfHeight = 2.4 * s.y;
+        desc = RAPIER.ColliderDesc.cylinder(halfHeight, radius)
+          .setTranslation(p.x, p.y + halfHeight, p.z)
+          .setCollisionGroups(solid);
+        break;
       }
-      desc = RAPIER.ColliderDesc.convexHull(pts);
-      desc?.setTranslation(p.position.x, p.position.y, p.position.z);
+      case 'rock': {
+        // Konvexe Hülle der tatsächlich gerenderten (skalierten, rotierten) Form.
+        const pts = new Float32Array(this.rockHull.length);
+        const v = new THREE.Vector3();
+        this.tmpEuler.set(inst.tilt.x, inst.rotationY, inst.tilt.z, 'YXZ');
+        const q = this.tmpQuat.setFromEuler(this.tmpEuler);
+        for (let i = 0; i < pts.length; i += 3) {
+          v.set(this.rockHull[i], this.rockHull[i + 1], this.rockHull[i + 2]).multiply(s).applyQuaternion(q);
+          pts[i] = v.x;
+          pts[i + 1] = v.y;
+          pts[i + 2] = v.z;
+        }
+        desc = RAPIER.ColliderDesc.convexHull(pts);
+        desc?.setTranslation(p.x, p.y, p.z).setCollisionGroups(solid);
+        break;
+      }
+      // Sensoren: per Raycast anvisierbar, aber ohne physische Kollision.
+      case 'bush':
+        if (hasBerries) desc = RAPIER.ColliderDesc.ball(0.75 * s.x).setTranslation(p.x, p.y + 0.5 * s.y, p.z);
+        break;
+      case 'stick':
+        desc = RAPIER.ColliderDesc.ball(0.35).setTranslation(p.x, p.y + 0.08, p.z);
+        break;
+      case 'pebble':
+        desc = RAPIER.ColliderDesc.ball(0.25).setTranslation(p.x, p.y + 0.08, p.z);
+        break;
+      case 'berries':
+        break;
     }
 
     if (!desc) return null;
-    desc.setCollisionGroups(groups).setFriction(0.7);
+    if (inst.kind === 'bush' || inst.kind === 'stick' || inst.kind === 'pebble') {
+      desc.setSensor(true).setCollisionGroups(interactionGroups(CollisionGroup.ITEM));
+    }
+    desc.setFriction(0.7);
     return this.physics.world.createCollider(desc);
   }
 
@@ -345,32 +470,113 @@ export class Vegetation {
     return this.byCollider.get(collider.handle);
   }
 
+  /** Geometrie und Material einer Art – z. B. für einen fallenden Baum als Einzel-Mesh. */
+  getRenderData(kind: VegetationKind): { geometry: THREE.BufferGeometry; material: THREE.Material } {
+    return {
+      geometry: this.geometries[kind],
+      material: kind === 'rock' || kind === 'pebble' ? this.materials.rock : this.materials.foliage,
+    };
+  }
+
+  /** Weltmatrix einer Instanz (z. B. um einen fallenden Baum exakt an ihrer Stelle zu erzeugen). */
+  getMatrix(instance: VegetationInstance, out = new THREE.Matrix4()): THREE.Matrix4 {
+    return this.composeMatrix(instance, out);
+  }
+
   /**
-   * Entfernt ein Objekt aus Welt und Physik (Basis für Bäume fällen / Steine abbauen).
+   * Entfernt ein Objekt aus Welt und Physik (Bäume fällen, Äste aufheben …).
    * Die Instanz wird auf Skalierung 0 gesetzt, statt das InstancedMesh neu aufzubauen.
    */
   remove(instance: VegetationInstance): void {
     if (!instance.alive) return;
     instance.alive = false;
-    instance.mesh.setMatrixAt(instance.slot, this.tmpMatrix.makeScale(0, 0, 0));
-    instance.mesh.instanceMatrix.needsUpdate = true;
+    this.hide(instance);
     if (instance.collider) {
       this.byCollider.delete(instance.collider.handle);
       this.physics.world.removeCollider(instance.collider, false);
       instance.collider = null;
     }
+    if (instance.berries) this.remove(instance.berries);
   }
 
-  update(elapsed: number, focus: THREE.Vector3): void {
+  /** Trägt dieser Busch gerade reife Beeren? */
+  hasRipeBerries(bush: VegetationInstance): boolean {
+    return bush.alive && bush.berries !== null && bush.berries.alive;
+  }
+
+  /** Pflückt die Beeren eines Busches; sie wachsen nach einiger Zeit nach. */
+  harvestBerries(bush: VegetationInstance): boolean {
+    if (!this.hasRipeBerries(bush) || !bush.berries) return false;
+    bush.berries.alive = false;
+    this.hide(bush.berries);
+    this.regrowQueue.push({ bush, at: this.elapsed + BERRY_REGROW_TIME });
+    return true;
+  }
+
+  /** Lässt ein Objekt kurz wackeln (Treffer-Feedback). `from` = Richtung, aus der der Schlag kam. */
+  shake(instance: VegetationInstance, from: THREE.Vector3, strength = 1): void {
+    // Kippachse senkrecht zur Schlagrichtung, damit der Baum vom Spieler weg nickt.
+    const axis = new THREE.Vector3(from.z, 0, -from.x).normalize();
+    const existing = this.shakes.find((s) => s.instance === instance);
+    if (existing) {
+      existing.time = 0;
+      existing.axis.copy(axis);
+      existing.strength = strength;
+    } else {
+      this.shakes.push({ instance, time: 0, axis, strength });
+    }
+  }
+
+  private hide(instance: VegetationInstance): void {
+    instance.mesh.setMatrixAt(instance.slot, this.tmpMatrix.makeScale(0, 0, 0));
+    instance.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private restore(instance: VegetationInstance, extra?: THREE.Quaternion): void {
+    instance.mesh.setMatrixAt(instance.slot, this.composeMatrix(instance, this.tmpMatrix, extra));
+    instance.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  update(dt: number, elapsed: number, focus: THREE.Vector3): void {
+    this.elapsed = elapsed;
     this.windUniforms.uTime.value = elapsed;
 
     // Distanz-Culling: Zellmittelpunkt + halbe Zelldiagonale gegen die Sichtweite.
-    const maxDist = this.opts.cullDistance + this.opts.cellSize * 0.71;
-    const maxDistSq = maxDist * maxDist;
+    const halfDiagonal = this.opts.cellSize * 0.71;
+    const maxDistSq = (this.opts.cullDistance + halfDiagonal) ** 2;
+    const detailDistSq = (DETAIL_DISTANCE + halfDiagonal) ** 2;
     for (const cell of this.cells) {
       const dx = cell.centerX - focus.x;
       const dz = cell.centerZ - focus.z;
-      cell.group.visible = dx * dx + dz * dz < maxDistSq;
+      const distSq = dx * dx + dz * dz;
+      cell.group.visible = distSq < maxDistSq;
+      const details = distSq < detailDistSq;
+      for (const mesh of cell.details) mesh.visible = details;
+    }
+
+    // Treffer-Wackeln: gedämpfte Schwingung um die Kippachse.
+    const SHAKE_TIME = 0.55;
+    for (let i = this.shakes.length - 1; i >= 0; i--) {
+      const s = this.shakes[i];
+      s.time += dt;
+      const done = s.time >= SHAKE_TIME || !s.instance.alive;
+      if (s.instance.alive) {
+        const angle = done ? 0 : Math.sin(s.time * 32) * 0.035 * s.strength * (1 - s.time / SHAKE_TIME) ** 2;
+        this.restore(s.instance, this.tmpQuat2.setFromAxisAngle(s.axis, angle));
+        if (s.instance.berries?.alive) this.restore(s.instance.berries, this.tmpQuat2);
+      }
+      if (done) this.shakes.splice(i, 1);
+    }
+
+    // Beeren wachsen nach.
+    for (let i = this.regrowQueue.length - 1; i >= 0; i--) {
+      const r = this.regrowQueue[i];
+      if (elapsed < r.at) continue;
+      this.regrowQueue.splice(i, 1);
+      if (r.bush.alive && r.bush.berries) {
+        r.bush.berries.alive = true;
+        this.restore(r.bush.berries);
+      }
     }
   }
 

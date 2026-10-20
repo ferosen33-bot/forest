@@ -53,11 +53,9 @@ export class Player {
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly wish = new THREE.Vector3();
-  private readonly viewDir = new THREE.Vector3();
 
   private coyoteTimer = 0;
   private jumpBufferTimer = 0;
-  private drinkCooldown = 0;
   private bobPhase = 0;
   private bobAmount = 0;
   private landDip = 0;
@@ -87,7 +85,12 @@ export class Player {
     this.body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 50, 0));
 
     const r = this.cfg.radius;
-    this.filterGroups = interactionGroups(CollisionGroup.PLAYER, 0xffff & ~CollisionGroup.PLAYER);
+    // Der Spieler kollidiert mit Terrain und statischen Objekten, läuft aber durch
+    // lose Items hindurch (verhindert Hängenbleiben an herumliegenden Stämmen).
+    this.filterGroups = interactionGroups(
+      CollisionGroup.PLAYER,
+      0xffff & ~(CollisionGroup.PLAYER | CollisionGroup.ITEM),
+    );
     this.collider = world.createCollider(
       RAPIER.ColliderDesc.capsule(this.halfHeightFor(this.height), r)
         .setTranslation(0, this.height / 2, 0)
@@ -139,16 +142,33 @@ export class Player {
     return this.camera.position.y < this.heightMap.waterLevel;
   }
 
-  /** Text für das Interaktions-Prompt im HUD, oder null. */
-  get interactionPrompt(): string | null {
-    return this.canDrink() ? 'E drücken zum Trinken' : null;
+  /** Eigener Collider – wird bei Raycasts (Interaktion, Werkzeuge) ausgeschlossen. */
+  get collisionShape(): RAPIER.Collider {
+    return this.collider;
+  }
+
+  /** Steht oder schwimmt im Wasser (Füße unter dem Wasserspiegel). */
+  get isInWater(): boolean {
+    return this.submersion > 0.1;
+  }
+
+  /** Phase und Stärke des Head-Bobs – das ViewModel schwingt synchron mit. */
+  get headBob(): { phase: number; amount: number } {
+    return { phase: this.bobPhase, amount: this.bobAmount };
   }
 
   // ---------------------------------------------------------------------------
   // 1. Eingabe (pro Frame)
   // ---------------------------------------------------------------------------
 
-  handleInput(dt: number): void {
+  /** @param active false bei offenem Inventar/Menü: keine Bewegungseingaben übernehmen. */
+  handleInput(active = true): void {
+    if (!active) {
+      this.moveInput.set(0, 0);
+      this.wantsCrouch = this.wantsSprint = this.wantsUp = false;
+      this.input.consumeMouseDelta();
+      return;
+    }
     const { dx, dy } = this.input.consumeMouseDelta();
     const sens = this.cfg.mouseSensitivity;
     this.yaw -= dx * sens;
@@ -165,12 +185,6 @@ export class Player {
     this.wantsSprint = inp.isDown('sprint');
     this.wantsUp = inp.isDown('jump');
     if (inp.wasPressed('jump')) this.jumpBufferTimer = this.cfg.jumpBuffer;
-
-    this.drinkCooldown = Math.max(0, this.drinkCooldown - dt);
-    if (inp.wasPressed('interact') && this.drinkCooldown <= 0 && this.canDrink()) {
-      this.stats.drink(this.statsCfg.drinkAmount);
-      this.drinkCooldown = 0.6;
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -424,24 +438,5 @@ export class Player {
     } else {
       this.oxygen = Math.min(MAX_OXYGEN, this.oxygen + 30 * dt);
     }
-  }
-
-  /**
-   * Trinken ist möglich, wenn man im Wasser steht/schwimmt oder aus nächster Nähe
-   * auf eine Wasseroberfläche blickt.
-   */
-  private canDrink(): boolean {
-    if (this.stats.isDead) return false;
-    if (this.submersion > 0.1) return true;
-
-    const water = this.heightMap.waterLevel;
-    const origin = this.camera.position;
-    const dir = this.camera.getWorldDirection(this.viewDir);
-    if (dir.y > -0.2) return false;
-    const t = (water - origin.y) / dir.y;
-    if (t < 0 || t > 2.8) return false;
-    const hx = origin.x + dir.x * t;
-    const hz = origin.z + dir.z * t;
-    return this.heightMap.heightAt(hx, hz) < water - 0.05;
   }
 }

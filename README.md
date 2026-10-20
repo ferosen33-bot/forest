@@ -31,7 +31,10 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Shift`             | Rennen (kostet Ausdauer)              |
 | `Leertaste`         | Springen / im Wasser auftauchen       |
 | `Strg` / `C`        | Ducken / im Wasser tauchen            |
-| `E`                 | Interagieren (aktuell: Trinken)       |
+| `E`                 | Aufheben, Beeren pflücken, Trinken    |
+| Linksklick          | Mit Werkzeug schlagen / Nahrung essen |
+| `1`–`6` / Mausrad   | Schnellzugriff wählen                 |
+| `Tab` / `I`         | Inventar öffnen/schließen             |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `T` (mit F3)        | Zeitraffer                            |
 | `Esc`               | Pause                                 |
@@ -40,7 +43,27 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > gelegt. Mit der Option „Vollbild“ im Startmenü wird die Keyboard-Lock-API aktiviert – dann
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
-## Aktueller Stand (Meilenstein 1)
+## Aktueller Stand
+
+### Meilenstein 2 – Interaktion, Ressourcen & Inventar
+
+- **Interaktionssystem:** ein Raycast pro Frame bestimmt das Ziel; das HUD zeigt Taste, Aktion und Objektname
+  („Linksklick · Fällen · Kiefer“, „E · Aufheben · Holzstamm“).
+- **Bäume fällen:** Mit der Notfallaxt (Startausrüstung) haben Bäume Lebenspunkte je nach Größe. Jeder Treffer
+  lässt den Baum wackeln, wirft Holzspäne und klingt nach Holz. Der gefällte Baum kippt als physikalischer
+  Rapier-Körper vom Spieler weg, schlägt auf und zerfällt in 2–4 Holzstämme plus Äste. Zurück bleibt ein begehbarer Stumpf.
+- **Steine abschlagen:** Felsen liefern je nach Größe 2–8 Steine, danach sind sie erschöpft.
+- **Sammeln:** ~1 000 Beerensträucher (Beeren wachsen nach 6 min nach), ~1 400 Äste und ~300 Steine am Boden.
+  Holzstämme und Äste schwimmen auf dem Wasser.
+- **Inventar:** 24 Rucksack-Slots + 6 Schnellzugriffs-Slots, Stapelgrößen pro Item, Drag & Drop (verschieben,
+  stapeln, tauschen), `Shift`+Klick zum Umlagern, Rechtsklick zum Essen/Ausrüsten, Herausziehen zum Fallenlassen.
+  Ist das Inventar voll, fällt der Rest als physisches Item auf den Boden.
+- **Ausrüstung:** Schnellzugriff per `1`–`6`/Mausrad, Gegenstand in der Hand (eigener Render-Durchgang, ragt nie
+  in Wände) mit Animationen für Ausholen/Zuschlagen, Rückstoß, Essen, Wechseln, Sway und Bob.
+- **Feedback:** Partikel (Späne, Funken, Blätter), Trefferanzeige, Item-Meldungen, prozedurale Soundeffekte (Web Audio, ohne Audiodateien).
+- **Item-Icons** werden beim Start aus den 3D-Modellen gerendert.
+
+### Meilenstein 1 – Grundgerüst
 
 - **Projekt-Setup:** Vite + TypeScript (strict), Vitest, modulare Ordnerstruktur.
 - **Game Loop:** fester Physik-Takt (60 Hz, Akkumulator) + interpolierte Kamera → flüssig bei jeder Bildrate.
@@ -80,13 +103,27 @@ src/
 │   └── World.ts            Bündelt alles, sucht den Spawnpunkt
 ├── entities/
 │   ├── Player.ts           First-Person-Controller
-│   └── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
+│   ├── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
+│   ├── ViewModel.ts        Gegenstand in der Hand + Animationen (eigene Szene/Kamera)
+│   └── items/
+│       ├── ItemDefs.ts     Item-Registry (Name, Stapelgröße, Werkzeug-/Nahrungswerte)
+│       ├── ItemMeshes.ts   Prozedurale 3D-Modelle + Kollisionsformen
+│       └── WorldItems.ts   Physische Items in der Welt (Rapier-Rigidbodies, Auftrieb)
 ├── systems/
-│   └── DayNightCycle.ts    Sonnenstand, Licht, Nebel, Schattenkamera
+│   ├── DayNightCycle.ts    Sonnenstand, Licht, Nebel, Schattenkamera
+│   ├── Inventory.ts        Slot-Inventar (reine Logik, getestet)
+│   ├── ItemService.ts      Items geben/werfen, Überlauf in die Welt
+│   ├── InteractionSystem.ts  Ziel-Raycast, Hinweise, E-Aktionen
+│   ├── ToolController.ts   Schnellzugriff, Schläge (Treffer im Aufprallmoment), Essen
+│   ├── HarvestSystem.ts    Bäume fällen (fallender Rigidbody → Stämme), Steine abschlagen
+│   ├── Particles.ts        Gepooltes Partikelsystem (ein Draw Call)
+│   └── Audio.ts            Prozedurale Soundeffekte (Web Audio)
 ├── ui/
-│   ├── HUD.ts              Statusanzeigen (DOM-Overlay mit Änderungs-Cache)
+│   ├── HUD.ts              Statusanzeigen, Hinweis, Schnellzugriff, Meldungen
+│   ├── InventoryUI.ts      Inventarfenster mit Drag & Drop
+│   ├── ItemIcons.ts        Icons aus den 3D-Modellen rendern
 │   ├── Menu.ts             Lade-, Start-, Pause- und Todesbildschirm
-│   └── dom.ts              Kleine DOM-Helfer
+│   ├── slots.ts / dom.ts   Kleine DOM-Helfer
 └── utils/                  Mathe- und Zufallshelfer (deterministischer PRNG)
 ```
 
@@ -97,15 +134,18 @@ src/
 - **Determinismus:** Die ganze Welt entsteht aus einem Seed (Mulberry32 + abgeleitete Sub-Seeds) – Grundlage für Savegames und Multiplayer.
 - **Performance:** Terrain und Vegetation sind in 128-m-Chunks gegliedert, damit Kamera- *und* Schatten-Frustum
   unsichtbare Teile verwerfen. Die Schattenkamera wird im Lichtraum auf das Texelraster gerundet (kein Flimmern).
+- **Spielzustände:** `playing` / `inventory` / `paused` / `dead`. Im Inventar ist die Maus frei, die Welt läuft weiter.
+- **Kollisionsgruppen:** Der Spieler läuft durch lose Items. Gefällte Bäume kollidieren nur mit dem Terrain, damit sie sich
+  nicht in Nachbarbäumen verkeilen. Aufsammelbares sind Sensoren: per Raycast anvisierbar, aber ohne Kollision.
 - **Bundle-Größe:** `@dimforge/rapier3d-compat` bettet sein WASM als base64 ein (~1,7 MB gzip) und wird als eigener Chunk ausgeliefert.
 
 ## Roadmap
 
-1. **Interaktion & Ressourcen:** Raycast-Interaktionssystem, Bäume fällen (Stämme als dynamische Rigidbodies), Steine abbauen, Beeren ernten
-2. **Inventar:** Grid-Slots, Drag & Drop, Quick-Equip, Item-Definitionen
+1. ~~Interaktion & Ressourcen~~ ✓
+2. ~~Inventar~~ ✓
 3. **Crafting:** Rezepte (Stock + Stein = Axt, Holz = Lagerfeuer …), Crafting-Menü
 4. **Bausystem:** Ghost-Vorschau am Terrain ausgerichtet, Snapping, Wände/Lagerfeuer/Fallen/Unterstände
 5. **Kampf:** Axt-Animation, Hitboxen, Treffer-Feedback
 6. **Gegner-KI:** Navigations-Raster auf der Höhenkarte, Patrouille, Wahrnehmung (Sicht/Geräusch), Nahkampf
-7. **Audio & Effekte:** Ambient-Sounds, Schritte je Untergrund, God-Rays (Post-Processing), Gras
+7. **Audio & Effekte:** Ambient-Sounds, Schritte je Untergrund, God-Rays (Post-Processing), Gras (Basis-SFX sind bereits da)
 8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
