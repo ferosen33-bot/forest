@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ITEMS, type ItemId } from '../entities/items/ItemDefs';
 import { createItemMesh } from '../entities/items/ItemMeshes';
+import { STRUCTURES, type StructureId } from '../systems/building/StructureDefs';
 
 /** Darstellungs-Ausrichtung je Item, damit die Silhouette im Icon gut lesbar ist. */
 const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
@@ -9,13 +10,21 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   stone: new THREE.Euler(0.4, 0.6, 0),
   berries: new THREE.Euler(0.5, 0.3, 0),
   axe: new THREE.Euler(0, 0.35, -0.65),
+  stoneAxe: new THREE.Euler(0, 0.35, -0.65),
+  spear: new THREE.Euler(0, 0.2, -0.8),
+  torch: new THREE.Euler(0.1, 0.3, -0.5),
 };
 
+export interface IconSets {
+  items: Record<ItemId, string>;
+  structures: Record<StructureId, string>;
+}
+
 /**
- * Rendert für jedes Item ein Icon aus seinem 3D-Modell (einmalig beim Start).
+ * Rendert Icons für alle Items und Bauwerke aus ihren 3D-Modellen (einmalig beim Start).
  * Ein kurzlebiger Offscreen-Renderer liefert korrekt getonemappte sRGB-PNGs als Data-URLs.
  */
-export function renderItemIcons(size = 96): Record<ItemId, string> {
+export function renderIcons(size = 96): IconSets {
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(size, size, false);
@@ -30,26 +39,37 @@ export function renderItemIcons(size = 96): Record<ItemId, string> {
   key.position.set(2, 3, 4);
   scene.add(key);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
-
-  const icons = {} as Record<ItemId, string>;
   const sphere = new THREE.Sphere();
-  for (const id of Object.keys(ITEMS) as ItemId[]) {
-    const obj = createItemMesh(id);
-    obj.rotation.copy(ICON_ROTATION[id]);
+
+  /** Objekt einpassen, aus `viewDir` rendern, als PNG zurückgeben. */
+  const shoot = (obj: THREE.Object3D, viewDir: THREE.Vector3): string => {
     obj.updateMatrixWorld(true);
     new THREE.Box3().setFromObject(obj).getBoundingSphere(sphere);
     obj.position.sub(sphere.center);
     scene.add(obj);
-
-    const dist = sphere.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.02;
-    camera.position.set(0, 0, dist);
+    const dist = (sphere.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.02;
+    camera.position.copy(viewDir).normalize().multiplyScalar(dist);
     camera.lookAt(0, 0, 0);
     renderer.render(scene, camera);
-    icons[id] = canvas.toDataURL('image/png');
     scene.remove(obj);
+    return canvas.toDataURL('image/png');
+  };
+
+  const items = {} as Record<ItemId, string>;
+  for (const id of Object.keys(ITEMS) as ItemId[]) {
+    const obj = createItemMesh(id);
+    obj.rotation.copy(ICON_ROTATION[id]);
+    items[id] = shoot(obj, new THREE.Vector3(0, 0, 1));
+  }
+
+  const structures = {} as Record<StructureId, string>;
+  for (const id of Object.keys(STRUCTURES) as StructureId[]) {
+    const obj = STRUCTURES[id].build();
+    obj.rotation.y = -0.6;
+    structures[id] = shoot(obj, new THREE.Vector3(0.2, 0.55, 1));
   }
 
   renderer.dispose();
   renderer.forceContextLoss();
-  return icons;
+  return { items, structures };
 }

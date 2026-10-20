@@ -24,6 +24,10 @@ export const KEY_BINDINGS = {
   hotbar5: ['Digit5'],
   hotbar6: ['Digit6'],
   inventory: ['Tab', 'KeyI'],
+  /** Öffnet das Inventar direkt bei den Bauplänen. */
+  craft: ['KeyB'],
+  /** Bauvorschau drehen. */
+  rotate: ['KeyR'],
   /** Im Pointer Lock fängt der Browser Esc selbst ab; hier nur für offene Fenster (Inventar). */
   cancel: ['Escape'],
   debug: ['F3'],
@@ -55,6 +59,8 @@ export class Input {
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('wheel', this.handleWheel, { passive: true });
     document.addEventListener('pointerlockchange', this.handleLockChange);
+    // Rechtsklick wird im Spiel benutzt (Bau abbrechen) – kein Kontextmenü.
+    element.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   get locked(): boolean {
@@ -175,6 +181,9 @@ export class Input {
   private handleLockChange = (): void => {
     this._locked = document.pointerLockElement === this.element;
     if (!this._locked) this.handleBlur();
+    // Klicks/Tasten aus Menüs (vor dem Lock) dürfen nicht als Spiel-Eingabe durchrutschen.
+    this.pressed.clear();
+    this.mousePressed.clear();
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.onLockChange?.(this._locked);

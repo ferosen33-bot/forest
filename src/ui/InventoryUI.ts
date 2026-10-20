@@ -1,7 +1,15 @@
 import type { Inventory } from '../systems/Inventory';
 import { getItem } from '../entities/items/ItemDefs';
+import { RECIPES, recipeDescription, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
 import { collectRefs } from './dom';
-import { renderSlot, type IconSet } from './slots';
+import { renderSlot } from './slots';
+import type { IconSets } from './ItemIcons';
+
+interface RecipeCard {
+  recipe: Recipe;
+  el: HTMLButtonElement;
+  cost: HTMLElement;
+}
 
 interface DragState {
   from: number;
@@ -17,15 +25,20 @@ interface DragState {
  * - Shift + Klick: zwischen Schnellzugriff und Rucksack umlagern
  * - Rechtsklick: benutzen (essen) bzw. ausrüsten
  * - Aus dem Fenster ziehen: fallenlassen
+ * - Rechte Spalte: Rezepte (Items herstellen, Baupläne auswählen)
  */
 export class InventoryUI {
   /** Wird für "Benutzen/Ausrüsten" per Rechtsklick aufgerufen. */
   onUse: ((slot: number) => void) | null = null;
   /** Wird aufgerufen, wenn ein Stapel aus dem Fenster gezogen wurde. */
   onDrop: ((slot: number) => void) | null = null;
+  /** Klick auf ein Rezept. */
+  onCraft: ((recipe: Recipe) => void) | null = null;
 
   private readonly el;
   private readonly slotEls: HTMLElement[] = [];
+  private readonly cards: RecipeCard[] = [];
+  private hoveredRecipe: Recipe | null = null;
   private drag: DragState | null = null;
   private hovered = -1;
   private _open = false;
@@ -33,10 +46,12 @@ export class InventoryUI {
   constructor(
     private readonly root: HTMLElement,
     private readonly inventory: Inventory,
-    private readonly icons: IconSet,
+    private readonly icons: IconSets,
     private readonly getSelected: () => number,
+    private readonly crafting: Crafting,
   ) {
-    this.el = collectRefs(root, ['panel', 'grid', 'hotbarGrid', 'detailIcon', 'detailName', 'detailDesc'] as const);
+    this.el = collectRefs(root, ['panel', 'grid', 'hotbarGrid', 'detailIcon', 'detailName', 'detailDesc', 'recipes'] as const);
+    this.buildRecipeCards();
 
     for (let i = 0; i < inventory.size; i++) {
       const slot = document.createElement('div');
@@ -82,15 +97,87 @@ export class InventoryUI {
   private render(): void {
     const selected = this.getSelected();
     this.slotEls.forEach((el, i) => {
-      renderSlot(el, this.inventory.get(i), this.icons);
+      renderSlot(el, this.inventory.get(i), this.icons.items);
       el.classList.toggle('is-selected', i === selected);
     });
+    this.renderRecipes();
     this.renderDetails();
   }
 
+  private buildRecipeCards(): void {
+    let lastKind: Recipe['kind'] | null = null;
+    for (const recipe of RECIPES) {
+      if (recipe.kind !== lastKind) {
+        const heading = document.createElement('h3');
+        heading.className = 'inventory__subtitle';
+        heading.textContent = recipe.kind === 'item' ? 'Werkzeuge' : 'Baupläne';
+        this.el.recipes.appendChild(heading);
+        lastKind = recipe.kind;
+      }
+      const el = document.createElement('button');
+      el.className = 'recipe';
+      el.type = 'button';
+      const icon = document.createElement('img');
+      icon.className = 'recipe__icon';
+      icon.alt = '';
+      icon.src = recipe.kind === 'item' ? this.icons.items[recipe.result] : this.icons.structures[recipe.result];
+      const body = document.createElement('div');
+      body.className = 'recipe__body';
+      const name = document.createElement('div');
+      name.className = 'recipe__name';
+      name.textContent = recipeName(recipe);
+      const cost = document.createElement('div');
+      cost.className = 'recipe__cost';
+      body.append(name, cost);
+      el.append(icon, body);
+
+      el.addEventListener('click', () => this.onCraft?.(recipe));
+      el.addEventListener('pointerenter', () => {
+        this.hoveredRecipe = recipe;
+        this.renderDetails();
+      });
+      el.addEventListener('pointerleave', () => {
+        this.hoveredRecipe = null;
+        this.renderDetails();
+      });
+      this.el.recipes.appendChild(el);
+      this.cards.push({ recipe, el, cost });
+    }
+  }
+
+  /** Aktualisiert Verfügbarkeit und "vorhanden/benötigt" aller Rezepte. */
+  private renderRecipes(): void {
+    for (const card of this.cards) {
+      const affordable = this.crafting.canAfford(card.recipe.cost);
+      card.el.classList.toggle('is-available', affordable);
+      card.cost.replaceChildren(
+        ...card.recipe.cost.map((c) => {
+          const have = this.inventory.count(c.item);
+          const chip = document.createElement('span');
+          chip.className = 'cost' + (have < c.count ? ' is-missing' : '');
+          const img = document.createElement('img');
+          img.src = this.icons.items[c.item];
+          img.alt = getItem(c.item).name;
+          img.title = getItem(c.item).name;
+          chip.append(img, `${Math.min(have, c.count)}/${c.count}`);
+          return chip;
+        }),
+      );
+    }
+  }
+
   private renderDetails(): void {
-    const stack = this.hovered >= 0 ? this.inventory.get(this.hovered) : null;
     const icon = this.el.detailIcon as HTMLImageElement;
+    const recipe = this.hoveredRecipe;
+    if (recipe) {
+      icon.hidden = false;
+      icon.src = recipe.kind === 'item' ? this.icons.items[recipe.result] : this.icons.structures[recipe.result];
+      this.el.detailName.textContent = recipeName(recipe);
+      this.el.detailDesc.textContent =
+        recipeDescription(recipe) + (recipe.kind === 'structure' ? ' Klicken, um den Bauplan zu platzieren.' : '');
+      return;
+    }
+    const stack = this.hovered >= 0 ? this.inventory.get(this.hovered) : null;
     if (!stack) {
       icon.hidden = true;
       this.el.detailName.textContent = '–';
@@ -99,7 +186,7 @@ export class InventoryUI {
     }
     const def = getItem(stack.id);
     icon.hidden = false;
-    icon.src = this.icons[stack.id];
+    icon.src = this.icons.items[stack.id];
     this.el.detailName.textContent = stack.count > 1 ? `${def.name} ×${stack.count}` : def.name;
     let desc = def.description;
     if (def.food) desc += ` (+${def.food.hunger} Sättigung)`;

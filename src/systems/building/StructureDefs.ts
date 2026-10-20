@@ -1,0 +1,281 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RAPIER } from '../../core/Physics';
+import type { ItemCost } from '../../entities/items/ItemDefs';
+import { jitter } from '../../world/VegetationGeometry';
+import { mulberry32 } from '../../utils/random';
+
+export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap';
+
+export interface StructureDef {
+  id: StructureId;
+  name: string;
+  description: string;
+  cost: ItemCost[];
+  /** Halbe Ausdehnung des Platzbedarfs (lokal; Ursprung = Bodenmitte). */
+  halfExtents: THREE.Vector3;
+  /** Maximal erlaubter Höhenunterschied des Bodens unter der Grundfläche. */
+  maxStep: number;
+  maxHealth: number;
+  /** Wände rasten an den Enden anderer Wände ein. */
+  snap?: 'wall';
+  /** Interaktion per `E`. */
+  interaction?: 'fire' | 'sleep';
+  /** Erzeugt das Modell (Ursprung = Mitte der Grundfläche auf Bodenhöhe, Vorderseite = +Z). */
+  build(): THREE.Group;
+  /** Collider in lokalen Koordinaten des Bauwerks. */
+  colliders(): RAPIER.ColliderDesc[];
+}
+
+// ---------------------------------------------------------------------------
+// Materialien & Bausteine
+// ---------------------------------------------------------------------------
+
+const mat = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, flatShading: true });
+const M = {
+  bark: mat(0x4f3823),
+  barkDark: mat(0x3e2c1b),
+  cut: mat(0xb08a5a),
+  stone: mat(0x7d7a73),
+  ash: mat(0x2c2826),
+  leaves: mat(0x3e5e2a),
+  leavesDark: mat(0x2f4a22),
+  rope: mat(0x7b6646),
+};
+
+const LOG_GEOMETRY = new THREE.CylinderGeometry(1, 1.06, 1, 8);
+const STAKE_TIP = new THREE.ConeGeometry(1, 1, 8);
+const STONE_GEOMETRY = jitter(new THREE.IcosahedronGeometry(1, 0), 0.22, 5);
+
+/** Holzstamm von `a` nach `b` mit Radius `r` (Mantel Rinde, Enden Schnittholz). */
+function log(a: THREE.Vector3, b: THREE.Vector3, r: number, material = M.bark): THREE.Mesh {
+  const mesh = new THREE.Mesh(LOG_GEOMETRY, [material, M.cut, M.cut]);
+  const dir = new THREE.Vector3().subVectors(b, a);
+  mesh.scale.set(r, dir.length(), r);
+  mesh.position.copy(a).addScaledVector(dir, 0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return mesh;
+}
+
+/** Angespitzter Pfahl von `base` aus in Richtung `dir`. */
+function stake(base: THREE.Vector3, dir: THREE.Vector3, length: number, r: number): THREE.Group {
+  const g = new THREE.Group();
+  const d = dir.clone().normalize();
+  const shaftEnd = base.clone().addScaledVector(d, length - r * 3);
+  g.add(log(base, shaftEnd, r));
+  const tip = new THREE.Mesh(STAKE_TIP, M.cut);
+  tip.scale.set(r, r * 3, r);
+  tip.position.copy(shaftEnd).addScaledVector(d, r * 1.5);
+  tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+  g.add(tip);
+  return g;
+}
+
+/**
+ * Verschmilzt alle Teile eines Bauwerks zu EINEM Mesh pro Material.
+ * Eine Wand besteht sonst aus ~12 Einzel-Meshes – mit Schattenpass wären das 24 Draw Calls.
+ */
+function finish(root: THREE.Group, name: string): THREE.Group {
+  root.updateMatrixWorld(true);
+  const inverse = root.matrixWorld.clone().invert();
+  const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const local = new THREE.Matrix4();
+
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const geo = mesh.geometry.clone().applyMatrix4(local.multiplyMatrices(inverse, mesh.matrixWorld));
+    const flat = geo.index ? geo.toNonIndexed() : geo;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const vertexCount = flat.getAttribute('position').count;
+    const groups = flat.groups.length ? flat.groups : [{ start: 0, count: vertexCount, materialIndex: 0 }];
+    // Jede Materialgruppe (z. B. Rinde vs. Schnittfläche) landet im Topf ihres Materials.
+    for (const group of groups) {
+      const part = new THREE.BufferGeometry();
+      for (const attr of ['position', 'normal']) {
+        const src = flat.getAttribute(attr).array as Float32Array;
+        part.setAttribute(attr, new THREE.BufferAttribute(src.slice(group.start * 3, (group.start + group.count) * 3), 3));
+      }
+      // Ein einzelnes Material gilt für alle Gruppen (BoxGeometry hat z. B. sechs).
+      const material = Array.isArray(mesh.material) ? materials[group.materialIndex ?? 0] : mesh.material;
+      let list = buckets.get(material);
+      if (!list) buckets.set(material, (list = []));
+      list.push(part);
+    }
+  });
+
+  const out = new THREE.Group();
+  out.name = name;
+  for (const [material, parts] of buckets) {
+    const merged = mergeGeometries(parts, false);
+    if (!merged) continue;
+    merged.computeBoundingSphere();
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    out.add(mesh);
+    parts.forEach((p) => p.dispose());
+  }
+  return out;
+}
+
+const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+// ---------------------------------------------------------------------------
+// Bauwerke
+// ---------------------------------------------------------------------------
+
+/** Breite eines Wandsegments – die Enden (±WALL_HALF_WIDTH) sind Einrastpunkte. */
+export const WALL_HALF_WIDTH = 1.1;
+const WALL_HEIGHT = 2.2;
+
+export const STRUCTURES: Record<StructureId, StructureDef> = {
+  campfire: {
+    id: 'campfire',
+    name: 'Lagerfeuer',
+    description: 'Licht und Wärme. In der Nähe regenerieren sich Gesundheit und Ausdauer schneller.',
+    cost: [
+      { item: 'stick', count: 3 },
+      { item: 'stone', count: 4 },
+    ],
+    halfExtents: v(0.6, 0.3, 0.6),
+    maxStep: 0.5,
+    maxHealth: 60,
+    interaction: 'fire',
+    build() {
+      const g = new THREE.Group();
+      const rng = mulberry32(3);
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2;
+        const s = new THREE.Mesh(STONE_GEOMETRY, M.stone);
+        const r = 0.1 + rng() * 0.04;
+        s.scale.set(r * 1.2, r * 0.8, r);
+        s.position.set(Math.cos(a) * 0.48, r * 0.5, Math.sin(a) * 0.48);
+        s.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+        g.add(s);
+      }
+      const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.4, 0.04, 10), M.ash);
+      ash.position.y = 0.02;
+      g.add(ash);
+      // Tipi aus Ästen
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.4;
+        g.add(log(v(Math.cos(a) * 0.3, 0.03, Math.sin(a) * 0.3), v(Math.cos(a) * 0.04, 0.42, Math.sin(a) * 0.04), 0.03, M.barkDark));
+      }
+      return finish(g, 'Campfire');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cylinder(0.15, 0.58).setTranslation(0, 0.15, 0)],
+  },
+
+  wall: {
+    id: 'wall',
+    name: 'Holzwand',
+    description: 'Ein Palisadenstück aus Stämmen. Rastet an anderen Wänden ein.',
+    cost: [{ item: 'log', count: 2 }],
+    halfExtents: v(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.22),
+    maxStep: 1.0,
+    maxHealth: 120,
+    snap: 'wall',
+    build() {
+      const g = new THREE.Group();
+      const n = 5;
+      const rng = mulberry32(9);
+      for (let i = 0; i < n; i++) {
+        const x = -WALL_HALF_WIDTH + 0.22 + (i * (WALL_HALF_WIDTH * 2 - 0.44)) / (n - 1);
+        const h = WALL_HEIGHT + (rng() - 0.5) * 0.25;
+        // Stämme reichen etwas in den Boden, damit an Hängen keine Lücken entstehen.
+        g.add(stake(v(x, -0.6, 0), v(0, 1, 0), h + 0.6, 0.2));
+      }
+      g.add(log(v(-WALL_HALF_WIDTH, 1.55, 0.2), v(WALL_HALF_WIDTH, 1.55, 0.2), 0.07, M.barkDark));
+      g.add(log(v(-WALL_HALF_WIDTH, 0.55, 0.2), v(WALL_HALF_WIDTH, 0.55, 0.2), 0.07, M.barkDark));
+      return finish(g, 'Wall');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.2).setTranslation(0, WALL_HEIGHT / 2, 0)],
+  },
+
+  shelter: {
+    id: 'shelter',
+    name: 'Unterstand',
+    description: 'Ein schräges Blätterdach. Hier kannst du die Nacht durchschlafen – und hier wachst du nach dem Tod auf.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'stick', count: 4 },
+    ],
+    halfExtents: v(1.35, 1.0, 1.15),
+    maxStep: 0.8,
+    maxHealth: 150,
+    interaction: 'sleep',
+    build() {
+      const g = new THREE.Group();
+      const front = 0.95;
+      const back = -1.1;
+      const top = 1.95;
+      // Pfosten vorne, Firststange
+      g.add(log(v(-1.2, -0.3, front), v(-1.2, top + 0.15, front), 0.09));
+      g.add(log(v(1.2, -0.3, front), v(1.2, top + 0.15, front), 0.09));
+      g.add(log(v(-1.4, top, front), v(1.4, top, front), 0.08, M.barkDark));
+      // Dachstämme vom First schräg nach hinten auf den Boden
+      for (let i = 0; i < 6; i++) {
+        const x = -1.05 + i * 0.42;
+        g.add(log(v(x, top + 0.05, front + 0.1), v(x, -0.05, back), 0.075));
+      }
+      // Blätter-Abdeckung als flache, leicht versetzte Platten
+      const roofLen = Math.hypot(top, front - back);
+      const angle = Math.atan2(top, front - back);
+      for (let i = 0; i < 3; i++) {
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.06, roofLen / 3 + 0.15), i % 2 ? M.leaves : M.leavesDark);
+        const t = (i + 0.5) / 3;
+        plate.position.set(0, top * (1 - t) + 0.09, front + (back - front) * t);
+        plate.rotation.x = angle;
+        g.add(plate);
+      }
+      return finish(g, 'Shelter');
+    },
+    colliders: () => {
+      const front = 0.95;
+      const back = -1.1;
+      const top = 1.95;
+      const roofLen = Math.hypot(top, front - back);
+      const angle = Math.atan2(top, front - back);
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle);
+      return [
+        RAPIER.ColliderDesc.cuboid(1.4, 0.06, roofLen / 2)
+          .setTranslation(0, top / 2, (front + back) / 2)
+          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
+        RAPIER.ColliderDesc.cylinder(1.1, 0.09).setTranslation(-1.2, 1.0, front),
+        RAPIER.ColliderDesc.cylinder(1.1, 0.09).setTranslation(1.2, 1.0, front),
+      ];
+    },
+  },
+
+  spikeTrap: {
+    id: 'spikeTrap',
+    name: 'Stachelfalle',
+    description: 'Nach außen gerichtete Pfähle. Versperrt Wege und wird Angreifern gefährlich.',
+    cost: [
+      { item: 'stick', count: 6 },
+      { item: 'stone', count: 2 },
+    ],
+    halfExtents: v(0.8, 0.45, 0.8),
+    maxStep: 0.6,
+    maxHealth: 80,
+    build() {
+      const g = new THREE.Group();
+      g.add(log(v(-0.75, 0.08, -0.7), v(0.75, 0.08, -0.7), 0.06, M.barkDark));
+      g.add(log(v(-0.75, 0.08, 0.7), v(0.75, 0.08, 0.7), 0.06, M.barkDark));
+      g.add(log(v(-0.7, 0.14, -0.75), v(-0.7, 0.14, 0.75), 0.06, M.barkDark));
+      g.add(log(v(0.7, 0.14, -0.75), v(0.7, 0.14, 0.75), 0.06, M.barkDark));
+      for (let ix = -1; ix <= 1; ix++) {
+        for (let iz = -1; iz <= 1; iz++) {
+          const base = v(ix * 0.5, 0, iz * 0.5);
+          const dir = v(ix * 0.45, 1, iz * 0.45);
+          g.add(stake(base, dir, 0.95, 0.045));
+        }
+      }
+      return finish(g, 'SpikeTrap');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.75, 0.4, 0.75).setTranslation(0, 0.4, 0)],
+  },
+};
+
+export const getStructure = (id: StructureId): StructureDef => STRUCTURES[id];

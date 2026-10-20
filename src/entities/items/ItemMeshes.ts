@@ -26,6 +26,9 @@ const MATERIALS = {
   steel: mat(0x8e959c, { roughness: 0.45, metalness: 0.35 }),
   steelEdge: mat(0xd2d7dc, { roughness: 0.3, metalness: 0.4 }),
   tape: mat(0x2a2a2a, { roughness: 0.9 }),
+  lightWood: mat(0x8a6a45),
+  binding: mat(0x6b5a3a, { roughness: 1 }),
+  cloth: mat(0x3a2f26, { roughness: 1 }),
 };
 
 /** Länge eines Holzstamms (m) – wird auch beim Zerlegen gefällter Bäume genutzt. */
@@ -100,6 +103,37 @@ function build(id: ItemId): THREE.Object3D {
       g.add(poll);
       break;
     }
+    case 'stoneAxe': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.6, 6), MATERIALS.lightWood);
+      g.add(handle);
+      const stone = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.07, 0), 0.015, 13), MATERIALS.stone);
+      stone.scale.set(1.5, 0.8, 0.55);
+      stone.position.set(0.06, 0.24, 0);
+      g.add(stone);
+      const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.09, 6), MATERIALS.binding);
+      wrap.position.y = 0.24;
+      g.add(wrap);
+      break;
+    }
+    case 'spear': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 1.5, 6), MATERIALS.lightWood);
+      g.add(shaft);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.16, 6), MATERIALS.endWood);
+      tip.position.y = 0.83;
+      g.add(tip);
+      const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6), MATERIALS.binding);
+      wrap.position.y = -0.15;
+      g.add(wrap);
+      break;
+    }
+    case 'torch': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
+      g.add(shaft);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.032, 0.12, 7), MATERIALS.cloth);
+      head.position.y = 0.27;
+      g.add(head);
+      break;
+    }
   }
   g.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) {
@@ -133,7 +167,12 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
     case 'berries':
       return RAPIER.ColliderDesc.ball(0.07).setDensity(800);
     case 'axe':
+    case 'stoneAxe':
       return RAPIER.ColliderDesc.cuboid(0.08, 0.32, 0.03).setDensity(900);
+    case 'spear':
+      return RAPIER.ColliderDesc.cylinder(0.78, 0.03).setDensity(600);
+    case 'torch':
+      return RAPIER.ColliderDesc.cylinder(0.3, 0.04).setDensity(600);
   }
 }
 

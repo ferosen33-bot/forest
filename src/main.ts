@@ -1,6 +1,7 @@
 import './style.css';
 import { Game } from './core/Game';
 import { CONFIG } from './config';
+import { RAPIER } from './core/Physics';
 
 /**
  * Einstiegspunkt.
@@ -28,7 +29,8 @@ Game.create({
 })
   .then((game) => {
     game.start();
-    if (import.meta.env.DEV) (window as unknown as { game: Game }).game = game;
+    // Dev-Hilfen für die Konsole: Spielinstanz und Rapier (z. B. für eigene Physik-Abfragen).
+    if (import.meta.env.DEV) Object.assign(window, { game, RAPIER });
   })
   .catch((err: unknown) => {
     console.error(err);

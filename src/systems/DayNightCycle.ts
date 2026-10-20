@@ -107,6 +107,17 @@ export class DayNightCycle {
     return `Tag ${this.day} · ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
+  /** Ist es spät genug zum Schlafen (abends oder nachts)? */
+  get isSleepTime(): boolean {
+    return this.hour >= 19 || this.hour < 5;
+  }
+
+  /** Springt vorwärts zur angegebenen Uhrzeit (über Mitternacht → nächster Tag). */
+  skipTo(hour: number): void {
+    if (hour <= this.hour) this.day++;
+    this.hour = hour;
+  }
+
   /**
    * @param focus Position, um die herum Schatten berechnet werden (Spieler).
    * @param underwater Kamera ist unter Wasser → dichter, blaugrüner Nebel.

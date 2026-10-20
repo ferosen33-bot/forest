@@ -4,12 +4,27 @@
  *
  * Browser erlauben Audio erst nach einer Nutzerinteraktion: `resume()` beim Spielstart aufrufen.
  */
-export type SoundId = 'chop' | 'stoneHit' | 'swing' | 'pickup' | 'eat' | 'drink' | 'treeCrack' | 'treeFall' | 'denied';
+export type SoundId =
+  | 'chop'
+  | 'stoneHit'
+  | 'swing'
+  | 'pickup'
+  | 'eat'
+  | 'drink'
+  | 'treeCrack'
+  | 'treeFall'
+  | 'denied'
+  | 'craft'
+  | 'place'
+  | 'crackle'
+  | 'ignite';
 
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  /** Ziel-Knoten des aktuellen `play()`-Aufrufs (trägt dessen Lautstärke). */
+  private out: GainNode | null = null;
   volume = 0.6;
 
   /** Startet bzw. reaktiviert den AudioContext (muss aus einer User-Geste kommen). */
@@ -31,11 +46,15 @@ export class Audio {
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
-  play(id: SoundId): void {
+  /** @param volume Lautstärkefaktor dieses Aufrufs (z. B. nach Entfernung abgeschwächt). */
+  play(id: SoundId, volume = 1): void {
     const ctx = this.ctx;
-    if (!ctx || !this.master || ctx.state !== 'running') return;
+    if (!ctx || !this.master || ctx.state !== 'running' || volume <= 0.01) return;
     const t = ctx.currentTime;
     const pitch = 0.9 + Math.random() * 0.2;
+    this.out = ctx.createGain();
+    this.out.gain.value = volume;
+    this.out.connect(this.master);
 
     switch (id) {
       case 'chop':
@@ -70,6 +89,22 @@ export class Audio {
       case 'denied':
         this.tone(t, 'square', 180, 140, 0.12, 0.12, 1200);
         break;
+      case 'craft':
+        for (let i = 0; i < 3; i++) {
+          this.noise(t + i * 0.14, 0.06, 'bandpass', 700 + i * 120, 1.5, 0.6);
+          this.tone(t + i * 0.14, 'sine', 160, 90, 0.08, 0.4);
+        }
+        break;
+      case 'place':
+        this.noise(t, 0.25, 'lowpass', 500, 0.8, 0.8);
+        this.tone(t, 'sine', 95, 50, 0.25, 0.7);
+        break;
+      case 'crackle':
+        this.noise(t, 0.025 + Math.random() * 0.03, 'highpass', 1800 + Math.random() * 2500, 0.8, 0.5);
+        break;
+      case 'ignite':
+        this.noise(t, 0.6, 'bandpass', 900, 0.6, 0.5, 2500);
+        break;
     }
   }
 
@@ -95,7 +130,7 @@ export class Audio {
     const env = ctx.createGain();
     env.gain.setValueAtTime(gain, t);
     env.gain.exponentialRampToValueAtTime(0.001, t + duration);
-    src.connect(filter).connect(env).connect(this.master!);
+    src.connect(filter).connect(env).connect(this.out!);
     src.start(t, Math.random() * 0.5, duration + 0.05);
   }
 
@@ -125,7 +160,7 @@ export class Audio {
       f.frequency.value = lowpass;
       node = osc.connect(f);
     }
-    node.connect(env).connect(this.master!);
+    node.connect(env).connect(this.out!);
     osc.start(t);
     osc.stop(t + duration + 0.05);
   }

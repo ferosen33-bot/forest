@@ -8,6 +8,7 @@ import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
 import type { Audio } from './Audio';
+import type { BuildingSystem } from './building/BuildingSystem';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -35,6 +36,7 @@ export class ToolController {
     private readonly viewModel: ViewModel,
     private readonly interaction: InteractionSystem,
     private readonly harvest: HarvestSystem,
+    private readonly building: BuildingSystem,
     private readonly player: Player,
     private readonly audio: Audio,
     private readonly events: EventBus,
@@ -93,7 +95,7 @@ export class ToolController {
       return;
     }
     this.swing = { tool, time: 0, impactDone: false };
-    this.viewModel.playSwing(tool.swingTime);
+    this.viewModel.playSwing(tool.swingTime, tool.animation);
   }
 
   private updateSwing(dt: number): void {
@@ -112,16 +114,30 @@ export class ToolController {
     // Horizontale Schlagrichtung aus der Blickrichtung des Spielers.
     this.fromDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
 
-    if (target && (target.type === 'tree' || target.type === 'rock')) {
-      const h = target.hit;
-      this.point.set(h.point.x, h.point.y, h.point.z);
-      this.normal.set(h.normal.x, h.normal.y, h.normal.z);
-      if (target.type === 'tree') this.harvest.hitTree(target.instance, tool, this.point, this.normal, this.fromDir);
-      else this.harvest.hitRock(target.instance, tool, this.point, this.normal);
-      this.viewModel.playHit();
-    } else {
+    if (!target || target.type === 'water' || target.type === 'item' || target.type === 'bush' || target.type === 'ground') {
       this.audio.play('swing');
+      return;
     }
+    const h = target.hit;
+    this.point.set(h.point.x, h.point.y, h.point.z);
+    this.normal.set(h.normal.x, h.normal.y, h.normal.z);
+    switch (target.type) {
+      case 'tree':
+        this.harvest.hitTree(target.instance, tool, this.point, this.normal, this.fromDir);
+        break;
+      case 'rock':
+        if (tool.rockYield > 0) {
+          this.harvest.hitRock(target.instance, tool, this.point, this.normal);
+        } else {
+          this.audio.play('stoneHit');
+          this.events.emit('hud:message', { text: 'Damit lässt sich kein Stein abschlagen.' });
+        }
+        break;
+      case 'structure':
+        this.building.damage(target.structure, tool.treeDamage, this.point, this.normal);
+        break;
+    }
+    this.viewModel.playHit();
   }
 
   /** Sofort essen (Rechtsklick im Inventar, ohne Animation). */

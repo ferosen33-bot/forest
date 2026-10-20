@@ -4,6 +4,7 @@
  */
 import type { Vector3 } from 'three';
 import type { ItemId } from '../entities/items/ItemDefs';
+import type { StructureId } from '../systems/building/StructureDefs';
 
 export type GameEvents = {
   'player:damaged': { amount: number; source: DamageSource };
@@ -20,6 +21,8 @@ export type GameEvents = {
   'tree:felled': { kind: 'pine' | 'broadleaf' };
   /** Ein gefällter Baum schlägt auf dem Boden auf (für Kamerawackeln/Effekte). */
   'tree:landed': { position: Vector3 };
+  'structure:placed': { id: StructureId };
+  'item:crafted': { item: ItemId; count: number };
   /** Kurze Statusmeldung im HUD. */
   'hud:message': { text: string };
 };

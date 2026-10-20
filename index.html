@@ -12,6 +12,7 @@
     <!-- HUD: reines HTML/CSS-Overlay über dem WebGL-Canvas -->
     <div id="hud" class="hidden">
       <div class="vignette" data-ref="damage"></div>
+      <div class="fade" data-ref="fade"></div>
       <div class="underwater" data-ref="underwater"></div>
 
       <div class="crosshair" data-ref="crosshair"></div>
@@ -33,6 +34,18 @@
         <div class="stat stat--oxygen" data-ref="oxygenRow"><span class="stat__icon">○</span><div class="stat__bar"><div class="stat__fill" data-ref="oxygen"></div></div></div>
       </div>
 
+      <div class="build-hint hidden" data-ref="build">
+        <div class="build-hint__head">
+          <span class="build-hint__name" data-ref="buildName"></span>
+          <span class="build-hint__reason" data-ref="buildReason"></span>
+        </div>
+        <div class="build-hint__cost" data-ref="buildCost"></div>
+        <div class="build-hint__keys">
+          <span><kbd>Linksklick</kbd> Bauen</span>
+          <span><kbd>R</kbd>/<kbd>Mausrad</kbd> Drehen</span>
+          <span><kbd>Rechtsklick</kbd> Abbrechen</span>
+        </div>
+      </div>
       <div class="hotbar-name" data-ref="hotbarName"></div>
       <div class="hotbar" data-ref="hotbar"></div>
 
@@ -60,6 +73,10 @@
             <li><kbd>Tab</kbd> / <kbd>I</kbd> Schließen</li>
           </ul>
         </aside>
+        <aside class="inventory__crafting">
+          <h2 class="inventory__title">Herstellen</h2>
+          <div class="recipes" data-ref="recipes"></div>
+        </aside>
       </div>
     </div>
 
@@ -82,6 +99,7 @@
           <div><kbd>Linksklick</kbd> Schlagen / Essen</div>
           <div><kbd>1</kbd>–<kbd>6</kbd>/<kbd>Mausrad</kbd> Ausrüsten</div>
           <div><kbd>Tab</kbd>/<kbd>I</kbd> Inventar</div>
+          <div><kbd>B</kbd> Herstellen &amp; Bauen</div>
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>
         </div>

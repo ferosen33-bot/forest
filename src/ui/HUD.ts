@@ -25,12 +25,25 @@ const REFS = [
   'toasts',
   'hotbar',
   'hotbarName',
+  'build',
+  'buildName',
+  'buildReason',
+  'buildCost',
+  'fade',
   'debug',
 ] as const;
 
 const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen'] as const;
 type BarName = (typeof BARS)[number];
 type RefName = (typeof REFS)[number];
+
+/** Anzeige im Baumodus. */
+export interface BuildHint {
+  name: string;
+  valid: boolean;
+  reason?: string;
+  cost: { item: ItemId; have: number; need: number }[];
+}
 
 const KEY_LABEL: Record<NonNullable<Prompt['key']>, string> = { E: 'E', LMB: 'Linksklick' };
 const TOAST_TIME = 2.8;
@@ -109,7 +122,19 @@ export class HUD {
     this.el.debug.classList.toggle('hidden', !this.debugVisible);
   }
 
-  update(dt: number, player: Player, clockText: string, prompt: Prompt | null, selected: number): void {
+  /** Bildschirm abdunkeln (Schlafen). Die CSS-Transition übernimmt die Überblendung. */
+  set faded(on: boolean) {
+    this.el.fade.classList.toggle('is-visible', on);
+  }
+
+  update(
+    dt: number,
+    player: Player,
+    clockText: string,
+    prompt: Prompt | null,
+    selected: number,
+    build: BuildHint | null,
+  ): void {
     const s = player.stats;
     this.bar('health', s.health / s.max, 0.25);
     this.bar('stamina', s.stamina / s.max, s.exhausted ? 1.01 : 0);
@@ -132,6 +157,31 @@ export class HUD {
 
     this.updateHotbar(dt, selected);
     this.updateToasts(dt);
+    this.updateBuild(build);
+  }
+
+  private updateBuild(build: BuildHint | null): void {
+    this.toggle('build', 'hidden', build === null);
+    this.toggleOn(this.root, 'root:building', 'is-building', build !== null);
+    if (!build) return;
+    this.text('buildName', build.name);
+    this.text('buildReason', build.valid ? '' : (build.reason ?? ''));
+    this.toggle('build', 'is-invalid', !build.valid);
+
+    const key = build.cost.map((c) => `${c.item}:${c.have}/${c.need}`).join(',');
+    if (this.cache.get('buildCost') === key) return;
+    this.cache.set('buildCost', key);
+    this.el.buildCost.replaceChildren(
+      ...build.cost.map((c) => {
+        const chip = document.createElement('span');
+        chip.className = 'cost' + (c.have < c.need ? ' is-missing' : '');
+        const img = document.createElement('img');
+        img.src = this.icons[c.item];
+        img.alt = '';
+        chip.append(img, `${Math.min(c.have, c.need)}/${c.need} ${getItem(c.item).name}`);
+        return chip;
+      }),
+    );
   }
 
   updateDebug(lines: string[]): void {

@@ -38,9 +38,15 @@ export class Particles {
   private readonly tmpDir = new THREE.Vector3();
   private readonly slotColors: THREE.Color[] = [];
 
-  constructor(private readonly capacity = 400) {
+  /** @param glow Unbeleuchtet & additiv (Glut, Funken) statt beleuchteter Späne. */
+  constructor(
+    private readonly capacity = 400,
+    glow = false,
+  ) {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+    const material = glow
+      ? new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+      : new THREE.MeshStandardMaterial({ roughness: 0.9 });
     this.mesh = new THREE.InstancedMesh(geometry, material, capacity);
     this.mesh.name = 'Particles';
     this.mesh.frustumCulled = false;

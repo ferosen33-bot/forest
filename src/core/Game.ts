@@ -19,7 +19,11 @@ import { Audio } from '../systems/Audio';
 import { HUD } from '../ui/HUD';
 import { Menu } from '../ui/Menu';
 import { InventoryUI } from '../ui/InventoryUI';
-import { renderItemIcons } from '../ui/ItemIcons';
+import { renderIcons } from '../ui/ItemIcons';
+import type { BuildHint } from '../ui/HUD';
+import { Crafting, recipeName, type Recipe } from '../systems/Crafting';
+import { BuildingSystem, type Structure } from '../systems/building/BuildingSystem';
+import { LightPool, type LightRequest } from '../systems/LightPool';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -60,8 +64,11 @@ export class Game {
   readonly menu: Menu;
   readonly audio = new Audio();
   readonly particles = new Particles();
+  /** Leuchtende Partikel (Glut). */
+  readonly embers = new Particles(250, true);
   readonly viewModel = new ViewModel();
   readonly inventory = new Inventory(30, 6);
+  readonly crafting = new Crafting(this.inventory);
 
   physics!: Physics;
   world!: World;
@@ -72,6 +79,8 @@ export class Game {
   harvest!: HarvestSystem;
   interaction!: InteractionSystem;
   tools!: ToolController;
+  building!: BuildingSystem;
+  lights!: LightPool;
   hud!: HUD;
   inventoryUI!: InventoryUI;
 
@@ -82,6 +91,17 @@ export class Game {
   private fps = 60;
   private physicsMs = 0;
   private readonly tmpDir = new THREE.Vector3();
+  /** Hier wacht der Spieler nach dem Tod auf (zuletzt benutzter Unterstand, sonst Spawn). */
+  private respawnPoint = new THREE.Vector3();
+  /** Restzeit der Schlaf-Überblendung (> 0 = schläft gerade). */
+  private sleepTimer = 0;
+  private sleepApplied = false;
+  private readonly torchLight: LightRequest = {
+    position: new THREE.Vector3(),
+    color: new THREE.Color(),
+    intensity: 0,
+    distance: 0,
+  };
 
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
@@ -102,7 +122,7 @@ export class Game {
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(this.config.player.fov, aspect, 0.1, g.viewDistance);
     this.viewModel.setAspect(aspect);
-    this.scene.add(this.particles.mesh);
+    this.scene.add(this.particles.mesh, this.embers.mesh);
 
     this.input = new Input(this.renderer.domElement);
     this.menu = new Menu(opts.menuRoot);
@@ -136,6 +156,7 @@ export class Game {
 
     this.player = new Player(this.physics, this.camera, this.input, this.world.heightMap, this.events, cfg);
     this.player.spawn(this.world.spawnPoint, this.spawnYaw());
+    this.respawnPoint.copy(this.world.spawnPoint);
 
     // Gameplay-Systeme
     this.worldItems = new WorldItems(this.physics);
@@ -151,25 +172,42 @@ export class Game {
       this.events,
     );
     this.scene.add(this.harvest.group);
-    this.interaction = new InteractionSystem(
+    this.lights = new LightPool(this.scene, 4);
+    this.building = new BuildingSystem(
       this.physics,
-      this.camera,
-      this.player,
       this.world.heightMap,
-      this.world.vegetation,
+      this.crafting,
       this.worldItems,
-      this.harvest,
-      this.items,
+      this.particles,
+      this.embers,
+      this.lights,
       this.audio,
       this.events,
-      cfg,
     );
+    this.scene.add(this.building.group);
+    this.interaction = new InteractionSystem({
+      physics: this.physics,
+      camera: this.camera,
+      player: this.player,
+      heightMap: this.world.heightMap,
+      vegetation: this.world.vegetation,
+      worldItems: this.worldItems,
+      harvest: this.harvest,
+      building: this.building,
+      items: this.items,
+      audio: this.audio,
+      events: this.events,
+      config: cfg,
+      canSleep: () => this.dayNight.isSleepTime,
+      onSleep: (shelter) => this.sleep(shelter),
+    });
     this.tools = new ToolController(
       this.inventory,
       this.input,
       this.viewModel,
       this.interaction,
       this.harvest,
+      this.building,
       this.player,
       this.audio,
       this.events,
@@ -179,10 +217,17 @@ export class Game {
     this.inventory.add('axe', 1);
 
     // UI (Icons werden aus den 3D-Modellen gerendert)
-    const icons = renderItemIcons();
-    this.hud = new HUD(this.opts.hudRoot, this.events, this.inventory, icons);
-    this.inventoryUI = new InventoryUI(this.opts.inventoryRoot, this.inventory, icons, () => this.tools.selected);
+    const icons = renderIcons();
+    this.hud = new HUD(this.opts.hudRoot, this.events, this.inventory, icons.items);
+    this.inventoryUI = new InventoryUI(
+      this.opts.inventoryRoot,
+      this.inventory,
+      icons,
+      () => this.tools.selected,
+      this.crafting,
+    );
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
+    this.inventoryUI.onCraft = (recipe) => this.craft(recipe);
     this.inventoryUI.onDrop = (slot) => {
       this.camera.getWorldDirection(this.tmpDir);
       this.items.throwFromSlot(slot, this.camera.position, this.tmpDir);
@@ -218,7 +263,7 @@ export class Game {
 
   private wireEvents(): void {
     this.menu.onPlay = (wantsFullscreen) => {
-      if (this.mode === 'dead') this.player.respawn(this.world.spawnPoint);
+      if (this.mode === 'dead') this.player.respawn(this.respawnPoint);
       this.audio.resume();
       if (wantsFullscreen) void this.enterFullscreen();
       void this.input.requestLock();
@@ -238,6 +283,9 @@ export class Game {
 
     this.events.on('player:died', ({ cause }) => {
       this.mode = 'dead';
+      this.building.cancel();
+      this.sleepTimer = 0;
+      this.hud.faded = false;
       this.inventoryUI.hide();
       this.hud.inventoryOpen = false;
       this.input.exitLock();
@@ -265,6 +313,54 @@ export class Game {
     void this.input.requestLock().then((ok) => {
       if (!ok && this.mode === 'playing') this.pause();
     });
+  }
+
+  /** Klick auf ein Rezept: Item herstellen bzw. mit dem Bauplan in den Baumodus wechseln. */
+  private craft(recipe: Recipe): void {
+    if (!this.crafting.canAfford(recipe.cost)) {
+      this.audio.play('denied');
+      this.events.emit('hud:message', { text: `Material fehlt für: ${recipeName(recipe)}` });
+      return;
+    }
+    if (recipe.kind === 'structure') {
+      this.closeInventory();
+      this.building.begin(recipe.result);
+      return;
+    }
+    const rest = this.crafting.craftItem(recipe);
+    if (rest === null) return;
+    if (rest > 0) this.worldItems.spawn(recipe.result, rest, this.player.position.clone().add(new THREE.Vector3(0, 1, 0)));
+    this.audio.play('craft');
+    this.events.emit('item:crafted', { item: recipe.result, count: recipe.count });
+    this.events.emit('hud:message', { text: `${recipeName(recipe)} hergestellt.` });
+  }
+
+  /** Schlafen im Unterstand: abblenden, Zeit auf den Morgen setzen, Aufwachpunkt merken. */
+  private sleep(shelter: Structure): void {
+    if (!this.dayNight.isSleepTime || this.sleepTimer > 0) return;
+    this.sleepTimer = 2.4;
+    this.sleepApplied = false;
+    this.hud.faded = true;
+    const front = new THREE.Vector3(0, 0, 1.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), shelter.rotation);
+    this.respawnPoint.copy(shelter.position).add(front);
+    this.respawnPoint.y = this.world.heightMap.heightAt(this.respawnPoint.x, this.respawnPoint.z);
+  }
+
+  private updateSleep(dt: number): void {
+    if (this.sleepTimer <= 0) return;
+    this.sleepTimer -= dt;
+    // In der Mitte der Überblendung (Bildschirm schwarz) wird die Nacht übersprungen.
+    if (!this.sleepApplied && this.sleepTimer < 1.2) {
+      this.sleepApplied = true;
+      this.dayNight.skipTo(6.5);
+      const s = this.player.stats;
+      s.hunger = Math.max(5, s.hunger - 18);
+      s.thirst = Math.max(5, s.thirst - 22);
+      s.stamina = s.max;
+      s.health = Math.min(s.max, s.health + 25);
+      this.hud.faded = false;
+      this.events.emit('hud:message', { text: 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.' });
+    }
   }
 
   /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
@@ -306,16 +402,20 @@ export class Game {
     if (dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
     if (this.input.wasPressed('debug')) this.hud.toggleDebug();
-    if (this.mode === 'playing' && this.input.wasPressed('inventory')) this.openInventory();
-    else if (this.mode === 'inventory' && (this.input.wasPressed('inventory') || this.input.wasPressed('cancel'))) {
+    const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
+    if (this.mode === 'playing' && toggleInventory && this.sleepTimer <= 0) {
+      this.building.cancel();
+      this.openInventory();
+    } else if (this.mode === 'inventory' && (toggleInventory || this.input.wasPressed('cancel'))) {
       this.closeInventory();
     }
 
     if (this.mode === 'playing' || this.mode === 'inventory') this.simulate(dt);
 
     this.render();
-    const prompt = this.mode === 'playing' ? this.interaction.prompt : null;
-    this.hud.update(dt, this.player, this.dayNight.clockText, prompt, this.tools.selected);
+    const building = this.building.isActive;
+    const prompt = this.mode === 'playing' && !building ? this.interaction.prompt : null;
+    this.hud.update(dt, this.player, this.dayNight.clockText, prompt, this.tools.selected, this.buildHint());
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());
     this.input.endFrame();
   };
@@ -323,7 +423,8 @@ export class Game {
   private simulate(dt: number): void {
     const step = this.config.physics.timestep;
     const player = this.player;
-    const playing = this.mode === 'playing';
+    this.updateSleep(dt);
+    const playing = this.mode === 'playing' && this.sleepTimer <= 0;
     const water = this.world.heightMap.waterLevel;
 
     player.handleInput(playing);
@@ -344,7 +445,7 @@ export class Game {
     if (steps === this.config.physics.maxSubSteps) this.accumulator = 0;
     this.physicsMs = performance.now() - t0;
 
-    if (player.isOutOfWorld) player.spawn(this.world.spawnPoint);
+    if (player.isOutOfWorld) player.spawn(this.respawnPoint);
 
     player.updateCamera(dt, this.accumulator / step);
     // Raycasts (Interaktion, Werkzeuge) brauchen die Kamera-Matrix dieses Frames, nicht die des letzten.
@@ -352,16 +453,63 @@ export class Game {
     this.elapsed += dt;
 
     // Gameplay
+    if (playing && this.building.isActive) this.updateBuildMode();
+    const building = this.building.isActive;
     this.interaction.update(this.tools.equippedTool);
-    if (playing && this.input.wasPressed('interact')) this.interaction.interact();
-    this.tools.update(dt, playing);
+    if (playing && !building && this.input.wasPressed('interact')) this.interaction.interact();
+    this.tools.update(dt, playing && !building);
     this.harvest.update(dt);
+    this.building.update(dt, player.position);
     this.worldItems.update();
     this.particles.update(dt);
+    this.embers.update(dt);
+    player.stats.warm = this.building.isNearLitFire(player.position);
 
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater);
     this.world.update(dt, this.elapsed, player.position);
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
+
+    // Fackel in der Hand → Licht an der Flamme.
+    const light = this.tools.equipped ? getItem(this.tools.equipped.id).light : undefined;
+    if (light && this.viewModel.getFlamePosition(this.torchLight.position)) {
+      this.torchLight.color.set(light.color);
+      this.torchLight.intensity = light.intensity * this.viewModel.flameFlicker;
+      this.torchLight.distance = light.distance;
+      this.lights.request(this.torchLight);
+    }
+    this.lights.update(this.camera.position);
+  }
+
+  /** Baumodus: Drehen, Ghost nachführen, Bauen (Linksklick) und Abbrechen (Rechtsklick/Schnellzugriff). */
+  private updateBuildMode(): void {
+    const input = this.input;
+    const hotbarPressed = (['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'] as const).some((k) =>
+      input.wasPressed(k),
+    );
+    if (hotbarPressed || input.wasMousePressed(2)) {
+      this.building.cancel();
+      return;
+    }
+    if (input.wasPressed('rotate')) this.building.rotate(1);
+    const wheel = input.consumeWheel();
+    if (wheel !== 0) this.building.rotate(wheel);
+
+    this.camera.getWorldDirection(this.tmpDir);
+    this.building.updateGhost(this.camera.position, this.tmpDir, this.player.yaw, this.player.collisionShape);
+    if (!input.isMouseDown(0)) this.building.armed = true;
+    else if (this.building.armed && input.wasMousePressed(0)) this.building.confirm();
+  }
+
+  private buildHint(): BuildHint | null {
+    const def = this.building.active;
+    const placement = this.building.placement;
+    if (!def || this.mode !== 'playing') return null;
+    return {
+      name: def.name,
+      valid: placement?.valid ?? false,
+      reason: placement?.reason,
+      cost: def.cost.map((c) => ({ item: c.item, have: this.inventory.count(c.item), need: c.count })),
+    };
   }
 
   private render(): void {
@@ -389,7 +537,7 @@ export class Game {
       `Zustand    ${[p.grounded && 'Boden', p.crouching && 'Ducken', p.sprinting && 'Sprint', p.swimming && 'Schwimmen']
         .filter(Boolean)
         .join(' ') || 'Luft'}`,
-      `Objekte    ${this.worldItems.size} Items · ${this.harvest.fallingCount} fallend · ${this.particles.activeCount} Partikel`,
+      `Objekte    ${this.worldItems.size} Items · ${this.building.structures.length} Bauwerke · ${this.harvest.fallingCount} fallend · ${this.particles.activeCount + this.embers.activeCount} Partikel`,
       `Ziel       ${this.interaction.target?.type ?? '–'}`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
     ];

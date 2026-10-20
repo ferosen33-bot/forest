@@ -35,6 +35,9 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | Linksklick          | Mit Werkzeug schlagen / Nahrung essen |
 | `1`–`6` / Mausrad   | Schnellzugriff wählen                 |
 | `Tab` / `I`         | Inventar öffnen/schließen             |
+| `B`                 | Herstellen & Bauen (Inventar)         |
+| `R` / Mausrad       | Bauvorschau drehen                    |
+| Rechtsklick         | Bauen abbrechen                       |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `T` (mit F3)        | Zeitraffer                            |
 | `Esc`               | Pause                                 |
@@ -44,6 +47,27 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 3 – Crafting & Bausystem
+
+- **Herstellen** (rechte Spalte im Inventar, `B`): Rezepte zeigen Icon und vorhandene/benötigte Materialien;
+  Hergestelltes landet im Inventar (bei vollem Inventar fällt der Rest auf den Boden).
+  - **Steinaxt** (1 Stock, 2 Steine): fällt Bäume deutlich schneller und schlägt 2 Steine pro Treffer ab
+  - **Speer** (2 Stöcke, 1 Stein): Stoß-Waffe mit großer Reichweite (für das kommende Kampfsystem)
+  - **Fackel** (2 Stöcke): leuchtet in der Hand, mit flackernder Flamme
+- **Bauen:** Wählt man einen Bauplan, erscheint eine transparente Vorschau vor dem Spieler, die dem Gelände folgt
+  und sich drehen lässt (`R`/Mausrad). Grün heißt baubar; rot nennt den Grund („Kein Platz“, „Du stehst im Weg“,
+  „Untergrund zu steil“, „Nicht im Wasser“, „Material fehlt“). Material wird erst beim Platzieren verbraucht.
+  Reicht es für ein weiteres Stück, bleibt der Baumodus aktiv.
+  - **Lagerfeuer** (3 Stöcke, 4 Steine): Licht, Flammen, aufsteigende Glut, Knistern; mit `E` löschen/anzünden.
+    Am Feuer regenerieren sich Gesundheit (×4) und Ausdauer (×1,6) schneller.
+  - **Holzwand** (2 Stämme): Palisadenstück, das an den Enden anderer Wände einrastet
+  - **Unterstand** (3 Stämme, 4 Stöcke): ab 19 Uhr mit `E` bis zum Morgen schlafen (kostet Hunger und Durst,
+    füllt Ausdauer und etwas Gesundheit auf) – und hier wacht man nach dem Tod wieder auf
+  - **Stachelfalle** (6 Stöcke, 2 Steine): versperrt Wege. Schaden an Gegnern kommt mit dem KI-Meilenstein.
+- **Abreißen:** Bauwerke mit der Axt zerschlagen; die Hälfte des Materials fällt heraus.
+- **Licht:** feste Anzahl Punktlichter, jedes Frame den nächstgelegenen Feuern/der Fackel zugewiesen. So gibt es keine
+  Shader-Neukompilierung (Ruckler) beim Bauen eines Feuers.
 
 ### Meilenstein 2 – Interaktion, Ressourcen & Inventar
 
@@ -105,6 +129,7 @@ src/
 │   ├── Player.ts           First-Person-Controller
 │   ├── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
 │   ├── ViewModel.ts        Gegenstand in der Hand + Animationen (eigene Szene/Kamera)
+│   ├── FireEffect.ts       Flackernde Flamme (Lagerfeuer, Fackel)
 │   └── items/
 │       ├── ItemDefs.ts     Item-Registry (Name, Stapelgröße, Werkzeug-/Nahrungswerte)
 │       ├── ItemMeshes.ts   Prozedurale 3D-Modelle + Kollisionsformen
@@ -116,8 +141,13 @@ src/
 │   ├── InteractionSystem.ts  Ziel-Raycast, Hinweise, E-Aktionen
 │   ├── ToolController.ts   Schnellzugriff, Schläge (Treffer im Aufprallmoment), Essen
 │   ├── HarvestSystem.ts    Bäume fällen (fallender Rigidbody → Stämme), Steine abschlagen
-│   ├── Particles.ts        Gepooltes Partikelsystem (ein Draw Call)
-│   └── Audio.ts            Prozedurale Soundeffekte (Web Audio)
+│   ├── Crafting.ts         Rezepte + Materialverbrauch (reine Logik, getestet)
+│   ├── LightPool.ts        Fester Pool an Punktlichtern für Feuer & Fackel
+│   ├── Particles.ts        Gepooltes Partikelsystem (Späne; leuchtend für Glut)
+│   ├── Audio.ts            Prozedurale Soundeffekte (Web Audio)
+│   └── building/
+│       ├── StructureDefs.ts  Bauwerke: Modelle (pro Material verschmolzen), Collider, Kosten
+│       └── BuildingSystem.ts Vorschau, Platzierungsprüfung, Einrasten, Bauen, Abreißen, Feuer
 ├── ui/
 │   ├── HUD.ts              Statusanzeigen, Hinweis, Schnellzugriff, Meldungen
 │   ├── InventoryUI.ts      Inventarfenster mit Drag & Drop
@@ -143,9 +173,10 @@ src/
 
 1. ~~Interaktion & Ressourcen~~ ✓
 2. ~~Inventar~~ ✓
-3. **Crafting:** Rezepte (Stock + Stein = Axt, Holz = Lagerfeuer …), Crafting-Menü
-4. **Bausystem:** Ghost-Vorschau am Terrain ausgerichtet, Snapping, Wände/Lagerfeuer/Fallen/Unterstände
+3. ~~Crafting~~ ✓
+4. ~~Bausystem~~ ✓
 5. **Kampf:** Axt-Animation, Hitboxen, Treffer-Feedback
 6. **Gegner-KI:** Navigations-Raster auf der Höhenkarte, Patrouille, Wahrnehmung (Sicht/Geräusch), Nahkampf
 7. **Audio & Effekte:** Ambient-Sounds, Schritte je Untergrund, God-Rays (Post-Processing), Gras (Basis-SFX sind bereits da)
 8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
+9. **Ausbau Survival:** Haltbarkeit von Werkzeugen/Fackeln, Kochen am Feuer, Wasserbehälter, weitere Bauteile (Böden, Tore)

@@ -19,6 +19,8 @@ export class PlayerStats {
   thirst: number;
   /** Nach völliger Erschöpfung kann erst wieder gesprintet werden, wenn die Schwelle erreicht ist. */
   exhausted = false;
+  /** In der Wärme eines Lagerfeuers: schnellere Regeneration (wird jedes Frame vom Spiel gesetzt). */
+  warm = false;
 
   private regenDelay = 0;
   private readonly cfg: GameConfig['stats'];
@@ -59,7 +61,7 @@ export class PlayerStats {
     } else {
       // Wer hungrig oder durstig ist, regeneriert langsamer.
       const needs = Math.min(this.hunger, this.thirst) / c.max;
-      this.stamina += c.staminaRegen * (0.4 + 0.6 * needs) * dt;
+      this.stamina += c.staminaRegen * (0.4 + 0.6 * needs) * (this.warm ? 1.6 : 1) * dt;
     }
     this.stamina = clamp(this.stamina, 0, c.max);
     if (this.stamina <= 0) this.exhausted = true;
@@ -76,7 +78,7 @@ export class PlayerStats {
 
     // Natürliche Heilung, wenn gut versorgt.
     if (this.hunger > c.regenNeedsThreshold && this.thirst > c.regenNeedsThreshold) {
-      this.health = Math.min(c.max, this.health + c.healthRegen * dt);
+      this.health = Math.min(c.max, this.health + c.healthRegen * (this.warm ? 4 : 1) * dt);
     }
   }
 

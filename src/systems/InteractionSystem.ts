@@ -10,12 +10,33 @@ import type { HarvestSystem } from './HarvestSystem';
 import type { ItemService } from './ItemService';
 import type { Audio } from './Audio';
 import type { GameConfig } from '../config';
+import type { BuildingSystem, Structure } from './building/BuildingSystem';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
   | { type: 'tree' | 'rock' | 'bush' | 'ground'; instance: VegetationInstance; hit: RaycastHit }
   | { type: 'item'; item: WorldItem; hit: RaycastHit }
+  | { type: 'structure'; structure: Structure; hit: RaycastHit }
   | { type: 'water' };
+
+export interface InteractionDeps {
+  physics: Physics;
+  camera: THREE.Camera;
+  player: Player;
+  heightMap: HeightMap;
+  vegetation: Vegetation;
+  worldItems: WorldItems;
+  harvest: HarvestSystem;
+  building: BuildingSystem;
+  items: ItemService;
+  audio: Audio;
+  events: EventBus;
+  config: GameConfig;
+  /** Darf gerade geschlafen werden (abends/nachts)? */
+  canSleep: () => boolean;
+  /** Wird beim Schlafen im Unterstand aufgerufen. */
+  onSleep: (shelter: Structure) => void;
+}
 
 /** Inhalt des Interaktions-Hinweises im HUD. */
 export interface Prompt {
@@ -49,19 +70,35 @@ export class InteractionSystem {
   private readonly origin = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
 
-  constructor(
-    private readonly physics: Physics,
-    private readonly camera: THREE.Camera,
-    private readonly player: Player,
-    private readonly heightMap: HeightMap,
-    private readonly vegetation: Vegetation,
-    private readonly worldItems: WorldItems,
-    private readonly harvest: HarvestSystem,
-    private readonly items: ItemService,
-    private readonly audio: Audio,
-    private readonly events: EventBus,
-    private readonly config: GameConfig,
-  ) {}
+  private readonly physics: Physics;
+  private readonly camera: THREE.Camera;
+  private readonly player: Player;
+  private readonly heightMap: HeightMap;
+  private readonly vegetation: Vegetation;
+  private readonly worldItems: WorldItems;
+  private readonly harvest: HarvestSystem;
+  private readonly building: BuildingSystem;
+  private readonly items: ItemService;
+  private readonly audio: Audio;
+  private readonly events: EventBus;
+  private readonly config: GameConfig;
+
+  constructor(private readonly deps: InteractionDeps) {
+    ({
+      physics: this.physics,
+      camera: this.camera,
+      player: this.player,
+      heightMap: this.heightMap,
+      vegetation: this.vegetation,
+      worldItems: this.worldItems,
+      harvest: this.harvest,
+      building: this.building,
+      items: this.items,
+      audio: this.audio,
+      events: this.events,
+      config: this.config,
+    } = deps);
+  }
 
   /** Strahl aus der Kameramitte; liefert das erste getroffene, zuordenbare Ziel. */
   raycast(maxDist: number): InteractionTarget | null {
@@ -72,6 +109,8 @@ export class InteractionSystem {
     if (hit) {
       const item = this.worldItems.getByCollider(hit.collider);
       if (item) return { type: 'item', item, hit };
+      const structure = this.building.getByCollider(hit.collider);
+      if (structure) return { type: 'structure', structure, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
       if (inst) {
         switch (inst.kind) {
@@ -123,6 +162,7 @@ export class InteractionSystem {
       case 'rock': {
         if (target.hit.distance > (tool?.reach ?? INTERACT_REACH)) return null;
         if (this.harvest.isRockDepleted(target.instance)) return { key: null, action: 'Erschöpft', label: 'Felsen' };
+        if (tool && tool.rockYield === 0) return { key: null, action: 'Ungeeignetes Werkzeug', label: 'Felsen' };
         return tool
           ? { key: 'LMB', action: 'Steine abschlagen', label: 'Felsen' }
           : { key: null, action: 'Axt benötigt', label: 'Felsen' };
@@ -137,6 +177,18 @@ export class InteractionSystem {
         if (target.hit.distance > INTERACT_REACH) return null;
         const name = getItem(target.item.itemId).name;
         return { key: 'E', action: 'Aufheben', label: target.item.count > 1 ? `${name} ×${target.item.count}` : name };
+      }
+      case 'structure': {
+        if (target.hit.distance > Math.max(INTERACT_REACH, tool?.reach ?? 0)) return null;
+        const s = target.structure;
+        const label = s.def.name;
+        if (s.def.interaction === 'fire') return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label };
+        if (s.def.interaction === 'sleep') {
+          return this.deps.canSleep()
+            ? { key: 'E', action: 'Schlafen', label }
+            : { key: null, action: 'Schlafen erst ab dem Abend', label };
+        }
+        return tool ? { key: 'LMB', action: 'Abreißen', label } : null;
       }
       case 'water':
         return { key: 'E', action: 'Trinken', label: 'Wasser' };
@@ -167,6 +219,12 @@ export class InteractionSystem {
         // Erst entfernen, dann geben: ein voller Rucksack lässt den Rest wieder an derselben Stelle fallen.
         this.worldItems.remove(item);
         this.items.give(item.itemId, item.count, point);
+        break;
+      }
+      case 'structure': {
+        const s = target.structure;
+        if (s.def.interaction === 'fire') this.building.toggleFire(s);
+        else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
         break;
       }
       case 'water':
