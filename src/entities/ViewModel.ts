@@ -95,6 +95,8 @@ export class ViewModel {
   private raise = 0;
   private action: { keys: typeof SWING_KEYS; time: number; duration: number } | null = null;
   private recoil = 0;
+  private block = 0;
+  private blocking = false;
   private swayX = 0;
   private swayY = 0;
   private lastYaw = 0;
@@ -159,6 +161,11 @@ export class ViewModel {
     if (this.action) this.action.time -= 0.05;
   }
 
+  /** Deckung: Waffe quer vor den Körper halten. */
+  setBlocking(on: boolean): void {
+    this.blocking = on;
+  }
+
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
@@ -197,6 +204,14 @@ export class ViewModel {
       else sampleKeys(this.action.keys, u, this.animPos, this.animRot);
     }
     this.recoil = damp(this.recoil, 0, 14, dt);
+    this.block = damp(this.block, this.blocking ? 1 : 0, 14, dt);
+    if (this.block > 0.001) {
+      this.animPos.x -= 0.22 * this.block;
+      this.animPos.y += 0.16 * this.block;
+      this.animPos.z += 0.06 * this.block;
+      this.animRot.z += 1.25 * this.block;
+      this.animRot.x += 0.2 * this.block;
+    }
 
     // Sway: das Item hinkt der Blickbewegung leicht hinterher.
     const dYaw = look.yaw - this.lastYaw;

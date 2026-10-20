@@ -9,6 +9,7 @@ import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
 import type { Audio } from './Audio';
 import type { BuildingSystem } from './building/BuildingSystem';
+import type { EnemyDirector } from './ai/EnemyDirector';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -37,6 +38,7 @@ export class ToolController {
     private readonly interaction: InteractionSystem,
     private readonly harvest: HarvestSystem,
     private readonly building: BuildingSystem,
+    private readonly enemies: EnemyDirector,
     private readonly player: Player,
     private readonly audio: Audio,
     private readonly events: EventBus,
@@ -79,11 +81,19 @@ export class ToolController {
 
     if (this.swing) this.updateSwing(dt);
     if (this.eating) this.updateEating(dt);
+
+    // Blocken: rechte Maustaste mit einer Waffe in der Hand.
+    const def = stack ? getItem(stack.id) : undefined;
+    const blocking =
+      active && !this.player.stats.isDead && !!def?.tool && this.input.isMouseDown(2) && !this.swing && !this.eating;
+    this.player.blocking = blocking;
+    this.viewModel.setBlocking(blocking);
+    if (blocking) return;
+
     if (!active || this.player.stats.isDead || !stack || this.swing || this.eating || this.viewModel.busy) return;
 
-    const def = getItem(stack.id);
-    if (def.tool && this.input.isMouseDown(0)) this.startSwing(def.tool);
-    else if (def.food && this.input.wasMousePressed(0)) this.startEating(def);
+    if (def?.tool && this.input.isMouseDown(0)) this.startSwing(def.tool);
+    else if (def?.food && this.input.wasMousePressed(0)) this.startEating(def);
   }
 
   private startSwing(tool: ToolStats): void {
@@ -135,6 +145,9 @@ export class ToolController {
         break;
       case 'structure':
         this.building.damage(target.structure, tool.treeDamage, this.point, this.normal);
+        break;
+      case 'enemy':
+        this.enemies.damage(target.enemy, tool.damage, target.zone, this.player.position, this.point, this.normal);
         break;
     }
     this.viewModel.playHit();

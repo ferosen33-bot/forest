@@ -76,9 +76,11 @@ export class Physics {
     dir: { x: number; y: number; z: number },
     maxDist: number,
     exclude?: RAPIER.Collider,
+    excludeSensors = false,
   ): RaycastHit | null {
     const ray = new RAPIER.Ray(origin, dir);
-    const hit = this.world.castRayAndGetNormal(ray, maxDist, true, undefined, undefined, exclude);
+    const flags = excludeSensors ? RAPIER.QueryFilterFlags.EXCLUDE_SENSORS : undefined;
+    const hit = this.world.castRayAndGetNormal(ray, maxDist, true, flags, undefined, exclude);
     if (!hit) return null;
     const t = hit.timeOfImpact;
     return {

@@ -74,6 +74,30 @@ export const CONFIG = {
     drinkAmount: 25,
   },
 
+  ai: {
+    /** Anzahl der Schrat-Lager auf der Insel. */
+    camps: 4,
+    perCamp: 3,
+    /** Mindestabstand der Lager zum Spawnpunkt (m). */
+    campMinDistance: 150,
+    health: 80,
+    walkSpeed: 1.7,
+    runSpeed: 5.4,
+    attackRange: 1.7,
+    attackDamage: 13,
+    /** Kopftreffer-Multiplikator. */
+    headshotMultiplier: 2,
+    sightDay: 32,
+    sightNight: 14,
+    /** Sichtweite nachts, wenn der Spieler eine Fackel trägt oder am Feuer steht. */
+    sightLit: 34,
+    fieldOfViewDeg: 120,
+    /** Ab dieser Entfernung zum Spieler pausieren Gegner (Leistung). */
+    activeRadius: 150,
+    /** Zeit bis tote Gegner im Lager neu erscheinen (Spielsekunden). */
+    respawnTime: 240,
+  },
+
   time: {
     /** Dauer eines kompletten Tages in Echtzeit-Sekunden. */
     dayLength: 20 * 60,

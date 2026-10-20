@@ -181,6 +181,7 @@ export class BuildingSystem {
     if (!this.crafting.consume(def.cost)) return null;
     const structure = this.place(def.id, p.position, p.rotation);
     this.audio.play('place');
+    this.events.emit('noise', { position: p.position.clone(), radius: 18 });
     this.particles.burst(p.position.clone().add(new THREE.Vector3(0, 0.2, 0)), {
       count: 14,
       color: 0x6b5a45,
@@ -338,7 +339,7 @@ export class BuildingSystem {
     }
 
     this.structures.push(structure);
-    this.events.emit('structure:placed', { id });
+    this.events.emit('structure:placed', { id, position: position.clone(), rotation });
     return structure;
   }
 
@@ -360,12 +361,13 @@ export class BuildingSystem {
   }
 
   /** Schaden durch Werkzeuge; bei 0 wird das Bauwerk abgerissen und gibt die Hälfte des Materials zurück. */
-  damage(s: Structure, amount: number, point: THREE.Vector3, normal: THREE.Vector3): void {
+  /** @param byPlayer false bei Angriffen von Gegnern (kein Treffer-Feedback im HUD). */
+  damage(s: Structure, amount: number, point: THREE.Vector3, normal: THREE.Vector3, byPlayer = true): void {
     s.health -= amount;
     s.shake = 0.3;
     this.audio.play('chop');
     this.particles.burst(point, { count: 8, color: 0xa88158, direction: normal, speed: 3, size: 0.03 });
-    this.events.emit('tool:hit', { target: 'other' });
+    if (byPlayer) this.events.emit('tool:hit', { target: 'other' });
     if (s.health <= 0) this.demolish(s);
   }
 
@@ -376,6 +378,7 @@ export class BuildingSystem {
     for (let i = 0; i < s.body.numColliders(); i++) this.byCollider.delete(s.body.collider(i).handle);
     this.physics.world.removeRigidBody(s.body);
     this.group.remove(s.object);
+    this.events.emit('structure:removed', { id: s.def.id, position: s.position.clone(), rotation: s.rotation });
 
     // Hälfte des Materials (mindestens 1 je Sorte) fällt als Items heraus.
     for (const c of s.def.cost) {

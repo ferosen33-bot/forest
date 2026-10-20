@@ -30,6 +30,9 @@ const REFS = [
   'buildReason',
   'buildCost',
   'fade',
+  'damageDir',
+  'enemyHealth',
+  'enemyHealthFill',
   'debug',
 ] as const;
 
@@ -68,6 +71,10 @@ export class HUD {
   private readonly toasts: Toast[] = [];
   private damageFlash = 0;
   private hitTimer = 0;
+  private hitKind: 'normal' | 'creature' | 'kill' = 'normal';
+  private damageFrom: { x: number; z: number } | null = null;
+  private damageDirTimer = 0;
+  private enemyHealthTimer = 0;
   private nameTimer = 0;
   private lastSelected = -1;
   private lastSelectedItem: ItemId | null = null;
@@ -93,13 +100,27 @@ export class HUD {
       this.hotbarSlots.push(slot);
     }
 
-    events.on('player:damaged', ({ amount }) => {
+    events.on('player:damaged', ({ amount, from }) => {
       this.damageFlash = Math.min(1, this.damageFlash + 0.25 + amount / 40);
+      if (from) {
+        this.damageFrom = { x: from.x, z: from.z };
+        this.damageDirTimer = 1.3;
+      }
+    });
+    events.on('enemy:hit', ({ health, maxHealth, killed }) => {
+      this.enemyHealthTimer = killed ? 1.2 : 2.5;
+      this.el.enemyHealthFill.style.transform = `scaleX(${Math.max(0, health / maxHealth)})`;
+      if (killed) {
+        this.hitKind = 'kill';
+        this.hitTimer = 0.4;
+      }
     });
     events.on('player:respawned', () => {
       this.damageFlash = 0;
     });
-    events.on('tool:hit', () => {
+    events.on('tool:hit', ({ target }) => {
+      if (this.hitKind === 'kill' && this.hitTimer > 0) return;
+      this.hitKind = target === 'creature' ? 'creature' : 'normal';
       this.hitTimer = 0.16;
     });
     events.on('item:collected', ({ item, count }) => this.itemToast(item, count));
@@ -149,6 +170,24 @@ export class HUD {
 
     this.hitTimer -= dt;
     this.toggle('hitmarker', 'is-visible', this.hitTimer > 0);
+    this.toggle('hitmarker', 'is-creature', this.hitKind === 'creature');
+    this.toggle('hitmarker', 'is-kill', this.hitKind === 'kill');
+
+    // Treffer-Richtung: Bogen um das Fadenkreuz, der zum Angreifer zeigt.
+    this.damageDirTimer -= dt;
+    this.toggle('damageDir', 'is-visible', this.damageDirTimer > 0);
+    if (this.damageDirTimer > 0 && this.damageFrom) {
+      const dx = this.damageFrom.x - player.position.x;
+      const dz = this.damageFrom.z - player.position.z;
+      const fx = -Math.sin(player.yaw);
+      const fz = -Math.cos(player.yaw);
+      const rel = Math.atan2(dx * -fz + dz * fx, dx * fx + dz * fz); // rechts positiv
+      this.el.damageDir.style.transform = `translate(-50%, -50%) rotate(${rel.toFixed(3)}rad)`;
+      this.el.damageDir.style.opacity = Math.min(1, this.damageDirTimer).toFixed(2);
+    }
+
+    this.enemyHealthTimer -= dt;
+    this.toggle('enemyHealth', 'is-visible', this.enemyHealthTimer > 0);
 
     // Treffer-Feedback klingt exponentiell ab; bei niedriger Gesundheit bleibt ein Rest.
     this.damageFlash *= Math.exp(-dt * 2.5);

@@ -17,7 +17,14 @@ export type SoundId =
   | 'craft'
   | 'place'
   | 'crackle'
-  | 'ignite';
+  | 'ignite'
+  | 'growl'
+  | 'scream'
+  | 'enemyAttack'
+  | 'fleshHit'
+  | 'enemyDeath'
+  | 'block'
+  | 'hurt';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -104,6 +111,35 @@ export class Audio {
         break;
       case 'ignite':
         this.noise(t, 0.6, 'bandpass', 900, 0.6, 0.5, 2500);
+        break;
+      // Kreaturen: Sägezahn durch Bandpass ("Formant") mit unruhiger Tonhöhe.
+      case 'growl':
+        this.tone(t, 'sawtooth', 70 * pitch, 55, 0.9, 0.35, 500);
+        this.noise(t, 0.8, 'bandpass', 300, 2, 0.2);
+        break;
+      case 'scream':
+        this.tone(t, 'sawtooth', 420 * pitch, 260, 0.9, 0.35, 2200);
+        this.tone(t + 0.05, 'square', 610 * pitch, 380, 0.75, 0.12, 1800);
+        this.noise(t, 0.8, 'bandpass', 1600, 1.5, 0.3);
+        break;
+      case 'enemyAttack':
+        this.tone(t, 'sawtooth', 180 * pitch, 120, 0.35, 0.3, 900);
+        break;
+      case 'fleshHit':
+        this.noise(t, 0.12, 'lowpass', 700, 1, 1.0);
+        this.tone(t, 'sine', 110, 60, 0.15, 0.8);
+        break;
+      case 'enemyDeath':
+        this.tone(t, 'sawtooth', 300 * pitch, 80, 1.2, 0.35, 1200);
+        this.noise(t, 1.0, 'bandpass', 500, 1, 0.25);
+        break;
+      case 'block':
+        this.noise(t, 0.08, 'bandpass', 1400, 2, 0.8);
+        this.tone(t, 'triangle', 240, 180, 0.1, 0.4);
+        break;
+      case 'hurt':
+        this.tone(t, 'triangle', 220 * pitch, 140, 0.25, 0.4, 1500);
+        this.noise(t, 0.15, 'lowpass', 600, 1, 0.6);
         break;
     }
   }

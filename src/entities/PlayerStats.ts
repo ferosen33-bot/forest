@@ -1,3 +1,4 @@
+import type { Vector3 } from 'three';
 import type { DamageSource, EventBus } from '../core/EventBus';
 import type { GameConfig } from '../config';
 import { clamp } from '../utils/math';
@@ -93,10 +94,10 @@ export class PlayerStats {
   /**
    * @param notify Bei kontinuierlichem Schaden (Hunger) kein Treffer-Feedback auslösen.
    */
-  damage(amount: number, source: DamageSource, notify = true): void {
+  damage(amount: number, source: DamageSource, notify = true, from?: Vector3): void {
     if (this.isDead || amount <= 0) return;
     this.health = Math.max(0, this.health - amount);
-    if (notify) this.events.emit('player:damaged', { amount, source });
+    if (notify) this.events.emit('player:damaged', { amount, source, from });
     if (this.health <= 0) this.events.emit('player:died', { cause: source });
   }
 

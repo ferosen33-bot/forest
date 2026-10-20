@@ -93,6 +93,7 @@ export class HarvestSystem {
     this.particles.burst(point, { count: 4, color: 0x3d2a18, direction: normal, speed: 2.5, size: 0.04 });
     this.vegetation.shake(tree, from, 1);
     this.events.emit('tool:hit', { target: 'tree' });
+    this.events.emit('noise', { position: point.clone(), radius: 30 });
 
     if (health > 0) return false;
     this.treeHealth.delete(tree.id);
@@ -164,7 +165,7 @@ export class HarvestSystem {
 
     this.falling.push({ instance: tree, kind, object, body, age: 0, landedFor: -1 });
     this.audio.play('treeCrack');
-    this.events.emit('tree:felled', { kind });
+    this.events.emit('tree:felled', { kind, position: tree.position.clone() });
   }
 
   private createStump(tree: VegetationInstance): void {
@@ -246,6 +247,7 @@ export class HarvestSystem {
     this.particles.burst(point, { count: 8, color: 0x8a877f, direction: normal, speed: 4, size: 0.035 });
     this.particles.burst(point, { count: 3, color: 0xffd27a, direction: normal, speed: 6, size: 0.015, life: 0.25 });
     this.events.emit('tool:hit', { target: 'rock' });
+    this.events.emit('noise', { position: point.clone(), radius: 22 });
 
     const stones = this.stonesIn(rock);
     if (stones <= 0) {
@@ -279,6 +281,7 @@ export class HarvestSystem {
         f.body.setAngularDamping(4);
         f.body.setLinearDamping(1.5);
         this.audio.play('treeFall');
+        this.events.emit('noise', { position: f.object.position.clone(), radius: 45 });
         this.events.emit('tree:landed', { position: f.object.position.clone() });
       } else if (f.landedFor >= 0) {
         f.landedFor += dt;

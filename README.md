@@ -37,7 +37,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
 | `R` / Mausrad       | Bauvorschau drehen                    |
-| Rechtsklick         | Bauen abbrechen                       |
+| Rechtsklick         | Blocken (mit Waffe) / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `T` (mit F3)        | Zeitraffer                            |
 | `Esc`               | Pause                                 |
@@ -47,6 +47,28 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 4 – Gegner-KI & Kampf
+
+- **Schrate:** hagere Waldkreaturen mit glimmenden Augen und Keulen, die in vier Lagern (Totem, Feuer, Pfahlring) leben.
+  Prozedurale Animation: Gehen/Rennen, lauernde Haltung, Ausholen und Zuschlagen, Zucken bei Treffern, Schreien, Umfallen.
+  Alle Schrate zusammen brauchen ≈ 9 Draw Calls, weil jedes Körperteil als InstancedMesh gerendert wird.
+- **Wahrnehmung:**
+  - **Sicht:** Sichtkegel von 120° plus Sichtlinie per Raycast. Tagsüber 32 m, nachts 14 m; mit Fackel oder am Feuer
+    34 m; geduckt nur 55 %. Misstrauen baut sich auf Distanz langsam auf (Schleichen lohnt sich).
+  - **Gehör:** Sprinten (22 m), Gehen (9 m), geduckt (2,5 m), Holzhacken (30 m), fallende Bäume (45 m), Bauen, Kampf.
+- **Verhalten:** Patrouille ums Lager → Nachsehen (Geräusch/Sichtung) → Schrei + Artgenossen alarmieren → Verfolgen
+  → Angriff mit sichtbarem Ausholen (ausweichbar, die Richtung ist ab dem Schlag festgelegt) → bei wenig Leben Flucht.
+  Spur verloren → am letzten bekannten Ort suchen. Nachts halten sie Abstand zu brennenden Lagerfeuern, außer man greift sie an.
+- **Wegfindung:** Navigationsraster aus der Höhenkarte (kein Wasser, keine Steilhänge, Bäume/Felsen/Bauwerke als
+  Hindernisse) mit A* (begrenztes Budget pro Takt) und Sichtlinien-Glättung. Gebaute Wände versperren Wege wirklich.
+  Ist man eingemauert, schlagen sie die Wand ein. Wasser ist eine Fluchtmöglichkeit: Schrate schwimmen nicht.
+- **Kampf:** Treffer per Raycast im Aufprallmoment, Kopftreffer ×2, Rückstoß und Taumeln (unterbricht deren Angriff),
+  Blut, Lebensbalken, rote Treffer- bzw. Kill-Markierung. **Blocken** (rechte Maustaste) schluckt 80 % des Schadens
+  gegen Ausdauer. Bei Treffern wackelt die Kamera und eine Anzeige zeigt die Richtung des Angreifers.
+- **Fallen:** Stachelfallen verletzen hineinlaufende Schrate (und nutzen sich dabei ab).
+- **Regie:** Nachts schickt das nächste Lager Jagdgruppen los. Gefallene Schrate werden ersetzt, wenn man weit weg ist.
+  Nach dem eigenen Tod beruhigen sich alle, und niemand lauert am Aufwachpunkt. Weit entfernte Schrate pausieren (LOD).
 
 ### Meilenstein 3 – Crafting & Bausystem
 
@@ -130,6 +152,10 @@ src/
 │   ├── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
 │   ├── ViewModel.ts        Gegenstand in der Hand + Animationen (eigene Szene/Kamera)
 │   ├── FireEffect.ts       Flackernde Flamme (Lagerfeuer, Fackel)
+│   ├── enemies/
+│   │   ├── Enemy.ts        Schrat: Character Controller, Wahrnehmung, Zustandsautomat
+│   │   ├── EnemyRig.ts     Prozedurales Skelett + Animation, Körperteil-Geometrien
+│   │   └── EnemyRenderer.ts  Alle Gegner als InstancedMeshes (ein Draw Call pro Körperteil)
 │   └── items/
 │       ├── ItemDefs.ts     Item-Registry (Name, Stapelgröße, Werkzeug-/Nahrungswerte)
 │       ├── ItemMeshes.ts   Prozedurale 3D-Modelle + Kollisionsformen
@@ -145,6 +171,10 @@ src/
 │   ├── LightPool.ts        Fester Pool an Punktlichtern für Feuer & Fackel
 │   ├── Particles.ts        Gepooltes Partikelsystem (Späne; leuchtend für Glut)
 │   ├── Audio.ts            Prozedurale Soundeffekte (Web Audio)
+│   ├── ai/
+│   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
+│   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
+│   │   └── CampModel.ts    Modell eines Schrat-Lagers
 │   └── building/
 │       ├── StructureDefs.ts  Bauwerke: Modelle (pro Material verschmolzen), Collider, Kosten
 │       └── BuildingSystem.ts Vorschau, Platzierungsprüfung, Einrasten, Bauen, Abreißen, Feuer
@@ -175,8 +205,9 @@ src/
 2. ~~Inventar~~ ✓
 3. ~~Crafting~~ ✓
 4. ~~Bausystem~~ ✓
-5. **Kampf:** Axt-Animation, Hitboxen, Treffer-Feedback
-6. **Gegner-KI:** Navigations-Raster auf der Höhenkarte, Patrouille, Wahrnehmung (Sicht/Geräusch), Nahkampf
+5. ~~Kampf~~ ✓
+6. ~~Gegner-KI~~ ✓
 7. **Audio & Effekte:** Ambient-Sounds, Schritte je Untergrund, God-Rays (Post-Processing), Gras (Basis-SFX sind bereits da)
 8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
-9. **Ausbau Survival:** Haltbarkeit von Werkzeugen/Fackeln, Kochen am Feuer, Wasserbehälter, weitere Bauteile (Böden, Tore)
+9. **Ausbau KI & Kampf:** Speer werfen, Tiere (Jagd, Fleisch), unterschiedliche Gegnertypen, Schleichangriffe
+10. **Ausbau Survival:** Haltbarkeit von Werkzeugen/Fackeln, Kochen am Feuer, Wasserbehälter, weitere Bauteile (Böden, Tore)

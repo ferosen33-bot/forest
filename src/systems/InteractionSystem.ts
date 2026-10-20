@@ -11,12 +11,15 @@ import type { ItemService } from './ItemService';
 import type { Audio } from './Audio';
 import type { GameConfig } from '../config';
 import type { BuildingSystem, Structure } from './building/BuildingSystem';
+import type { EnemyDirector, HitZone } from './ai/EnemyDirector';
+import type { Enemy } from '../entities/enemies/Enemy';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
   | { type: 'tree' | 'rock' | 'bush' | 'ground'; instance: VegetationInstance; hit: RaycastHit }
   | { type: 'item'; item: WorldItem; hit: RaycastHit }
   | { type: 'structure'; structure: Structure; hit: RaycastHit }
+  | { type: 'enemy'; enemy: Enemy; zone: HitZone; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -28,6 +31,7 @@ export interface InteractionDeps {
   worldItems: WorldItems;
   harvest: HarvestSystem;
   building: BuildingSystem;
+  enemies: EnemyDirector;
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -109,6 +113,8 @@ export class InteractionSystem {
     if (hit) {
       const item = this.worldItems.getByCollider(hit.collider);
       if (item) return { type: 'item', item, hit };
+      const enemyHit = this.deps.enemies.getHitTarget(hit.collider);
+      if (enemyHit) return { type: 'enemy', enemy: enemyHit.enemy, zone: enemyHit.zone, hit };
       const structure = this.building.getByCollider(hit.collider);
       if (structure) return { type: 'structure', structure, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
@@ -190,6 +196,8 @@ export class InteractionSystem {
         }
         return tool ? { key: 'LMB', action: 'Abreißen', label } : null;
       }
+      case 'enemy':
+        return null;
       case 'water':
         return { key: 'E', action: 'Trinken', label: 'Wasser' };
     }

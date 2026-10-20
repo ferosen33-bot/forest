@@ -24,6 +24,7 @@ import type { BuildHint } from '../ui/HUD';
 import { Crafting, recipeName, type Recipe } from '../systems/Crafting';
 import { BuildingSystem, type Structure } from '../systems/building/BuildingSystem';
 import { LightPool, type LightRequest } from '../systems/LightPool';
+import { EnemyDirector } from '../systems/ai/EnemyDirector';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -81,6 +82,7 @@ export class Game {
   tools!: ToolController;
   building!: BuildingSystem;
   lights!: LightPool;
+  enemies!: EnemyDirector;
   hud!: HUD;
   inventoryUI!: InventoryUI;
 
@@ -185,6 +187,29 @@ export class Game {
       this.events,
     );
     this.scene.add(this.building.group);
+    this.menu.setLoading('Schrate erwachen …');
+    await nextFrame();
+    const tEnemies = performance.now();
+    this.enemies = new EnemyDirector({
+      physics: this.physics,
+      heightMap: this.world.heightMap,
+      vegetation: this.world.vegetation,
+      building: this.building,
+      player: this.player,
+      camera: this.camera,
+      particles: this.particles,
+      audio: this.audio,
+      events: this.events,
+      lights: this.lights,
+      dayNight: this.dayNight,
+      config: cfg,
+      spawnPoint: this.world.spawnPoint,
+      isPlayerLit: () => !!(this.tools.equipped && getItem(this.tools.equipped.id).light),
+    });
+    this.scene.add(this.enemies.group);
+    console.info(
+      `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
+    );
     this.interaction = new InteractionSystem({
       physics: this.physics,
       camera: this.camera,
@@ -194,6 +219,7 @@ export class Game {
       worldItems: this.worldItems,
       harvest: this.harvest,
       building: this.building,
+      enemies: this.enemies,
       items: this.items,
       audio: this.audio,
       events: this.events,
@@ -208,6 +234,7 @@ export class Game {
       this.interaction,
       this.harvest,
       this.building,
+      this.enemies,
       this.player,
       this.audio,
       this.events,
@@ -263,7 +290,10 @@ export class Game {
 
   private wireEvents(): void {
     this.menu.onPlay = (wantsFullscreen) => {
-      if (this.mode === 'dead') this.player.respawn(this.respawnPoint);
+      if (this.mode === 'dead') {
+        this.player.respawn(this.respawnPoint);
+        this.enemies.onPlayerRespawn(this.respawnPoint);
+      }
       this.audio.resume();
       if (wantsFullscreen) void this.enterFullscreen();
       void this.input.requestLock();
@@ -280,6 +310,11 @@ export class Game {
         this.pause();
       }
     };
+
+    this.events.on('player:blocked', () => {
+      this.audio.play('block');
+      this.viewModel.playHit();
+    });
 
     this.events.on('player:died', ({ cause }) => {
       this.mode = 'dead';
@@ -436,9 +471,11 @@ export class Game {
     let steps = 0;
     while (this.accumulator >= step && steps < this.config.physics.maxSubSteps) {
       player.fixedUpdate(step);
+      this.enemies.fixedUpdate(step);
       this.worldItems.fixedUpdate(step, water);
       this.physics.step();
       player.afterPhysicsStep();
+      this.enemies.afterPhysicsStep();
       this.accumulator -= step;
       steps++;
     }
@@ -447,7 +484,8 @@ export class Game {
 
     if (player.isOutOfWorld) player.spawn(this.respawnPoint);
 
-    player.updateCamera(dt, this.accumulator / step);
+    const alpha = this.accumulator / step;
+    player.updateCamera(dt, alpha);
     // Raycasts (Interaktion, Werkzeuge) brauchen die Kamera-Matrix dieses Frames, nicht die des letzten.
     this.camera.updateMatrixWorld();
     this.elapsed += dt;
@@ -460,6 +498,7 @@ export class Game {
     this.tools.update(dt, playing && !building);
     this.harvest.update(dt);
     this.building.update(dt, player.position);
+    this.enemies.update(dt, alpha);
     this.worldItems.update();
     this.particles.update(dt);
     this.embers.update(dt);
@@ -539,6 +578,7 @@ export class Game {
         .join(' ') || 'Luft'}`,
       `Objekte    ${this.worldItems.size} Items · ${this.building.structures.length} Bauwerke · ${this.harvest.fallingCount} fallend · ${this.particles.activeCount + this.embers.activeCount} Partikel`,
       `Ziel       ${this.interaction.target?.type ?? '–'}`,
+      `Schrate    ${this.enemies.aliveCount} lebend · ${this.enemies.aggressiveCount} aggressiv · Sicht ${this.enemies.sightRange.toFixed(0)} m`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
     ];
   }

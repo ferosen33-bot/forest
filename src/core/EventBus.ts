@@ -7,7 +7,9 @@ import type { ItemId } from '../entities/items/ItemDefs';
 import type { StructureId } from '../systems/building/StructureDefs';
 
 export type GameEvents = {
-  'player:damaged': { amount: number; source: DamageSource };
+  /** `from`: Position des Angreifers (für die Richtungsanzeige). */
+  'player:damaged': { amount: number; source: DamageSource; from?: Vector3 };
+  'player:blocked': { amount: number };
   'player:died': { cause: DamageSource };
   'player:respawned': Record<string, never>;
   'player:drank': { amount: number };
@@ -18,11 +20,15 @@ export type GameEvents = {
   'item:inventoryFull': { item: ItemId; dropped: number };
   /** Ein Werkzeugschlag hat etwas getroffen (für Fadenkreuz-Feedback). */
   'tool:hit': { target: 'tree' | 'rock' | 'creature' | 'other' };
-  'tree:felled': { kind: 'pine' | 'broadleaf' };
+  'tree:felled': { kind: 'pine' | 'broadleaf'; position: Vector3 };
   /** Ein gefällter Baum schlägt auf dem Boden auf (für Kamerawackeln/Effekte). */
   'tree:landed': { position: Vector3 };
-  'structure:placed': { id: StructureId };
+  'structure:placed': { id: StructureId; position: Vector3; rotation: number };
   'item:crafted': { item: ItemId; count: number };
+  'structure:removed': { id: StructureId; position: Vector3; rotation: number };
+  /** Lautes Ereignis, das Gegner im Umkreis `radius` hören. */
+  noise: { position: Vector3; radius: number };
+  'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean };
   /** Kurze Statusmeldung im HUD. */
   'hud:message': { text: string };
 };

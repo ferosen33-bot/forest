@@ -37,6 +37,8 @@ export class Player {
   sprinting = false;
   /** Atemluft, sinkt wenn der Kopf unter Wasser ist. */
   oxygen = MAX_OXYGEN;
+  /** Blockt gerade mit der Waffe (rechte Maustaste, vom ToolController gesetzt). */
+  blocking = false;
 
   private readonly cfg: GameConfig['player'];
   private readonly statsCfg: GameConfig['stats'];
@@ -65,6 +67,7 @@ export class Player {
   private wantsSprint = false;
   private wantsUp = false;
   private submersion = 0;
+  private shake = 0;
 
   constructor(
     private readonly physics: Physics,
@@ -152,6 +155,49 @@ export class Player {
     return this.submersion > 0.1;
   }
 
+  /**
+   * Wie weit Gegner den Spieler hören (m): Sprinten ist laut, Ducken fast lautlos.
+   */
+  get noiseRadius(): number {
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    if (speed < 0.5 || this.stats.isDead) return 0;
+    if (this.swimming) return 7;
+    if (this.crouching) return 2.5;
+    return this.sprinting ? 22 : 9;
+  }
+
+  /** Faktor auf die Sichtweite der Gegner (geduckt schwerer zu entdecken). */
+  get visibility(): number {
+    return this.crouching ? 0.55 : 1;
+  }
+
+  /**
+   * Treffer eines Gegners. Blocken (Angreifer vorne, genug Ausdauer) fängt den Großteil ab.
+   */
+  receiveHit(amount: number, from: THREE.Vector3): void {
+    if (this.stats.isDead) return;
+    const to = new THREE.Vector3(from.x - this.currFeet.x, 0, from.z - this.currFeet.z).normalize();
+    const facing = to.dot(this.forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)));
+    if (this.blocking && facing > 0.3) {
+      if (this.stats.useStamina(14)) {
+        this.events.emit('player:blocked', { amount });
+        this.addShake(0.25);
+        amount *= 0.2;
+      } else {
+        amount *= 0.7; // Deckung durchbrochen
+      }
+    }
+    this.stats.damage(amount, 'enemy', true, from.clone());
+    this.addShake(0.6);
+    // Leichter Rückstoß weg vom Angreifer.
+    this.velocity.x -= to.x * 3;
+    this.velocity.z -= to.z * 3;
+  }
+
+  addShake(amount: number): void {
+    this.shake = Math.min(1, this.shake + amount);
+  }
+
   /** Phase und Stärke des Head-Bobs – das ViewModel schwingt synchron mit. */
   get headBob(): { phase: number; amount: number } {
     return { phase: this.bobPhase, amount: this.bobAmount };
@@ -222,13 +268,14 @@ export class Player {
 
     const moving = this.wish.lengthSq() > 0.001;
     this.sprinting =
-      moving && this.wantsSprint && this.moveInput.y > 0 && !this.crouching && this.stats.canSprint;
+      moving && this.wantsSprint && this.moveInput.y > 0 && !this.crouching && !this.blocking && this.stats.canSprint;
 
     let speed = cfg.walkSpeed;
     if (this.swimming) speed = cfg.swimSpeed * (this.sprinting ? 1.35 : 1);
     else if (this.crouching) speed = cfg.crouchSpeed;
     else if (this.sprinting) speed = cfg.sprintSpeed;
     if (this.moveInput.y < 0) speed *= 0.75; // rückwärts langsamer
+    if (this.blocking) speed *= 0.6;
 
     const accel = this.grounded || this.swimming ? cfg.groundAccel : cfg.airAccel;
     const targetX = this.wish.x * speed;
@@ -369,7 +416,11 @@ export class Player {
       this.position.y + this.eyeHeight + bobY + swimBob + this.landDip,
       this.position.z + this.right.z * bobX,
     );
-    this.camera.rotation.set(this.pitch, this.yaw, -bobX * 0.15, 'YXZ');
+    // Kamerawackeln bei Treffern (klingt schnell ab).
+    this.shake = damp(this.shake, 0, 6, dt);
+    const sx = (Math.random() - 0.5) * this.shake * 0.06;
+    const sy = (Math.random() - 0.5) * this.shake * 0.06;
+    this.camera.rotation.set(this.pitch + sy, this.yaw + sx, -bobX * 0.15 + sx * 0.5, 'YXZ');
 
     // Sprint-FOV
     const targetFov = this.sprinting && hs > 2 ? cfg.sprintFov : cfg.fov;
