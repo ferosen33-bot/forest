@@ -3,6 +3,7 @@ import { createNoise2D } from 'simplex-noise';
 import type { HeightMap } from './HeightMap';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core/Physics';
 import { deriveSeed, mulberry32, randRange, type RandomFn } from '../utils/random';
+import { injectSeason } from './SeasonShader';
 import { smoothstep } from '../utils/math';
 import {
   createBerryGeometry,
@@ -121,7 +122,11 @@ export class Vegetation {
   private readonly cells: VegetationCell[] = [];
   private readonly windUniforms = { uTime: { value: 0 }, uWind: { value: 0.018 } };
   private readonly geometries: Record<VegetationKind, THREE.BufferGeometry>;
-  private readonly materials: { foliage: THREE.MeshStandardMaterial; rock: THREE.MeshStandardMaterial };
+  private readonly materials: {
+    foliage: THREE.MeshStandardMaterial;
+    broadleaf: THREE.MeshStandardMaterial;
+    rock: THREE.MeshStandardMaterial;
+  };
   private readonly rockHull: Float32Array;
   private readonly shakes: Shake[] = [];
   private readonly regrowQueue: { bush: VegetationInstance; at: number }[] = [];
@@ -152,8 +157,13 @@ export class Vegetation {
 
     const foliage = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
     this.injectWind(foliage);
+    // Laubbäume: eigenes Material, damit nur sie sich im Herbst verfärben und im Winter kahl werden.
+    const broadleaf = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
+    broadleaf.defines = { BROADLEAF: '' };
+    this.injectWind(broadleaf);
     const rock = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
-    this.materials = { foliage, rock };
+    rock.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: 0.1 });
+    this.materials = { foliage, broadleaf, rock };
 
     const placements = this.scatter();
     this.build(placements);
@@ -333,7 +343,7 @@ export class Vegetation {
 
         const mesh = new THREE.InstancedMesh(
           this.geometries[kind],
-          kind === 'rock' || kind === 'pebble' ? this.materials.rock : this.materials.foliage,
+          this.materialFor(kind),
           list.length,
         );
         mesh.name = `Vegetation_${kind}_${index}`;
@@ -449,6 +459,7 @@ export class Vegetation {
   /** Wind: Kronen schwanken abhängig von Höhe über dem Boden und Instanzposition. */
   private injectWind(material: THREE.MeshStandardMaterial): void {
     material.onBeforeCompile = (shader) => {
+      injectSeason(shader, { foliage: true });
       shader.uniforms.uTime = this.windUniforms.uTime;
       shader.uniforms.uWind = this.windUniforms.uWind;
       shader.vertexShader = shader.vertexShader
@@ -480,8 +491,13 @@ export class Vegetation {
   getRenderData(kind: VegetationKind): { geometry: THREE.BufferGeometry; material: THREE.Material } {
     return {
       geometry: this.geometries[kind],
-      material: kind === 'rock' || kind === 'pebble' ? this.materials.rock : this.materials.foliage,
+      material: this.materialFor(kind),
     };
+  }
+
+  private materialFor(kind: VegetationKind): THREE.MeshStandardMaterial {
+    if (kind === 'rock' || kind === 'pebble') return this.materials.rock;
+    return kind === 'broadleaf' ? this.materials.broadleaf : this.materials.foliage;
   }
 
   /** Weltmatrix einer Instanz (z. B. um einen fallenden Baum exakt an ihrer Stelle zu erzeugen). */
@@ -505,9 +521,17 @@ export class Vegetation {
     if (instance.berries) this.remove(instance.berries);
   }
 
+  /** Im Winter sind die Beeren erfroren (nicht pflückbar, wachsen nicht nach). */
+  berriesAvailable = true;
+
   /** Trägt dieser Busch gerade reife Beeren? */
   hasRipeBerries(bush: VegetationInstance): boolean {
-    return bush.alive && bush.berries !== null && bush.berries.alive;
+    return this.berriesAvailable && bush.alive && bush.berries !== null && bush.berries.alive;
+  }
+
+  /** Hat der Busch Beeren, die gerade erfroren sind? */
+  hasFrozenBerries(bush: VegetationInstance): boolean {
+    return !this.berriesAvailable && bush.alive && bush.berries !== null && bush.berries.alive;
   }
 
   /** Pflückt die Beeren eines Busches; sie wachsen nach einiger Zeit nach. */
@@ -574,8 +598,8 @@ export class Vegetation {
       if (done) this.shakes.splice(i, 1);
     }
 
-    // Beeren wachsen nach.
-    for (let i = this.regrowQueue.length - 1; i >= 0; i--) {
+    // Beeren wachsen nach (nicht im Winter).
+    for (let i = this.regrowQueue.length - 1; i >= 0 && this.berriesAvailable; i--) {
       const r = this.regrowQueue[i];
       if (elapsed < r.at) continue;
       this.regrowQueue.splice(i, 1);
@@ -623,6 +647,7 @@ export class Vegetation {
   dispose(): void {
     Object.values(this.geometries).forEach((g) => g.dispose());
     this.materials.foliage.dispose();
+    this.materials.broadleaf.dispose();
     this.materials.rock.dispose();
   }
 }

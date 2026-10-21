@@ -11,6 +11,8 @@ import { Weather, type Lightning } from './Weather';
 import type { WeatherLook } from './DayNightCycle';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { clamp } from '../utils/math';
+import { seasonAt, type SeasonState } from './Seasons';
+import { seasonUniforms } from '../world/SeasonShader';
 
 export interface ClimateDeps {
   physics: Physics;
@@ -32,6 +34,9 @@ export interface ClimateFrame {
   forest: number;
   /** Spieler hält eine (leere) Schale in der Hand. */
   holdingBowl: boolean;
+  /** Kalendertag (ab 1) und Uhrzeit – bestimmen die Jahreszeit. */
+  day: number;
+  hour: number;
 }
 
 /** Sekunden ungeschützter Starkregen, bis ein Lagerfeuer erlischt. */
@@ -53,6 +58,8 @@ export class Climate {
   groundWet = 0;
   /** Fortschritt beim Befüllen der Schale im Regen (0..1); 1 = voll → vom Spiel umgewandelt. */
   bowlFill = 0;
+  /** Aktuelle Jahreszeit (überblendet). */
+  season: SeasonState = seasonAt(1, 8);
 
   private shelterTimer = 0;
   private readonly fireRain = new WeakMap<Structure, number>();
@@ -70,16 +77,17 @@ export class Climate {
     return { clouds: w.clouds, rain: w.rain, wind: w.wind, flash: w.flash };
   }
 
-  /** Wie stark der Regen den Spieler gerade trifft (0..1). */
+  /** Wie stark der Regen den Spieler gerade trifft (0..1) – Schnee durchnässt deutlich weniger. */
   exposure(forest: number): number {
     if (this.sheltered) return 0;
-    return this.weather.rain * (1 - 0.5 * forest);
+    return this.weather.rain * (1 - 0.5 * forest) * (1 - 0.6 * this.season.snowfall);
   }
 
   update(f: ClimateFrame): void {
     const { dt } = f;
     const w = this.weather;
     w.update(dt);
+    this.applySeason(f);
     const player = this.d.player;
     const stats = player.stats;
 
@@ -116,7 +124,21 @@ export class Climate {
     this.d.world.grass?.setWind(w.wind);
 
     const brightness = clamp(f.daylight * 0.85 + 0.15 + w.flash, 0, 1.5);
-    this.rain.update(f.elapsed, f.camera, player.headUnderwater ? 0 : w.rain, w.wind, brightness);
+    this.rain.update(f.elapsed, f.camera, player.headUnderwater ? 0 : w.rain, w.wind, brightness, this.season.snowfall);
+  }
+
+  /** Jahreszeit: Laub, Schnee, Gras, Kälte und Beeren. */
+  private applySeason(f: ClimateFrame): void {
+    const s = (this.season = seasonAt(f.day, f.hour));
+    const u = seasonUniforms;
+    u.uAutumn.value = s.autumn;
+    u.uBare.value = s.bare;
+    u.uFresh.value = s.fresh;
+    u.uSnow.value = s.snow;
+    u.uSnowLine.value = this.d.world.heightMap.waterLevel + 0.8;
+    this.d.world.grass?.setSeason(s.grass, s.snow);
+    this.d.world.vegetation.berriesAvailable = s.snow < 0.4;
+    this.d.player.stats.chill = s.chill;
   }
 
   /** Ungeschützte Lagerfeuer gehen bei anhaltendem Starkregen aus. */
@@ -125,7 +147,7 @@ export class Climate {
     for (const s of this.d.building.structures) {
       if (!s.lit || s.def.interaction !== 'fire') continue;
       let t = this.fireRain.get(s) ?? 0;
-      if (rain > 0.45 && !this.roofAbove(this.tmp.copy(s.position).setY(s.position.y + 1))) t += dt * rain;
+      if (rain > 0.45 && !this.roofAbove(this.tmp.copy(s.position).setY(s.position.y + 1))) t += dt * rain * (1 - 0.5 * this.season.snowfall);
       else t = Math.max(0, t - dt);
       if (t > FIRE_RAIN_TIME) {
         t = 0;

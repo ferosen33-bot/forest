@@ -772,7 +772,8 @@ export class Game {
     this.render();
     const building = this.building.isActive;
     const prompt = this.mode === 'playing' && !building ? this.interaction.prompt : null;
-    this.hud.update(dt, this.player, this.dayNight.clockText, prompt, this.tools.selected, this.buildHint());
+    const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `);
+    this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
     this.updateNavigation(dt);
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());
     this.input.endFrame();
@@ -918,6 +919,8 @@ export class Game {
       isNight: this.dayNight.isNight,
       forest: this.ambience.env.forest,
       holdingBowl: held === 'bowl',
+      day: this.dayNight.day,
+      hour: this.dayNight.hour,
     });
     if (climate.bowlFill >= 1 && held === 'bowl') {
       climate.bowlFill = 0;

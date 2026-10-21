@@ -54,6 +54,21 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 18 – Jahreszeiten
+
+- **Sommer → Herbst → Winter → Frühling**, je vier Tage (Tag 1 = Sommer); am letzten Tag einer Jahreszeit wird
+  weich in die nächste übergeblendet. Die Uhr zeigt die Jahreszeit an (`Tag 7 · Herbst · 14:20`). Reine Logik in
+  `Seasons.ts` (getestet), die Darstellung über gemeinsame Shader-Uniforms (`world/SeasonShader.ts`).
+- **Laub:** Laubbäume färben sich im Herbst – jeder Baum je nach Position rot, orange oder gelb – und stehen im
+  Winter kahl und graubraun; im Frühling treibt frisches Grün. Nadelbäume bleiben grün. Erkannt werden Blätter am
+  Grünüberschuss der Vertexfarbe, sodass Stämme unverändert bleiben; Laubbäume haben ein eigenes Material.
+- **Schnee:** Im Winter liegt Schnee auf flachem Gelände, Felsen, Kronen und Büschen (nach Flächenneigung, erst
+  oberhalb der Strandlinie), das Gras ist kurz und bereift, Niederschlag fällt als langsam taumelnde Flocken.
+  Schnee durchnässt weniger als Regen und löscht Feuer langsamer.
+- **Kälte:** Jahreszeiten haben eine Grundkälte (Herbst leicht, Winter stark) – nachts voll, tagsüber zu einem
+  Drittel. Eine Winternacht ohne Feuer oder Fellmantel führt auch trocken zur Unterkühlung.
+- **Beeren** sind im Winter erfroren (nicht pflückbar, wachsen erst im Frühling nach).
+
 ### Meilenstein 17 – Tagebuch & Ziele
 
 - **Vier Kapitel mit 21 Zielen** als roter Faden: *Gestrandet* (Stöcke, Steine, trinken, essen, Lagerfeuer) →
@@ -362,7 +377,8 @@ src/
 │   ├── VegetationGeometry.ts  Low-Poly-Geometrien für Bäume/Büsche/Felsen
 │   ├── SkyDome.ts          Himmels-Shader (Gradient, Sonne, Mond, Sterne)
 │   ├── Grass.ts            GPU-Gras (Höhe/Dichte aus Texturen, Wind, Wegbiegen)
-│   ├── Rain.ts             GPU-Regen (mitwanderndes Schlieren-Volumen)
+│   ├── Rain.ts             GPU-Regen bzw. -Schnee (mitwanderndes Schlieren-Volumen)
+│   ├── SeasonShader.ts     Laubfärbung und Schnee für Vegetation, Felsen, Gelände
 │   └── World.ts            Bündelt alles, sucht den Spawnpunkt
 ├── entities/
 │   ├── Player.ts           First-Person-Controller
@@ -405,6 +421,7 @@ src/
 │   ├── Settings.ts         Einstellungen, Grafikstufen, Speicherung (getestet)
 │   ├── Exploration.ts      Erkundete Kartenzellen (getestet)
 │   ├── Journal.ts          Tagebuch: Kapitel, Ziele, Fortschritt über Ereignisse (getestet)
+│   ├── Seasons.ts          Jahreszeiten mit Überblendung (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -463,3 +480,4 @@ src/
 16. ~~Karte & Kompass~~ ✓
 17. ~~Felle, großer Rucksack, Fellmantel, Schlingfallen~~ ✓
 18. ~~Tagebuch & Ziele~~ ✓
+19. ~~Jahreszeiten~~ ✓

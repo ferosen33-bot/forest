@@ -129,6 +129,8 @@ export class Grass {
     this.uniforms = {
       uTime: { value: 0 },
       uWindAmp: { value: 1 },
+      uGrassTint: { value: new THREE.Color(1, 1, 1) },
+      uGrassSnow: { value: 0 },
       uCenter: { value: new THREE.Vector2() },
       uPlayer: { value: new THREE.Vector3() },
       uRadius: { value: radius },
@@ -149,7 +151,7 @@ export class Grass {
           `#include <common>
 attribute vec2 aOffset;
 attribute float aHeight;
-uniform float uTime, uRadius, uSpacing, uSamples, uCellSize, uHalf, uWindAmp;
+uniform float uTime, uRadius, uSpacing, uSamples, uCellSize, uHalf, uWindAmp, uGrassSnow;
 uniform vec2 uCenter;
 uniform vec3 uPlayer;
 uniform sampler2D uHeightTex, uMaskTex;
@@ -189,7 +191,8 @@ vec2 worldXZ = cellWorld + (vec2(r1, r2) - 0.5) * uSpacing;
 float density = texture2D(uMaskTex, ((worldXZ + uHalf) / uCellSize + 0.5) / uSamples).r;
 float dist = length(worldXZ - uPlayer.xz);
 float fade = 1.0 - smoothstep(uRadius * 0.65, uRadius, dist);
-float size = (0.55 + 0.9 * r2) * step(r1, density) * fade;
+// Im Winter liegt Schnee: nur noch kurze Spitzen ragen heraus.
+float size = (0.55 + 0.9 * r2) * step(r1, density) * fade * (1.0 - 0.55 * uGrassSnow);
 
 // Zufällige Drehung um Y
 float ang = r1 * 6.2831;
@@ -214,7 +217,7 @@ vGrassH = aHeight;
 vGrassR = r2;`,
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vGrassH;\nvarying float vGrassR;')
+        .replace('#include <common>', '#include <common>\nvarying float vGrassH;\nvarying float vGrassR;\nuniform vec3 uGrassTint;\nuniform float uGrassSnow;')
         // Beide Halmseiten wie die Oberseite beleuchten (kein Umdrehen der Normale für Rückseiten).
         .replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0;\nvec3 normal = normalize(vNormal);\nvec3 nonPerturbedNormal = normal;')
         .replace(
@@ -222,7 +225,10 @@ vGrassR = r2;`,
           `#include <color_fragment>
 // Dunkler Grund, hellere Spitzen, etwas Farbvariation (frisch ↔ trocken)
 diffuseColor.rgb *= mix(0.45, 1.15, vGrassH);
-diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7), smoothstep(0.75, 1.0, vGrassR) * 0.6);`,
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7), smoothstep(0.75, 1.0, vGrassR) * 0.6);
+// Jahreszeit: Herbst gelblich, Frühling frisch; Schnee auf den Spitzen
+diffuseColor.rgb *= uGrassTint;
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.91, 0.95), uGrassSnow * (0.35 + 0.65 * vGrassH));`,
         );
     };
 
@@ -241,6 +247,12 @@ diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7)
     this.geometry.instanceCount = count;
     this.uniforms.uRadius.value = Math.max(r, 0.01);
     this.mesh.visible = count > 0;
+  }
+
+  /** Jahreszeit: Farbfaktor und Schneebedeckung. */
+  setSeason(tint: [number, number, number], snow: number): void {
+    this.uniforms.uGrassTint.value.setRGB(...tint);
+    this.uniforms.uGrassSnow.value = snow;
   }
 
   /** Windstärke 0..1 */

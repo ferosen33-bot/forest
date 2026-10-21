@@ -3,6 +3,7 @@ import { createNoise2D } from 'simplex-noise';
 import type { HeightMap } from './HeightMap';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { smoothstep } from '../utils/math';
+import { injectSeason } from './SeasonShader';
 
 /** Farbpalette des Bodens (sRGB-Hex, wird automatisch in Linear umgerechnet). */
 const PALETTE = {
@@ -71,6 +72,8 @@ export class Terrain {
       roughness: 0.96,
       metalness: 0,
     });
+    // Winter: Schnee auf flachen Flächen (steile Hänge bleiben felsig).
+    this.material.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: -0.25 });
 
     this.chunksPerSide = Math.round(heightMap.size / chunkSize);
     for (let cz = 0; cz < this.chunksPerSide; cz++) {

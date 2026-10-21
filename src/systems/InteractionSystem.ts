@@ -194,7 +194,9 @@ export class InteractionSystem {
           : { key: null, action: 'Axt benötigt', label: 'Felsen' };
       }
       case 'bush':
-        if (target.hit.distance > INTERACT_REACH || !this.vegetation.hasRipeBerries(target.instance)) return null;
+        if (target.hit.distance > INTERACT_REACH) return null;
+        if (this.vegetation.hasFrozenBerries(target.instance)) return { key: null, action: 'Beeren erfroren', label: NAMES.bush };
+        if (!this.vegetation.hasRipeBerries(target.instance)) return null;
         return { key: 'E', action: 'Beeren pflücken', label: NAMES.bush };
       case 'ground':
         if (target.hit.distance > INTERACT_REACH) return null;

@@ -28,6 +28,8 @@ export class PlayerStats {
   night = false;
   /** Fellmantel angezogen: Nässe kühlt deutlich weniger aus. */
   clothing = false;
+  /** Grundkälte der Jahreszeit (0..1, nachts voll, tagsüber ein Drittel) – vom Klima gesetzt. */
+  chill = 0;
 
   private regenDelay = 0;
   private readonly cfg: GameConfig['stats'];
@@ -95,7 +97,9 @@ export class PlayerStats {
   /** Wie sehr man friert (0..1): Nässe zählt nur fern vom Feuer, nachts doppelt. */
   get cold(): number {
     if (this.warm) return 0;
-    return clamp(this.wetness * (this.night ? 1 : 0.6) * (this.clothing ? 0.4 : 1), 0, 1);
+    const wet = this.wetness * (this.night ? 1 : 0.6) * (this.clothing ? 0.4 : 1);
+    const chill = this.chill * (this.night ? 1 : 0.35) * (this.clothing ? 0.25 : 1);
+    return clamp(Math.max(wet, chill), 0, 1);
   }
 
   /** Unterkühlung: nachts klatschnass ohne Wärmequelle (im Fellmantel nicht). */
