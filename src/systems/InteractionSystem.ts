@@ -219,6 +219,7 @@ export class InteractionSystem {
               return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label: status };
           }
         }
+        if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
         if (s.def.interaction === 'sleep') {
           return this.deps.canSleep()
             ? { key: 'E', action: 'Schlafen', label }
@@ -281,6 +282,7 @@ export class InteractionSystem {
           } else this.building.toggleFire(s);
         }
         else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
+        else if (s.def.interaction === 'door') this.building.toggleDoor(s);
         break;
       }
       case 'animal':

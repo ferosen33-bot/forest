@@ -96,6 +96,12 @@ export class EnemyDirector {
     this.markVegetation();
     d.events.on('structure:placed', ({ id, position, rotation }) => this.markStructure(id, position, rotation, 1));
     d.events.on('structure:removed', ({ id, position, rotation }) => this.markStructure(id, position, rotation, -1));
+    // Offenes Tor = Durchgang
+    d.events.on('structure:door', ({ id, position, rotation, open }) => {
+      this.markStructure(id, position, rotation, open ? -1 : 1);
+      const he = getStructure(id).halfExtents;
+      this.nav.markPassage(position.x, position.z, rotation, he.x - 0.25, he.z, open ? 1 : -1);
+    });
     d.events.on('noise', ({ position, radius }) => this.propagateNoise(position, radius, 0.55));
 
     const player = d.player;
@@ -158,7 +164,10 @@ export class EnemyDirector {
   }
 
   private markStructure(id: Parameters<typeof getStructure>[0], pos: THREE.Vector3, rotation: number, delta: 1 | -1): void {
-    const he = getStructure(id).halfExtents;
+    const def = getStructure(id);
+    // Böden und Treppen sind begehbar – kein Hindernis für die Wegfindung.
+    if (def.support || def.snap === 'stairs') return;
+    const he = def.halfExtents;
     this.nav.markBox(pos.x, pos.z, rotation, he.x, he.z, delta);
   }
 

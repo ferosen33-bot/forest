@@ -5,7 +5,7 @@ import type { ItemCost } from '../../entities/items/ItemDefs';
 import { jitter } from '../../world/VegetationGeometry';
 import { mulberry32 } from '../../utils/random';
 
-export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap';
+export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs';
 
 export interface StructureDef {
   id: StructureId;
@@ -17,10 +17,16 @@ export interface StructureDef {
   /** Maximal erlaubter Höhenunterschied des Bodens unter der Grundfläche. */
   maxStep: number;
   maxHealth: number;
-  /** Wände rasten an den Enden anderer Wände ein. */
-  snap?: 'wall';
+  /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
+  snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'sleep';
+  interaction?: 'fire' | 'sleep' | 'door';
+  /** Böden: Oberseite trägt andere Bauwerke und den Spieler (Ursprung = Oberkante der Dielen). */
+  support?: boolean;
+  /** Darf über flachem Wasser stehen (Stege). */
+  overWater?: boolean;
+  /** Tore: Index des Torflügel-Colliders in `colliders()`. */
+  doorCollider?: number;
   /** Erzeugt das Modell (Ursprung = Mitte der Grundfläche auf Bodenhöhe, Vorderseite = +Z). */
   build(): THREE.Group;
   /** Collider in lokalen Koordinaten des Bauwerks. */
@@ -128,6 +134,33 @@ const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 /** Breite eines Wandsegments – die Enden (±WALL_HALF_WIDTH) sind Einrastpunkte. */
 export const WALL_HALF_WIDTH = 1.1;
 const WALL_HEIGHT = 2.2;
+/** Halbe Kantenlänge eines Bodenelements – passt genau zur Wandbreite. */
+export const FLOOR_HALF = WALL_HALF_WIDTH;
+const FLOOR_THICKNESS = 0.16;
+/** Torflügel: Scharnier links (lokal x = -GATE_LEAF_HALF*2 + …), Öffnungswinkel. */
+const GATE_POST_X = WALL_HALF_WIDTH - 0.12;
+export const GATE_OPEN_ANGLE = Math.PI * 0.55;
+/** Treppe: Länge (nach außen) und Höhenunterschied. */
+const STAIRS_RUN = 1.7;
+const STAIRS_RISE = 1.1;
+
+/** Torflügel als eigenes (animiertes) Teil: Ursprung am Scharnier, Flügel reicht nach +X. */
+function gateLeaf(): THREE.Group {
+  const g = new THREE.Group();
+  const width = GATE_POST_X * 2 - 0.12;
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const x = 0.12 + (i * (width - 0.24)) / (n - 1);
+    g.add(stake(v(x, 0.05, 0), v(0, 1, 0), WALL_HEIGHT - 0.25, 0.11));
+  }
+  g.add(log(v(0.02, 0.5, 0.12), v(width, 0.5, 0.12), 0.055, M.barkDark));
+  g.add(log(v(0.02, 1.5, 0.12), v(width, 1.5, 0.12), 0.055, M.barkDark));
+  // Diagonale Strebe
+  g.add(log(v(0.1, 0.55, 0.15), v(width - 0.1, 1.45, 0.15), 0.045, M.barkDark));
+  const leaf = finish(g, 'GateLeaf');
+  leaf.name = 'leaf';
+  return leaf;
+}
 
 export const STRUCTURES: Record<StructureId, StructureDef> = {
   campfire: {
@@ -276,6 +309,113 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'SpikeTrap');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(0.75, 0.4, 0.75).setTranslation(0, 0.4, 0)],
+  },
+  floor: {
+    id: 'floor',
+    name: 'Holzboden',
+    description: 'Eine Plattform auf Pfählen. Gleicht Hänge aus, trägt Wände und Bauwerke – auch als Steg über flachem Wasser.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(FLOOR_HALF, FLOOR_THICKNESS / 2, FLOOR_HALF),
+    maxStep: 1.2,
+    maxHealth: 160,
+    snap: 'floor',
+    support: true,
+    overWater: true,
+    build() {
+      const g = new THREE.Group();
+      // Dielen aus halben Stämmen quer zur Z-Achse
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        const z = -FLOOR_HALF + FLOOR_HALF / n + (i * 2 * FLOOR_HALF) / n;
+        const plank = log(v(-FLOOR_HALF, -FLOOR_THICKNESS / 2, z), v(FLOOR_HALF, -FLOOR_THICKNESS / 2, z), FLOOR_HALF / n);
+        plank.scale.x *= 0.98;
+        plank.scale.z *= 0.45; // abgeflacht → ebene Lauffläche
+        g.add(plank);
+      }
+      // Tragbalken und Pfähle (reichen tief genug in den Boden, um jede erlaubte Neigung abzudecken)
+      for (const x of [-FLOOR_HALF + 0.15, FLOOR_HALF - 0.15]) {
+        g.add(log(v(x, -FLOOR_THICKNESS - 0.08, -FLOOR_HALF), v(x, -FLOOR_THICKNESS - 0.08, FLOOR_HALF), 0.09, M.barkDark));
+        for (const z of [-FLOOR_HALF + 0.15, FLOOR_HALF - 0.15]) g.add(log(v(x, -3.2, z), v(x, -FLOOR_THICKNESS, z), 0.1, M.barkDark));
+      }
+      return finish(g, 'Floor');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(FLOOR_HALF, FLOOR_THICKNESS / 2, FLOOR_HALF).setTranslation(0, -FLOOR_THICKNESS / 2, 0)],
+  },
+
+  stairs: {
+    id: 'stairs',
+    name: 'Holztreppe',
+    description: 'Stufen von einer Bodenkante hinab. Ohne sie kommt man auf hohe Plattformen nur springend.',
+    cost: [
+      { item: 'log', count: 1 },
+      { item: 'stick', count: 3 },
+    ],
+    halfExtents: v(FLOOR_HALF * 0.8, STAIRS_RISE / 2, STAIRS_RUN / 2),
+    maxStep: 10,
+    maxHealth: 90,
+    snap: 'stairs',
+    // Ursprung = Mitte der oberen Kante auf Dielenhöhe; die Treppe führt nach +Z hinab.
+    build() {
+      const g = new THREE.Group();
+      const w = FLOOR_HALF * 0.8;
+      for (const x of [-w, w]) {
+        g.add(log(v(x, -0.12, 0), v(x, -STAIRS_RISE - 0.12, STAIRS_RUN), 0.08, M.barkDark));
+        g.add(log(v(x, -STAIRS_RISE - 0.12, STAIRS_RUN - 0.1), v(x, -STAIRS_RISE - 1.6, STAIRS_RUN - 0.1), 0.08, M.barkDark));
+      }
+      const steps = 4;
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 0.5) / steps;
+        const tread = log(v(-w - 0.08, -STAIRS_RISE * t, STAIRS_RUN * t), v(w + 0.08, -STAIRS_RISE * t, STAIRS_RUN * t), 0.13);
+        tread.scale.z *= 0.45;
+        g.add(tread);
+      }
+      return finish(g, 'Stairs');
+    },
+    colliders: () => {
+      // Massiver Keil statt einzelner Stufen: glatt für den Character Controller. Die Schräge läuft
+      // unter dem Gelände weiter, damit am unteren Ende keine Kante herausragt, an der man hängen bleibt.
+      const w = FLOOR_HALF * 0.8;
+      const depth = STAIRS_RISE + 0.6;
+      const reach = (STAIRS_RUN * depth) / STAIRS_RISE;
+      const points: number[] = [];
+      for (const x of [-w, w]) points.push(x, 0, 0, x, -depth, reach, x, -depth, 0);
+      return [RAPIER.ColliderDesc.convexHull(new Float32Array(points))!];
+    },
+  },
+
+  gate: {
+    id: 'gate',
+    name: 'Holztor',
+    description: 'Ein Wandstück mit Torflügel. E öffnet und schließt es – Schrate kommen nur durch, wenn es offen steht.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.22),
+    maxStep: 0.8,
+    maxHealth: 140,
+    snap: 'wall',
+    interaction: 'door',
+    doorCollider: 2,
+    build() {
+      const g = new THREE.Group();
+      for (const x of [-WALL_HALF_WIDTH + 0.1, WALL_HALF_WIDTH - 0.1]) g.add(stake(v(x, -0.6, 0), v(0, 1, 0), WALL_HEIGHT + 0.85, 0.16));
+      g.add(log(v(-WALL_HALF_WIDTH, WALL_HEIGHT + 0.05, 0), v(WALL_HALF_WIDTH, WALL_HEIGHT + 0.05, 0), 0.09, M.barkDark));
+      const frame = finish(g, 'Gate');
+      const leaf = gateLeaf();
+      leaf.position.set(-GATE_POST_X + 0.06, 0, 0);
+      frame.add(leaf);
+      return frame;
+    },
+    colliders: () => [
+      RAPIER.ColliderDesc.cylinder(WALL_HEIGHT / 2 + 0.1, 0.16).setTranslation(-WALL_HALF_WIDTH + 0.1, WALL_HEIGHT / 2, 0),
+      RAPIER.ColliderDesc.cylinder(WALL_HEIGHT / 2 + 0.1, 0.16).setTranslation(WALL_HALF_WIDTH - 0.1, WALL_HEIGHT / 2, 0),
+      // Torflügel (wird beim Öffnen zum Sensor: weiter anvisierbar, aber durchlässig)
+      RAPIER.ColliderDesc.cuboid(GATE_POST_X - 0.12, WALL_HEIGHT / 2 - 0.1, 0.13).setTranslation(0, WALL_HEIGHT / 2, 0),
+    ],
   },
 };
 

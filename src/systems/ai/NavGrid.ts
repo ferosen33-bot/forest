@@ -89,6 +89,8 @@ export class NavGrid {
   private readonly terrainBlocked: Uint8Array;
   /** Anzahl der Hindernisse in der Zelle (Bäume, Bauwerke …) – Zähler erlauben Überlappungen. */
   private readonly obstacles: Uint16Array;
+  /** Zähler offener Durchgänge (überstimmen Hindernisse). */
+  private readonly passages: Uint16Array;
 
   // A*-Arbeitsspeicher (einmal angelegt, per Generationszähler "geleert").
   private readonly g: Float32Array;
@@ -107,6 +109,7 @@ export class NavGrid {
     const n = this.cells * this.cells;
     this.terrainBlocked = new Uint8Array(n);
     this.obstacles = new Uint16Array(n);
+    this.passages = new Uint16Array(n);
     this.g = new Float32Array(n);
     this.f = new Float32Array(n);
     this.parent = new Int32Array(n);
@@ -150,7 +153,7 @@ export class NavGrid {
   }
 
   isWalkableCell(index: number): boolean {
-    return index >= 0 && this.terrainBlocked[index] === 0 && this.obstacles[index] === 0;
+    return index >= 0 && this.terrainBlocked[index] === 0 && (this.obstacles[index] === 0 || this.passages[index] > 0);
   }
 
   isWalkable(x: number, z: number): boolean {
@@ -187,6 +190,28 @@ export class NavGrid {
       const lz = dx * sin + dz * cos;
       if (Math.abs(lx) <= halfX + e * 0.7 && Math.abs(lz) <= halfZ + e * 0.7) {
         this.obstacles[i] = Math.max(0, this.obstacles[i] + delta);
+      }
+    });
+  }
+
+  /**
+   * Durchgang (offenes Tor): Zellen in der Öffnung gelten als begehbar, auch wenn der Sicherheitsrand
+   * benachbarter Wände sie überdeckt. Bei 2-m-Zellen läge sonst oft kein Zellmittelpunkt frei.
+   */
+  markPassage(x: number, z: number, rotation: number, halfX: number, halfZ: number, delta: 1 | -1): void {
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const ext = Math.hypot(halfX, halfZ) + this.cellSize;
+    const e = this.cellSize * 0.5;
+    this.forCellsInRect(x - ext, z - ext, x + ext, z + ext, (i, c) => {
+      const dx = c.x - x;
+      const dz = c.z - z;
+      const lx = dx * cos - dz * sin;
+      const lz = dx * sin + dz * cos;
+      // Quer zur Öffnung je eine Zellreihe innen und außen (verbindet beide Seiten sicher),
+      // längs nur knapp über die Öffnung hinaus.
+      if (Math.abs(lx) <= halfX + e * 0.3 && Math.abs(lz) <= halfZ + e * 1.05) {
+        this.passages[i] = Math.max(0, this.passages[i] + delta);
       }
     });
   }

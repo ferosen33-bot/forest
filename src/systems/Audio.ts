@@ -41,7 +41,8 @@ export type SoundId =
   | 'throw'
   | 'sizzle'
   | 'thunder'
-  | 'thunderNear';
+  | 'thunderNear'
+  | 'door';
 
 export interface PlayOptions {
   volume?: number;
@@ -309,6 +310,11 @@ export class Audio {
         break;
       case 'thunder':
         this.rumble(t, pitch);
+        break;
+      // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
+      case 'door':
+        this.tone(t, 'sawtooth', 150 * pitch, 95, 0.45, 0.16, 700);
+        this.noise(t + 0.4, 0.12, 'lowpass', 500, 1, 0.5);
         break;
     }
   }

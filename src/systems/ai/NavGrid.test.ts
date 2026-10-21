@@ -68,6 +68,15 @@ describe('NavGrid', () => {
     expect(nav.findPath(a, b)).toBeNull();
   });
 
+  it('ein Durchgang (offenes Tor) öffnet eingeschlossene Ziele wieder', () => {
+    // Fortsetzung des vorigen Tests: b ist eingemauert. Durchgang in der Südwand (z = b.z + 4).
+    nav.markPassage(b.x, b.z + 4, 0, 1.0, 0.4, 1);
+    const path = nav.findPath(a, b);
+    expect(path).not.toBeNull();
+    nav.markPassage(b.x, b.z + 4, 0, 1.0, 0.4, -1);
+    expect(nav.findPath(a, b)).toBeNull();
+  });
+
   it('Wasser ist nicht begehbar', () => {
     expect(nav.isWalkable(250, 250)).toBe(false);
   });

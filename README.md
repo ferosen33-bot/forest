@@ -52,6 +52,26 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 10 – Böden, Treppen & Tore
+
+- **Holzboden (2,2 × 2,2 m):** Plattform auf Pfählen, die Dielen liegen knapp über dem höchsten Geländepunkt.
+  Böden rasten Kante an Kante an Nachbarböden ein (gleiche Höhe und Ausrichtung) – so lassen sich Hänge ausgleichen
+  und Plattformen über Abhänge hinaus bauen. Auch als **Steg** über flachem Wasser (bis 1,6 m Tiefe).
+- **Bauen auf Böden:** Wände und Tore rasten bündig auf Bodenkanten ein (Dielenhöhe, Kantenrichtung; die Seite
+  bleibt per Drehung wählbar). Lagerfeuer, Unterstand und Fallen stehen auf den Dielen statt im Gelände darunter.
+- **Holztreppe:** hängt außen an einer freien Bodenkante (auch vor einem Tor) und führt hinab. Kollision als massiver
+  Keil, dessen Schräge unter dem Gelände weiterläuft – keine Kante, an der man hängen bleibt.
+- **Holztor:** rastet wie eine Wand ein; `E` öffnet und schließt es (animierter Flügel, Knarren). Offen wird der
+  Flügel zum Sensor: durchlässig, aber weiter anvisierbar. Die Wegfindung der Schrate kennt **Durchgänge**:
+  Ein offenes Tor macht die Zellen seiner Öffnung passierbar, auch wenn der Sicherheitsrand der Nachbarwände sie
+  überdeckt (bei 2-m-Navigationszellen läge sonst meist kein Zellmittelpunkt frei). Geschlossen ist die Basis dicht.
+  Böden und Treppen gelten als begehbar, nicht als Hindernis.
+- Torzustand wird mitgespeichert.
+- **Behoben – Spielerbewegung an Schrägen:** Der Spieler übernahm bisher nach jedem Physik-Schritt die tatsächlich
+  erreichte Horizontalgeschwindigkeit („kein Aufstauen an Wänden“). Am Fuß einer Rampe fiel sie dadurch auf fast null,
+  und danach zeigte der Bewegungswunsch steiler in den Boden als die Rampe – man kam nie hinauf. Jetzt wird nur noch
+  der Anteil in echte Wände (steiler als der Kletterwinkel) abgebaut; an begehbaren Schrägen bleibt der Schwung.
+
 ### Meilenstein 9 – Wetter & Wasser
 
 - **Wetterlagen:** klar → bewölkt → Regen (→ Gewitter) → aufklarend. Bewölkung, Regen und Wind gleiten weich auf die
@@ -309,6 +329,8 @@ src/
 - **Performance:** Terrain und Vegetation sind in 128-m-Chunks gegliedert, damit Kamera- *und* Schatten-Frustum
   unsichtbare Teile verwerfen. Die Schattenkamera wird im Lichtraum auf das Texelraster gerundet (kein Flimmern).
 - **Spielzustände:** `playing` / `inventory` / `paused` / `dead`. Im Inventar ist die Maus frei, die Welt läuft weiter.
+- **Wegfindung & Bauwerke:** Wände, Fallen, Feuer und geschlossene Tore sind Hindernisse (Zähler je Zelle, damit sich
+  überlappende Bauwerke korrekt auf- und abbauen); offene Tore setzen eigene Durchgangs-Zähler, die Vorrang haben.
 - **Kollisionsgruppen:** Der Spieler läuft durch lose Items. Gefällte Bäume kollidieren nur mit dem Terrain, damit sie sich
   nicht in Nachbarbäumen verkeilen. Aufsammelbares sind Sensoren: per Raycast anvisierbar, aber ohne Kollision.
 - **Geschosse vs. Heightfield:** Rapiers Heightfield-Raycast verfehlt bei fast achsparallelen Strahlen gelegentlich den
@@ -329,4 +351,5 @@ src/
 8. ~~Größere Welt & Terrain-LOD~~ ✓ · ~~Savegames~~ ✓
 9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
 10. ~~Wetter, Regen, Nässe, Wasserschale~~ ✓
-11. Als Nächstes: Böden & Tore, unterschiedliche Gegnertypen, Schleichangriffe
+11. ~~Böden, Treppen & Tore~~ ✓
+12. Als Nächstes: unterschiedliche Gegnertypen, Schleichangriffe

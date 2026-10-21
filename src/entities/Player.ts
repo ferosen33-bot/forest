@@ -52,6 +52,7 @@ export class Player {
   private readonly prevFeet = new THREE.Vector3();
   private readonly currFeet = new THREE.Vector3();
   private readonly moveInput = new THREE.Vector2();
+  private readonly collision = new RAPIER.CharacterCollision();
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly wish = new THREE.Vector3();
@@ -352,10 +353,24 @@ export class Player {
       if (this.grounded && this.velocity.y < 0) this.velocity.y = -1; // leicht an den Boden drücken
     }
 
-    // Tatsächlich erreichte Horizontalgeschwindigkeit übernehmen (kein Aufstauen an Wänden).
-    if (dt > 0) {
-      this.velocity.x = mv.x / dt;
-      this.velocity.z = mv.z / dt;
+    // Kein Aufstauen an Wänden: den Geschwindigkeitsanteil in Wände hinein abbauen. Begehbare
+    // Schrägen (Rampen, Treppen, Hänge) zählen nicht als Wand – sonst verliert man an ihrem Fuß
+    // jeden Schwung, und Schwerkraft plus wenig Vortrieb drücken nur noch in die Schräge.
+    const minWalkNormalY = Math.cos(cfg.maxSlopeDeg * DEG);
+    for (let i = 0; i < this.controller.numComputedCollisions(); i++) {
+      const hit = this.controller.computedCollision(i, this.collision);
+      if (!hit) continue;
+      const n = hit.normal1;
+      if (n.y >= minWalkNormalY) continue;
+      const len = Math.hypot(n.x, n.z);
+      if (len < 1e-4) continue;
+      const nx = n.x / len;
+      const nz = n.z / len;
+      const into = this.velocity.x * nx + this.velocity.z * nz;
+      if (into < 0) {
+        this.velocity.x -= into * nx;
+        this.velocity.z -= into * nz;
+      }
     }
 
     this.body.setNextKinematicTranslation({

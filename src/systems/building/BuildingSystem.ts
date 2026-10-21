@@ -8,7 +8,7 @@ import type { Crafting } from '../Crafting';
 import type { Particles } from '../Particles';
 import type { LightPool, LightRequest } from '../LightPool';
 import type { Audio } from '../Audio';
-import { getStructure, WALL_HALF_WIDTH, type StructureDef, type StructureId } from './StructureDefs';
+import { FLOOR_HALF, GATE_OPEN_ANGLE, getStructure, WALL_HALF_WIDTH, type StructureDef, type StructureId } from './StructureDefs';
 
 /** Ein platziertes Bauwerk. */
 export interface Structure {
@@ -26,6 +26,17 @@ export interface Structure {
   emberTimer: number;
   crackleTimer: number;
   shake: number;
+  /** Nur Tore */
+  open?: boolean;
+  doorAngle?: number;
+  leaf?: THREE.Object3D;
+  doorCollider?: RAPIER.Collider;
+}
+
+/** Ergebnis des Einrastens: Position wird verschoben, optional Höhe und Drehung vorgegeben. */
+interface Snap {
+  y?: number;
+  rotation?: number;
 }
 
 export interface StructureSave {
@@ -34,6 +45,7 @@ export interface StructureSave {
   rotation: number;
   health: number;
   lit: boolean;
+  open?: boolean;
 }
 
 export interface Placement {
@@ -209,8 +221,16 @@ export class BuildingSystem {
    */
   evaluate(def: StructureDef, point: THREE.Vector3, rotation: number): Placement {
     const position = point.clone();
-    let snapped = false;
-    if (def.snap === 'wall') snapped = this.snapWall(position, rotation);
+    const snap =
+      def.snap === 'wall'
+        ? this.snapWall(position, rotation)
+        : def.snap === 'floor'
+          ? this.snapFloor(position)
+          : def.snap === 'stairs'
+            ? this.snapStairs(position)
+            : null;
+    const snapped = snap !== null;
+    if (snap?.rotation !== undefined) rotation = snap.rotation;
 
     // Bodenhöhen unter der Grundfläche (Ecken + Mitte).
     const he = def.halfExtents;
@@ -225,16 +245,36 @@ export class BuildingSystem {
       [-he.x, he.z],
       [he.x, he.z],
     ]) {
-      const h = this.heightMap.heightAt(position.x + lx * cos + lz * sin, position.z - lx * sin + lz * cos);
+      const h = this.supportHeight(position.x + lx * cos + lz * sin, position.z - lx * sin + lz * cos);
       min = Math.min(min, h);
       max = Math.max(max, h);
     }
-    // Wände/Unterstand reichen in den Boden (tiefster Punkt), kleine Objekte sitzen auf dem Mittel.
-    position.y = def.snap === 'wall' || def.id === 'shelter' ? min : (min + max) / 2 - 0.02;
+    const ground = this.heightMap.heightAt(position.x, position.z);
+    if (def.support) {
+      // Böden: Dielen knapp über dem höchsten Punkt – oder auf Höhe des Nachbarbodens.
+      position.y = snap?.y ?? max + 0.12;
+    } else if (snap?.y !== undefined) {
+      position.y = snap.y;
+    } else {
+      // Wände/Unterstand reichen in den Boden (tiefster Punkt), kleine Objekte sitzen auf dem Mittel.
+      position.y = def.snap === 'wall' || def.id === 'shelter' ? min : (min + max) / 2 - 0.02;
+    }
 
     const result: Placement = { valid: true, position, rotation, snapped };
-    if (max - min > def.maxStep) return { ...result, valid: false, reason: 'Untergrund zu steil' };
-    if (min < this.heightMap.waterLevel + 0.15) return { ...result, valid: false, reason: 'Nicht im Wasser' };
+    if (def.snap === 'stairs') {
+      // Treppen hängen immer an einer Bodenkante; Wände/Tore an derselben Kante stören nicht.
+      if (!snapped) return { ...result, valid: false, reason: 'Nur an einer Bodenkante' };
+      return result;
+    }
+    if (def.support) {
+      if (max > position.y + 0.05) return { ...result, valid: false, reason: 'Boden ragt durch die Dielen' };
+      if (position.y - Math.min(min, ground) > 3) return { ...result, valid: false, reason: 'Zu hoch über dem Boden' };
+      if (!snapped && max - min > def.maxStep) return { ...result, valid: false, reason: 'Untergrund zu steil' };
+      if (min < this.heightMap.waterLevel - 1.6) return { ...result, valid: false, reason: 'Wasser zu tief' };
+    } else if (snap?.y === undefined) {
+      if (max - min > def.maxStep) return { ...result, valid: false, reason: 'Untergrund zu steil' };
+      if (min < this.heightMap.waterLevel + 0.15) return { ...result, valid: false, reason: 'Nicht im Wasser' };
+    }
     if (!this.heightMap.isInside(position.x, position.z)) return { ...result, valid: false, reason: 'Außerhalb der Insel' };
 
     const blocker = this.findBlocker(def, position, rotation, snapped);
@@ -243,8 +283,108 @@ export class BuildingSystem {
     return result;
   }
 
+  /**
+   * Oberkante, auf der an (x, z) gebaut wird: Gelände – oder die Dielen eines Bodens darüber.
+   * Dadurch stehen Feuer, Unterstand und Fallen auf Böden statt darunter.
+   */
+  supportHeight(x: number, z: number): number {
+    let h = this.heightMap.heightAt(x, z);
+    for (const s of this.structures) {
+      if (!s.def.support || Math.abs(s.position.x - x) > 2 || Math.abs(s.position.z - z) > 2) continue;
+      // In lokale Koordinaten des Bodens drehen
+      const dx = x - s.position.x;
+      const dz = z - s.position.z;
+      const c = Math.cos(s.rotation);
+      const sn = Math.sin(s.rotation);
+      const lx = dx * c - dz * sn;
+      const lz = dx * sn + dz * c;
+      if (Math.abs(lx) <= FLOOR_HALF + 0.01 && Math.abs(lz) <= FLOOR_HALF + 0.01) h = Math.max(h, s.position.y);
+    }
+    return h;
+  }
+
+  /** Böden rasten Kante an Kante an Nachbarböden ein (gleiche Höhe und Ausrichtung). */
+  private snapFloor(position: THREE.Vector3): Snap | null {
+    let best: { x: number; z: number; y: number; rotation: number } | null = null;
+    let bestDist = SNAP_DISTANCE + 0.2;
+    for (const s of this.structures) {
+      if (!s.def.support || s.position.distanceTo(position) > 6) continue;
+      for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const off = new THREE.Vector3(ox * FLOOR_HALF * 2, 0, oz * FLOOR_HALF * 2).applyAxisAngle(UP, s.rotation);
+        const cx = s.position.x + off.x;
+        const cz = s.position.z + off.z;
+        const d = Math.hypot(position.x - cx, position.z - cz);
+        if (d >= bestDist) continue;
+        // Schon belegt?
+        if (this.structures.some((o) => o.def.support && Math.hypot(o.position.x - cx, o.position.z - cz) < 0.5)) continue;
+        bestDist = d;
+        best = { x: cx, z: cz, y: s.position.y, rotation: s.rotation };
+      }
+    }
+    if (!best) return null;
+    position.x = best.x;
+    position.z = best.z;
+    return { y: best.y, rotation: best.rotation };
+  }
+
+  /** Treppen hängen außen an einer freien Bodenkante und führen von ihr weg nach unten. */
+  private snapStairs(position: THREE.Vector3): Snap | null {
+    let best: { x: number; z: number; y: number; rotation: number } | null = null;
+    let bestDist = 1.8;
+    for (const s of this.structures) {
+      if (!s.def.support || s.position.distanceTo(position) > 5) continue;
+      for (const [ox, oz, turn] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]) {
+        const off = new THREE.Vector3(ox * FLOOR_HALF, 0, oz * FLOOR_HALF).applyAxisAngle(UP, s.rotation);
+        const ex = s.position.x + off.x;
+        const ez = s.position.z + off.z;
+        // An dieser Kante schließt ein weiterer Boden an → keine Außenkante.
+        const nx = s.position.x + off.x * 2;
+        const nz = s.position.z + off.z * 2;
+        if (this.structures.some((o) => o.def.support && Math.hypot(o.position.x - nx, o.position.z - nz) < 0.5)) continue;
+        // Abstand zur Treppenmitte (0,85 m außerhalb der Kante)
+        const d = Math.hypot(position.x - (ex + off.x * 0.77), position.z - (ez + off.z * 0.77));
+        if (d >= bestDist) continue;
+        bestDist = d;
+        best = { x: ex, z: ez, y: s.position.y, rotation: s.rotation + turn };
+      }
+    }
+    if (!best) return null;
+    position.x = best.x;
+    position.z = best.z;
+    return { y: best.y, rotation: best.rotation };
+  }
+
+  /**
+   * Rastet Wände/Tore ein: an freie Wandenden (behält die Drehung) oder auf Bodenkanten
+   * (übernimmt Kantenrichtung und Dielenhöhe). Verschiebt `position`.
+   */
+  private snapWall(position: THREE.Vector3, rotation: number): Snap | null {
+    // Bodenkanten haben Vorrang: dort soll die Wand exakt bündig sitzen.
+    let edge: { x: number; z: number; y: number; rotation: number } | null = null;
+    let edgeDist = SNAP_DISTANCE;
+    for (const s of this.structures) {
+      if (!s.def.support || s.position.distanceTo(position) > 4) continue;
+      for (const [ox, oz, turn] of [[0, 1, 0], [0, -1, 0], [1, 0, Math.PI / 2], [-1, 0, Math.PI / 2]]) {
+        const off = new THREE.Vector3(ox * FLOOR_HALF, 0, oz * FLOOR_HALF).applyAxisAngle(UP, s.rotation);
+        const d = Math.hypot(position.x - (s.position.x + off.x), position.z - (s.position.z + off.z));
+        if (d >= edgeDist) continue;
+        edgeDist = d;
+        // Von den beiden möglichen Richtungen die zur Wunschdrehung nächste (Tor-Vorderseite wählbar).
+        let r = s.rotation + turn;
+        if (Math.cos(rotation - r) < 0) r += Math.PI;
+        edge = { x: s.position.x + off.x, z: s.position.z + off.z, y: s.position.y, rotation: r };
+      }
+    }
+    if (edge) {
+      position.x = edge.x;
+      position.z = edge.z;
+      return { y: edge.y, rotation: edge.rotation };
+    }
+    return this.snapWallEnd(position, rotation) ? {} : null;
+  }
+
   /** Rastet die Wand an das nächste freie Wandende in Reichweite ein (verschiebt `position`). */
-  private snapWall(position: THREE.Vector3, rotation: number): boolean {
+  private snapWallEnd(position: THREE.Vector3, rotation: number): boolean {
     const ownEnds = [-1, 1].map((sign) =>
       new THREE.Vector3(sign * WALL_HALF_WIDTH, 0, 0).applyAxisAngle(UP, rotation),
     );
@@ -333,6 +473,13 @@ export class BuildingSystem {
       this.byCollider.set(collider.handle, structure);
     }
 
+    if (def.interaction === 'door') {
+      structure.open = false;
+      structure.doorAngle = 0;
+      structure.leaf = object.getObjectByName('leaf');
+      if (def.doorCollider !== undefined) structure.doorCollider = body.collider(def.doorCollider);
+    }
+
     if (def.interaction === 'fire') {
       structure.fire = new FireEffect(0.6);
       structure.fire.object.position.set(0, 0.04, 0);
@@ -358,6 +505,7 @@ export class BuildingSystem {
       rotation: s.rotation,
       health: s.health,
       lit: s.lit,
+      ...(s.open ? { open: true } : {}),
     }));
   }
 
@@ -371,6 +519,10 @@ export class BuildingSystem {
       if (s.fire) {
         s.lit = d.lit;
         s.fire.visible = d.lit;
+      }
+      if (d.open) {
+        this.setOpen(s, true, true);
+        s.doorAngle = GATE_OPEN_ANGLE;
       }
       out.push(s);
     }
@@ -386,6 +538,19 @@ export class BuildingSystem {
     s.lit = lit;
     s.fire.visible = lit;
     if (lit) this.audio.play('ignite');
+  }
+
+  /** Tor öffnen/schließen: offen wird der Torflügel zum Sensor (durchlässig, aber anvisierbar). */
+  setOpen(s: Structure, open: boolean, quiet = false): void {
+    if (s.def.interaction !== 'door' || s.open === open) return;
+    s.open = open;
+    s.doorCollider?.setSensor(open);
+    if (!quiet) this.audio.play('door', { position: s.position.clone().setY(s.position.y + 1.2) });
+    this.events.emit('structure:door', { id: s.def.id, position: s.position.clone(), rotation: s.rotation, open });
+  }
+
+  toggleDoor(s: Structure): void {
+    this.setOpen(s, !s.open);
   }
 
   /** `E` auf ein Bauwerk: Feuer an/aus. (Schlafen übernimmt das Spiel selbst.) */
@@ -410,6 +575,8 @@ export class BuildingSystem {
   demolish(s: Structure): void {
     const index = this.structures.indexOf(s);
     if (index < 0) return;
+    // Offenes Tor erst (still) schließen, damit die Wegfindung den Durchgang nicht doppelt freigibt.
+    this.setOpen(s, false, true);
     this.structures.splice(index, 1);
     for (let i = 0; i < s.body.numColliders(); i++) this.byCollider.delete(s.body.collider(i).handle);
     this.physics.world.removeRigidBody(s.body);
@@ -438,6 +605,14 @@ export class BuildingSystem {
 
   update(dt: number, viewer: THREE.Vector3): void {
     for (const s of this.structures) {
+      // Torflügel schwingt auf bzw. zu
+      if (s.leaf && s.doorAngle !== undefined) {
+        const target = s.open ? GATE_OPEN_ANGLE : 0;
+        const step = dt * 2.6;
+        s.doorAngle += THREE.MathUtils.clamp(target - s.doorAngle, -step, step);
+        s.leaf.rotation.y = s.doorAngle;
+      }
+
       // Treffer-Wackeln
       if (s.shake > 0) {
         s.shake = Math.max(0, s.shake - dt);

@@ -11,7 +11,7 @@ import { Particles } from '../Particles';
 import { LightPool } from '../LightPool';
 import { Audio } from '../Audio';
 import { BuildingSystem } from './BuildingSystem';
-import { getStructure, WALL_HALF_WIDTH } from './StructureDefs';
+import { FLOOR_HALF, getStructure, WALL_HALF_WIDTH } from './StructureDefs';
 
 async function setup() {
   const physics = await Physics.create();
@@ -127,5 +127,74 @@ describe('BuildingSystem', () => {
     expect(w.building.isNearLitFire(pos.clone().add(new THREE.Vector3(2, 0, 0)))).toBe(true);
     w.building.toggleFire(fire);
     expect(w.building.isNearLitFire(pos)).toBe(false);
+  });
+
+  describe('Böden und Tore', () => {
+    const clear = () => {
+      for (const s of [...w.building.structures]) w.building.demolish(s);
+      w.physics.step();
+    };
+
+    it('Boden liegt knapp über dem höchsten Punkt und trägt andere Bauwerke', () => {
+      clear();
+      const pos = w.flat.clone();
+      const p = w.building.evaluate(getStructure('floor'), pos, 0.3);
+      expect(p.valid).toBe(true);
+      expect(p.position.y).toBeGreaterThan(w.heightMap.heightAt(pos.x, pos.z));
+      const floor = w.building.place('floor', p.position, p.rotation);
+      w.physics.step();
+      // Ein Lagerfeuer auf dem Boden steht auf den Dielen, nicht im Gelände darunter.
+      const fire = w.building.evaluate(getStructure('campfire'), pos.clone(), 0);
+      expect(fire.valid).toBe(true);
+      expect(fire.position.y).toBeCloseTo(floor.position.y - 0.02, 2);
+    });
+
+    it('Böden rasten Kante an Kante ein, Wände auf die Bodenkante', () => {
+      const floor = w.building.structures.find((s) => s.def.id === 'floor')!;
+      const right = new THREE.Vector3(FLOOR_HALF * 2, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), floor.rotation);
+      const aim = floor.position.clone().add(right).add(new THREE.Vector3(0.5, 0, -0.4));
+      const p = w.building.evaluate(getStructure('floor'), aim, 1.7);
+      expect(p.snapped).toBe(true);
+      expect(p.rotation).toBeCloseTo(floor.rotation, 5);
+      expect(p.position.y).toBeCloseTo(floor.position.y, 5);
+      expect(p.position.distanceTo(floor.position)).toBeCloseTo(FLOOR_HALF * 2, 3);
+
+      // Wand nahe der vorderen Kante (lokal +Z): exakt bündig, auf Dielenhöhe, parallel zur Kante.
+      const front = new THREE.Vector3(0.3, 0, FLOOR_HALF + 0.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), floor.rotation);
+      const wall = w.building.evaluate(getStructure('wall'), floor.position.clone().add(front), floor.rotation + 0.2);
+      expect(wall.snapped).toBe(true);
+      expect(wall.valid).toBe(true);
+      expect(wall.position.y).toBeCloseTo(floor.position.y, 5);
+      expect(Math.cos(wall.rotation - floor.rotation)).toBeCloseTo(1, 5);
+      expect(wall.position.distanceTo(floor.position)).toBeCloseTo(FLOOR_HALF, 3);
+    });
+
+    it('Tor öffnet und schließt (Flügel wird zum Sensor) und meldet es der Wegfindung', () => {
+      clear();
+      const events = new EventBus();
+      const doors: boolean[] = [];
+      // Eigenes System mit Ereignis-Zähler
+      const b = new BuildingSystem(
+        w.physics,
+        w.heightMap,
+        new Crafting(w.inventory),
+        w.worldItems,
+        new Particles(),
+        new Particles(50, true),
+        new LightPool(new THREE.Scene(), 2),
+        new Audio(),
+        events,
+      );
+      events.on('structure:door', ({ open }) => doors.push(open));
+      const pos = w.flat.clone();
+      const gate = b.place('gate', pos, 0);
+      expect(gate.doorCollider?.isSensor()).toBe(false);
+      b.toggleDoor(gate);
+      expect(gate.open).toBe(true);
+      expect(gate.doorCollider?.isSensor()).toBe(true);
+      // Abriss eines offenen Tors schließt es zuerst → Ereignisse bleiben ausgeglichen.
+      b.demolish(gate);
+      expect(doors).toEqual([true, false]);
+    });
   });
 });

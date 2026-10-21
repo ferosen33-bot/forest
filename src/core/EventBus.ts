@@ -28,6 +28,7 @@ export type GameEvents = {
   'structure:placed': { id: StructureId; position: Vector3; rotation: number };
   'item:crafted': { item: ItemId; count: number };
   'structure:removed': { id: StructureId; position: Vector3; rotation: number };
+  'structure:door': { id: StructureId; position: Vector3; rotation: number; open: boolean };
   /** Lautes Ereignis, das Gegner im Umkreis `radius` hören. */
   noise: { position: Vector3; radius: number };
   'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean };
