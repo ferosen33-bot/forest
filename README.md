@@ -50,6 +50,21 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 7 – Größere Welt & Terrain-LOD
+
+- **Insel 1,5 × 1,5 km** (2,25-fache Fläche): Die Rausch-Frequenzen sind absolut, die Inselmaske relativ – die größere
+  Insel bekommt dadurch mehr Hügel, Gebirgszüge und Seen statt nur gestreckter Formen. Rund 21 000 Bäume/Büsche/Felsen,
+  sechs Schrat-Lager, sieben Hirschrudel, 18 Hasen.
+- **Terrain-LOD:** Jeder 128-m-Chunk liegt in vier Auflösungen vor (2 / 4 / 8 / 16 m Rasterabstand). Die Stufe richtet
+  sich nach der Entfernung zum Chunk-Rand (mit Hysterese gegen Flackern); in Spielernähe ist es immer die volle
+  Auflösung, die exakt der Kollision entspricht. Gröbere Stufen nehmen jedes n-te Sample der vollen Auflösung
+  (gleiche Höhen, Normalen und Farben → keine Farbsprünge).
+- **Schürzen statt Risse:** An jedem Chunk-Rand hängt eine nach außen gerichtete, senkrechte Schürze, die Spalten zwischen
+  Nachbarn unterschiedlicher Stufe verdeckt – ohne Nachbar-abhängige Index-Puffer.
+- Ferne Stufen werfen keine Schatten (liegen ohnehin außerhalb der Schattenkamera). Im Debug-Overlay (`F3`) zeigt
+  „Terrain-LOD“ die Verteilung der Chunks auf die Stufen.
+- Ladezeit trotz doppelter Fläche ≈ 1,5 s für Höhenkarte, Terrain (alle Stufen) und Vegetation zusammen.
+
 ### Meilenstein 6 – Survival-Ausbau: Jagd, Kochen, Haltbarkeit
 
 - **Wild:** Hirschrudel (mit und ohne Geweih) und Hasen auf offenen Wiesen, prozedural animiert (Trab/Galopp,
@@ -91,7 +106,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ### Meilenstein 4 – Gegner-KI & Kampf
 
-- **Schrate:** hagere Waldkreaturen mit glimmenden Augen und Keulen, die in vier Lagern (Totem, Feuer, Pfahlring) leben.
+- **Schrate:** hagere Waldkreaturen mit glimmenden Augen und Keulen, die in Lagern (Totem, Feuer, Pfahlring) leben (seit Meilenstein 7: sechs).
   Prozedurale Animation: Gehen/Rennen, lauernde Haltung, Ausholen und Zuschlagen, Zucken bei Treffern, Schreien, Umfallen.
   Alle Schrate zusammen brauchen ≈ 9 Draw Calls, weil jedes Körperteil als InstancedMesh gerendert wird.
 - **Wahrnehmung:**
@@ -160,7 +175,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   - Schwimmen mit Auftrieb, Tauchen, Atemluft & Ertrinken
   - Head-Bob, Lande-Einfedern, Sprint-FOV
 - **Spieler-Stats:** Gesundheit, Ausdauer (mit Erschöpfung), Hunger, Durst, Regeneration, Tod & Wiederbeleben
-- **Welt:** 1 × 1 km Insel aus Simplex-fBm + Ridged-Noise mit Stränden, Gebirge und Binnenseen
+- **Welt:** 1 × 1 km Insel (seit Meilenstein 7: 1,5 × 1,5 km) aus Simplex-fBm + Ridged-Noise mit Stränden, Gebirge und Binnenseen
   - Chunk-basiertes Terrain-Mesh mit Vertex-Färbung (Sand, Gras, Erde, Fels nach Höhe/Steilheit)
   - ~7 700 Bäume, Büsche und Felsen per *InstancedMesh*, pro Chunk gruppiert (Frustum-Culling), Wind-Animation im Shader
   - Statische Collider für Stämme (Zylinder) und Felsen (konvexe Hülle)
@@ -182,7 +197,7 @@ src/
 │   └── EventBus.ts         Typisierte Events zur Entkopplung der Systeme
 ├── world/
 │   ├── HeightMap.ts        Prozedurale Höhenkarte (rein, ohne Three.js → testbar)
-│   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben
+│   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
 │   ├── VegetationGeometry.ts  Low-Poly-Geometrien für Bäume/Büsche/Felsen
@@ -260,6 +275,6 @@ src/
 5. ~~Kampf~~ ✓
 6. ~~Gegner-KI~~ ✓
 7. ~~Audio & Effekte~~ ✓ (später noch: Wetter/Regen, Lautstärke-Einstellungen, Grafik-Qualitätsstufen)
-8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
+8. ~~Größere Welt & Terrain-LOD~~ ✓ · **Savegames** (Meilenstein 8)
 9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
 10. Später: unterschiedliche Gegnertypen, Schleichangriffe, Wasserbehälter, weitere Bauteile (Böden, Tore)

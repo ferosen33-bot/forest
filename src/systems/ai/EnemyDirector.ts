@@ -48,7 +48,7 @@ export interface DirectorDeps {
   isPlayerLit: () => boolean;
 }
 
-const MAX_ENEMIES = 16;
+const MAX_ENEMIES = 24;
 const ALERT_RADIUS = 25;
 
 /**

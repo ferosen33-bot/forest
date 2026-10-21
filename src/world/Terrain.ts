@@ -19,15 +19,40 @@ const PALETTE = {
 
 const tmpColor = new THREE.Color();
 
+/** Detailstufen: Schrittweite in Höhen-Samples und ab welcher Entfernung (m) sie gilt. */
+export const TERRAIN_LODS = [
+  { step: 1, from: 0 },
+  { step: 2, from: 160 },
+  { step: 4, from: 320 },
+  { step: 8, from: 560 },
+] as const;
+/** Puffer gegen ständiges Hin- und Herschalten an der Grenze (m). */
+const LOD_HYSTERESIS = 12;
+
+interface Chunk {
+  /** Mittelpunkt (x/z) für die Entfernungsberechnung. */
+  cx: number;
+  cz: number;
+  half: number;
+  levels: THREE.Mesh[];
+  level: number;
+}
+
 /**
  * Render-Repräsentation des Terrains: die Höhenkarte wird in quadratische Chunks
  * zerlegt, damit Three.js (Kamera- und Schatten-Frustum) unsichtbare Teile verwirft.
  * Normalen kommen direkt aus der Höhenkarte → keine sichtbaren Nähte an Chunk-Grenzen.
+ *
+ * Level of Detail: Jeder Chunk existiert in mehreren Auflösungen (jedes 1./2./4./8. Sample).
+ * Nah am Spieler wird immer die volle Auflösung gezeigt – sie entspricht exakt der Kollision.
+ * Gegen Risse zwischen Nachbarn unterschiedlicher Stufe hängt an jedem Chunk-Rand eine
+ * senkrechte "Schürze" nach unten, die eventuelle Spalten verdeckt.
  */
 export class Terrain {
   readonly group = new THREE.Group();
   readonly material: THREE.MeshStandardMaterial;
   readonly chunksPerSide: number;
+  private readonly chunks: Chunk[] = [];
 
   private readonly colorNoise;
   private readonly patchNoise;
@@ -50,12 +75,37 @@ export class Terrain {
     this.chunksPerSide = Math.round(heightMap.size / chunkSize);
     for (let cz = 0; cz < this.chunksPerSide; cz++) {
       for (let cx = 0; cx < this.chunksPerSide; cx++) {
-        this.group.add(this.buildChunk(cx, cz));
+        this.chunks.push(this.buildChunk(cx, cz));
       }
     }
   }
 
-  private buildChunk(cx: number, cz: number): THREE.Mesh {
+  /** Aktuell gewählte Detailstufen (für Debug-Anzeige): Anzahl Chunks je Stufe. */
+  get lodHistogram(): number[] {
+    const h = TERRAIN_LODS.map(() => 0);
+    for (const c of this.chunks) h[c.level]++;
+    return h;
+  }
+
+  /** Wählt pro Chunk die Detailstufe nach Entfernung zur Kamera (horizontal, bis zum Chunk-Rand). */
+  update(focus: THREE.Vector3): void {
+    for (const c of this.chunks) {
+      const dx = Math.max(0, Math.abs(focus.x - c.cx) - c.half);
+      const dz = Math.max(0, Math.abs(focus.z - c.cz) - c.half);
+      const d = Math.hypot(dx, dz);
+      let level = c.level;
+      // Feiner werden sofort, gröber erst mit etwas Abstand zur Grenze.
+      while (level > 0 && d < TERRAIN_LODS[level].from) level--;
+      while (level < TERRAIN_LODS.length - 1 && d > TERRAIN_LODS[level + 1].from + LOD_HYSTERESIS) level++;
+      if (level !== c.level) {
+        c.levels[c.level].visible = false;
+        c.levels[level].visible = true;
+        c.level = level;
+      }
+    }
+  }
+
+  private buildChunk(cx: number, cz: number): Chunk {
     const hm = this.heightMap;
     const segs = Math.round(this.chunkSize / hm.cellSize);
     const verts = segs + 1;
@@ -64,70 +114,108 @@ export class Terrain {
     const originX = ix0 * hm.cellSize - hm.half;
     const originZ = iz0 * hm.cellSize - hm.half;
 
-    const positions = new Float32Array(verts * verts * 3);
+    // Volle Auflösung einmal berechnen; gröbere Stufen nehmen jedes n-te Sample daraus.
+    const heights = new Float32Array(verts * verts);
     const normals = new Float32Array(verts * verts * 3);
     const colors = new Float32Array(verts * verts * 3);
     const n: [number, number, number] = [0, 1, 0];
     const color = new THREE.Color();
-
-    let p = 0;
     for (let z = 0; z < verts; z++) {
       for (let x = 0; x < verts; x++) {
-        const ix = ix0 + x;
-        const iz = iz0 + z;
-        const h = hm.getSample(ix, iz);
-        hm.normalAtSample(ix, iz, n);
-
-        positions[p] = x * hm.cellSize;
-        positions[p + 1] = h;
-        positions[p + 2] = z * hm.cellSize;
-        normals[p] = n[0];
-        normals[p + 1] = n[1];
-        normals[p + 2] = n[2];
-
+        const i = z * verts + x;
+        const h = hm.getSample(ix0 + x, iz0 + z);
+        hm.normalAtSample(ix0 + x, iz0 + z, n);
+        heights[i] = h;
+        normals.set(n, i * 3);
         this.groundColor(originX + x * hm.cellSize, originZ + z * hm.cellSize, h, 1 - n[1], color);
-        colors[p] = color.r;
-        colors[p + 1] = color.g;
-        colors[p + 2] = color.b;
-        p += 3;
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
       }
     }
 
+    const levels = TERRAIN_LODS.map(({ step }, li) => {
+      const geometry = this.buildLevel(verts, step, heights, normals, colors);
+      const mesh = new THREE.Mesh(geometry, this.material);
+      mesh.name = `TerrainChunk_${cx}_${cz}_L${li}`;
+      mesh.position.set(originX, 0, originZ);
+      mesh.receiveShadow = true;
+      // Nahe Stufen werfen Schatten (Hänge, Berge); ferne liegen ohnehin außerhalb der Schattenkamera.
+      mesh.castShadow = li <= 1;
+      mesh.visible = li === 0;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      this.group.add(mesh);
+      return mesh;
+    });
+    return { cx: originX + this.chunkSize / 2, cz: originZ + this.chunkSize / 2, half: this.chunkSize / 2, levels, level: 0 };
+  }
+
+  /** Gitter mit Schrittweite `step` plus Rand-Schürze. */
+  private buildLevel(
+    fullVerts: number,
+    step: number,
+    heights: Float32Array,
+    normals: Float32Array,
+    colors: Float32Array,
+  ): THREE.BufferGeometry {
+    const cell = this.heightMap.cellSize;
+    const segs = (fullVerts - 1) / step;
+    const verts = segs + 1;
+    const ringCount = segs * 4;
+    const total = verts * verts + ringCount;
+    const pos = new Float32Array(total * 3);
+    const nor = new Float32Array(total * 3);
+    const col = new Float32Array(total * 3);
+
+    const copyVertex = (dst: number, x: number, z: number, drop: number) => {
+      const src = z * step * fullVerts + x * step;
+      pos[dst * 3] = x * step * cell;
+      pos[dst * 3 + 1] = heights[src] - drop;
+      pos[dst * 3 + 2] = z * step * cell;
+      nor.set(normals.subarray(src * 3, src * 3 + 3), dst * 3);
+      col.set(colors.subarray(src * 3, src * 3 + 3), dst * 3);
+    };
+    for (let z = 0; z < verts; z++) for (let x = 0; x < verts; x++) copyVertex(z * verts + x, x, z, 0);
+
     // Dreiecke mit derselben Diagonale wie Rapiers Heightfield: (x0,z1)–(x1,z0).
-    const indices = new Uint32Array(segs * segs * 6);
-    let k = 0;
+    const indices: number[] = [];
     for (let z = 0; z < segs; z++) {
       for (let x = 0; x < segs; x++) {
         const a = z * verts + x; // (x0, z0)
         const b = a + 1; // (x1, z0)
         const c = a + verts; // (x0, z1)
         const d = c + 1; // (x1, z1)
-        indices[k++] = a;
-        indices[k++] = c;
-        indices[k++] = b;
-        indices[k++] = b;
-        indices[k++] = c;
-        indices[k++] = d;
+        indices.push(a, c, b, b, c, d);
       }
     }
 
+    // Schürze: Randverlauf im Uhrzeigersinn (von oben gesehen), je Randpunkt ein abgesenkter Zwilling.
+    const ring: [number, number][] = [];
+    for (let x = 0; x < segs; x++) ring.push([x, 0]);
+    for (let z = 0; z < segs; z++) ring.push([segs, z]);
+    for (let x = segs; x > 0; x--) ring.push([x, segs]);
+    for (let z = segs; z > 0; z--) ring.push([0, z]);
+    const skirtDepth = 1.5 + step * cell * 1.5;
+    ring.forEach(([x, z], i) => copyVertex(verts * verts + i, x, z, skirtDepth));
+    for (let i = 0; i < ringCount; i++) {
+      const j = (i + 1) % ringCount;
+      const top0 = ring[i][1] * verts + ring[i][0];
+      const top1 = ring[j][1] * verts + ring[j][0];
+      const bot0 = verts * verts + i;
+      const bot1 = verts * verts + j;
+      // Vorderseite zeigt nach außen: Sie verdeckt den Spalt, wenn der Nachbar tiefer liegt.
+      indices.push(top0, top1, bot0, top1, bot1, bot0);
+    }
+
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geometry.setIndex(indices);
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
-
-    const mesh = new THREE.Mesh(geometry, this.material);
-    mesh.name = `TerrainChunk_${cx}_${cz}`;
-    mesh.position.set(originX, 0, originZ);
-    mesh.receiveShadow = true;
-    // Terrain wirft Schatten auf sich selbst (Berge/Hänge); Kosten sind dank Chunking gering.
-    mesh.castShadow = true;
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    return mesh;
+    return geometry;
   }
 
   /** Bestimmt die Bodenfarbe aus Höhe, Steilheit und etwas Rauschen. */
@@ -159,7 +247,7 @@ export class Terrain {
   }
 
   dispose(): void {
-    for (const child of this.group.children) (child as THREE.Mesh).geometry.dispose();
+    for (const c of this.chunks) for (const m of c.levels) m.geometry.dispose();
     this.material.dispose();
   }
 }

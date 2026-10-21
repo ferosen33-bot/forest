@@ -95,6 +95,7 @@ export class World {
   update(dt: number, elapsed: number, focus: THREE.Vector3): void {
     this.water.update(elapsed);
     this.water.follow(focus.x, focus.z);
+    this.terrain.update(focus);
     this.vegetation.update(dt, elapsed, focus);
     this.grass?.update(elapsed, focus);
   }
