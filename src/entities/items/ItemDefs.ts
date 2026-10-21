@@ -183,4 +183,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
 };
 
+/** Typwächter für Daten von außen (Spielstände). */
+export const isItemId = (id: string): id is ItemId => Object.prototype.hasOwnProperty.call(ITEMS, id);
+
 export const getItem = (id: ItemId): ItemDef => ITEMS[id];

@@ -279,3 +279,6 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
 };
 
 export const getStructure = (id: StructureId): StructureDef => STRUCTURES[id];
+
+/** Typwächter für Daten von außen (Spielstände). */
+export const isStructureId = (id: string): id is StructureId => Object.prototype.hasOwnProperty.call(STRUCTURES, id);

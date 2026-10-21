@@ -22,6 +22,14 @@ import { lerp } from '../../utils/math';
 
 export type HitZone = 'head' | 'body';
 
+export interface EnemySave {
+  camp: number;
+  p: [number, number, number];
+  health: number;
+  tone: number;
+  scale: number;
+}
+
 interface Camp {
   center: THREE.Vector3;
   fire: FireEffect;
@@ -383,6 +391,34 @@ export class EnemyDirector {
     e.dispose();
     this.byCollider.delete(e.collider.handle);
     this.byCollider.delete(e.headCollider.handle);
+  }
+
+  /** Spielstand: lebende Schrate mit Lager-Zugehörigkeit (Leichen und Jagdzustand entfallen). */
+  serialize(): EnemySave[] {
+    const out: EnemySave[] = [];
+    for (const e of this.enemies) {
+      if (e.isDead) continue;
+      const camp = this.camps.findIndex((c) => c.members.has(e));
+      const f = e.feet;
+      out.push({ camp, p: [f.x, f.y, f.z], health: e.health, tone: e.tone, scale: e.rig.scale });
+    }
+    return out;
+  }
+
+  /** Ersetzt alle Schrate durch die gespeicherten. */
+  load(list: EnemySave[]): void {
+    for (let i = this.enemies.length - 1; i >= 0; i--) this.removeEnemy(i);
+    for (const c of this.camps) c.members.clear();
+    for (const d of list) {
+      const camp = this.camps[d.camp];
+      if (!camp || this.enemies.length >= MAX_ENEMIES) continue;
+      const enemy = new Enemy(this.nextId++, this.d.physics, new THREE.Vector3(...d.p), camp.center, this.cfg, d.tone, d.scale);
+      enemy.health = Math.min(enemy.maxHealth, d.health);
+      this.enemies.push(enemy);
+      camp.members.add(enemy);
+      this.byCollider.set(enemy.collider.handle, { enemy, zone: 'body' });
+      this.byCollider.set(enemy.headCollider.handle, { enemy, zone: 'head' });
+    }
   }
 
   /** Nach dem Tod des Spielers: alle beruhigen; wer am Aufwachpunkt lauert, geht nach Hause. */

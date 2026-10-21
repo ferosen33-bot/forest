@@ -15,6 +15,15 @@ export interface WorldItem {
   readonly collider: RAPIER.Collider;
 }
 
+export interface WorldItemSave {
+  id: ItemId;
+  count: number;
+  durability?: number;
+  p: [number, number, number];
+  q: [number, number, number, number];
+  fixed?: boolean;
+}
+
 export interface SpawnOptions {
   durability?: number;
   rotation?: THREE.Quaternion;
@@ -88,6 +97,28 @@ export class WorldItems {
   /** Alle aktuell in der Welt liegenden Items. */
   all(): IterableIterator<WorldItem> {
     return this.items.values();
+  }
+
+  serialize(): WorldItemSave[] {
+    return [...this.items.values()].map((item) => {
+      const t = item.body.translation();
+      const r = item.body.rotation();
+      const save: WorldItemSave = { id: item.itemId, count: item.count, p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] };
+      if (item.durability !== undefined) save.durability = item.durability;
+      if (item.body.isFixed()) save.fixed = true;
+      return save;
+    });
+  }
+
+  load(list: WorldItemSave[], isKnown: (id: string) => boolean): void {
+    for (const d of list) {
+      if (!isKnown(d.id) || d.count <= 0) continue;
+      this.spawn(d.id, d.count, new THREE.Vector3(...d.p), {
+        durability: d.durability,
+        rotation: new THREE.Quaternion(...d.q),
+        fixed: d.fixed,
+      });
+    }
   }
 
   getByCollider(collider: RAPIER.Collider): WorldItem | undefined {

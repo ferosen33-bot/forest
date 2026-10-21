@@ -7,7 +7,8 @@ import { RAPIER } from './core/Physics';
  * Einstiegspunkt.
  * URL-Parameter (praktisch beim Entwickeln):
  *   ?seed=123     andere Insel generieren
- *   ?autostart    ohne Menü und Pointer Lock starten (Screenshots, Tests)
+ *   ?autostart    ohne Menü und Pointer Lock starten (Screenshots, Tests) – lädt keinen Spielstand …
+ *   ?load         … außer mit diesem Parameter
  *   ?nopost       ohne Nachbearbeitung (Lichtstrahlen, Bloom) – für schwache Grafikkarten
  */
 const params = new URLSearchParams(window.location.search);
@@ -31,6 +32,7 @@ Game.create({
   inventoryRoot: byId('inventory'),
   config,
   autostart: params.has('autostart'),
+  loadSave: !params.has('autostart') || params.has('load'),
 })
   .then((game) => {
     game.start();

@@ -1,9 +1,10 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { Physics } from '../../core/Physics';
 import { HeightMap } from '../../world/HeightMap';
 import { NavGrid } from '../../systems/ai/NavGrid';
 import { Animal, SPECIES, type AnimalContext } from './Animal';
+import { mulberry32 } from '../../utils/random';
 
 const DT = 1 / 60;
 
@@ -29,6 +30,13 @@ describe('Animal (Wild)', () => {
   let w: Awaited<ReturnType<typeof setup>>;
   beforeAll(async () => {
     w = await setup();
+  });
+  // Fluchtwinkel und Wartezeiten sind zufällig: fester Seed für reproduzierbare Tests.
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockImplementation(mulberry32(99));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function makeCtx(playerPos: THREE.Vector3, crouching = false): AnimalContext & { warned: number } {

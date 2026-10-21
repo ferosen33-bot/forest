@@ -28,6 +28,17 @@ export interface AnimalDeps {
   avoid: THREE.Vector3[];
 }
 
+export interface AnimalSave {
+  species: Species;
+  p: [number, number, number];
+  home: [number, number, number];
+  health: number;
+  scale: number;
+  tint: number;
+  /** Sekunden seit dem Tod (nur erlegte Tiere). */
+  deadFor?: number;
+}
+
 const fur = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true });
 
 /** Pro Art: Material je Körperteil (Fellteile werden pro Tier eingefärbt). */
@@ -279,6 +290,42 @@ export class AnimalDirector {
   private playAt(id: SoundId, pos: THREE.Vector3, volume: number, height = 1.2): void {
     if (pos.distanceTo(this.d.player.position) > 70) return;
     this.d.audio.play(id, { volume, position: this.tmp.copy(pos).add(new THREE.Vector3(0, height, 0)) });
+  }
+
+  serialize(): AnimalSave[] {
+    return this.animals.map((a) => {
+      const f = a.feet;
+      const save: AnimalSave = {
+        species: a.species,
+        p: [f.x, f.y, f.z],
+        home: [a.home.x, a.home.y, a.home.z],
+        health: a.health,
+        scale: a.rig.scale,
+        tint: a.tint,
+      };
+      if (a.isDead) save.deadFor = a.deadFor;
+      return save;
+    });
+  }
+
+  /** Ersetzt den Wildbestand durch den gespeicherten (Leichen bleiben ausnehmbar). */
+  load(list: AnimalSave[]): void {
+    for (const a of [...this.animals]) this.remove(a);
+    for (const d of list) {
+      if (d.species !== 'deer' && d.species !== 'rabbit') continue;
+      const a = this.add(d.species, new THREE.Vector3(...d.p), new THREE.Vector3(...d.home), d.scale);
+      if (!a) continue;
+      a.tint = d.tint;
+      a.health = Math.min(a.health, d.health);
+      if (d.deadFor !== undefined) {
+        a.takeDamage(Infinity, a.feet);
+        a.deadFor = d.deadFor;
+        // Ohne Todesanimation direkt liegend
+        a.rig.anim.death = 1;
+        this.byCollider.delete(a.collider.handle);
+        this.byCollider.set(a.corpse!.handle, a);
+      }
+    }
   }
 
   get aliveCount(): number {

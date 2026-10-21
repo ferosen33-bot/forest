@@ -19,6 +19,7 @@ URL-Parameter für die Entwicklung:
 | ------------- | ------------------------------------------------------- |
 | `?seed=42`    | Andere Insel generieren (Standard-Seed: `1337`)         |
 | `?autostart`  | Ohne Menü und Pointer Lock starten (Screenshots/Tests)  |
+| `?load`       | Mit `?autostart`: trotzdem den Spielstand laden         |
 | `?nopost`     | Ohne Nachbearbeitung (für schwächere Grafikkarten)      |
 
 Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
@@ -50,6 +51,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 8 – Speichern & Laden
+
+- **Automatisch:** alle 90 s Spielzeit, beim Pausieren, nach dem Schlafen und beim Verlassen der Seite
+  (Tab schließen, Neuladen, App-Wechsel). Nicht im Tod und nicht mitten in einem Baumfall.
+- **Startmenü:** Mit vorhandenem Spielstand heißt der Knopf „Fortsetzen“ (mit Tag, Uhrzeit und Speicherzeitpunkt);
+  „Neues Spiel“ verwirft den Stand nach Rückfrage. Das Pausenmenü zeigt, wann zuletzt gespeichert wurde.
+- **Was gespeichert wird:** Spieler (Position, Blick, Werte, Aufwachpunkt, gewählter Slot), Uhrzeit und Tag,
+  Inventar inkl. Haltbarkeit, gefällte Bäume (Stümpfe), angeschlagene Bäume und Felsen, aufgehobene Äste/Steine,
+  nachwachsende Beeren, Bauwerke (Zustand, Feuer an/aus), Bratspieße mit Garfortschritt, alle losen Items (auch
+  steckende Speere), Schrate (Lager, Position, Gesundheit) und Wild (inkl. noch nicht ausgenommener Beute).
+- **Prinzip:** Die Welt entsteht weiterhin deterministisch aus dem Seed; gespeichert werden nur die *Abweichungen*
+  davon (≈ 15 KB JSON in `localStorage`). Jedes System hat ein eigenes `serialize()`/`load()`; ein Spielstand passt
+  nur zu derselben Welt (Seed + Größe) und Formatversion und wird defensiv geprüft – kaputte oder fremde Stände werden
+  ignoriert statt das Spiel abstürzen zu lassen.
+- Entwicklung: `?autostart` lädt bewusst keinen Stand (reproduzierbare Tests), `?autostart&load` schon.
+
 ### Meilenstein 7 – Größere Welt & Terrain-LOD
 
 - **Insel 1,5 × 1,5 km** (2,25-fache Fläche): Die Rausch-Frequenzen sind absolut, die Inselmaske relativ – die größere
@@ -77,7 +94,8 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 - **Speerwurf:** Rechte Maustaste legt den Speer an, linke wirft. Das Geschoss fliegt ballistisch (auf ~12 m genau
   auf die Bildmitte), richtet sich nach der Flugbahn aus und prüft pro Physik-Takt das zurückgelegte Segment per Raycast
   (kein Durchtunneln, Kopftreffer bei Schraten). Im Boden, in Bäumen und Bauwerken bleibt der Speer stecken und
-  kann wieder aufgehoben werden; Wurfschaden ×1,6.
+  kann wieder aufgehoben werden; Wurfschaden ×1,6. Der Wurf zielt vom Schulterpunkt exakt auf den Punkt unter dem
+  Fadenkreuz und ist lautlos – erst der Einschlag macht Lärm.
 - **Jagdbeute:** Erlegte Tiere mit `E` ausnehmen → rohes Fleisch (Hirsch 3, Hase 1). Roh gegessen macht es satt, aber
   krank (Gesundheit sinkt).
 - **Kochen:** Mit rohem Fleisch in der Hand legt `E` an einem brennenden Lagerfeuer ein Stück auf den Bratspieß
@@ -238,6 +256,7 @@ src/
 │   ├── AnimalDirector.ts   Wild: Verteilung, Rudel-Warnung, Treffer, Ausnehmen, Nachwachsen
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer
+│   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -264,6 +283,10 @@ src/
 - **Spielzustände:** `playing` / `inventory` / `paused` / `dead`. Im Inventar ist die Maus frei, die Welt läuft weiter.
 - **Kollisionsgruppen:** Der Spieler läuft durch lose Items. Gefällte Bäume kollidieren nur mit dem Terrain, damit sie sich
   nicht in Nachbarbäumen verkeilen. Aufsammelbares sind Sensoren: per Raycast anvisierbar, aber ohne Kollision.
+- **Geschosse vs. Heightfield:** Rapiers Heightfield-Raycast verfehlt bei fast achsparallelen Strahlen gelegentlich den
+  Boden. Projektile prüfen deshalb zusätzlich analytisch gegen die Höhenkarte (gleiche Dreiecks-Interpolation) und
+  finden den Eintrittspunkt per Bisektion.
+- **Reproduzierbare KI-Tests:** Gegner- und Tier-Tests ersetzen `Math.random` durch einen festen Seed.
 - **Bundle-Größe:** `@dimforge/rapier3d-compat` bettet sein WASM als base64 ein (~1,7 MB gzip) und wird als eigener Chunk ausgeliefert.
 
 ## Roadmap
@@ -275,6 +298,6 @@ src/
 5. ~~Kampf~~ ✓
 6. ~~Gegner-KI~~ ✓
 7. ~~Audio & Effekte~~ ✓ (später noch: Wetter/Regen, Lautstärke-Einstellungen, Grafik-Qualitätsstufen)
-8. ~~Größere Welt & Terrain-LOD~~ ✓ · **Savegames** (Meilenstein 8)
+8. ~~Größere Welt & Terrain-LOD~~ ✓ · ~~Savegames~~ ✓
 9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
 10. Später: unterschiedliche Gegnertypen, Schleichangriffe, Wasserbehälter, weitere Bauteile (Böden, Tore)

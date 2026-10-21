@@ -28,6 +28,9 @@ import { EnemyDirector } from '../systems/ai/EnemyDirector';
 import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
+import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
+import { isStructureId } from '../systems/building/StructureDefs';
+import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
 import { PostFX } from '../systems/PostFX';
@@ -40,7 +43,12 @@ export interface GameOptions {
   config?: GameConfig;
   /** Startet ohne Menü/Pointer Lock (für Tests & Screenshots). */
   autostart?: boolean;
+  /** Vorhandenen Spielstand laden (Standard: ja). */
+  loadSave?: boolean;
 }
+
+/** Abstand zwischen automatischen Speicherungen (Sekunden Spielzeit). */
+const AUTOSAVE_INTERVAL = 90;
 
 /**
  * Spielzustand:
@@ -110,6 +118,11 @@ export class Game {
   /** Restzeit der Schlaf-Überblendung (> 0 = schläft gerade). */
   private sleepTimer = 0;
   private sleepApplied = false;
+  saves!: SaveStore;
+  private autosaveTimer = 0;
+  /** Erst speichern, wenn wirklich gespielt wurde (nicht schon im Startmenü) – und nie nach "Neues Spiel". */
+  private saveEnabled = false;
+  private lastSaved: Date | null = null;
   private readonly torchLight: LightRequest = {
     position: new THREE.Vector3(),
     color: new THREE.Color(),
@@ -256,6 +269,7 @@ export class Game {
       events: this.events,
       thrower: () => this.player.collisionShape,
       waterLevel: this.world.heightMap.waterLevel,
+      groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
     });
     this.scene.add(this.projectiles.group);
     this.interaction = new InteractionSystem({
@@ -295,8 +309,16 @@ export class Game {
       this.camera,
     );
 
-    // Startausrüstung: die Axt aus dem Flugzeugwrack.
-    this.inventory.add('axe', 1);
+    // Spielstand fortsetzen – oder neu beginnen mit der Axt aus dem Flugzeugwrack.
+    this.saves = new SaveStore(worldKey(cfg.seed, cfg.world.size, cfg.world.cellSize));
+    const save = this.opts.loadSave === false ? null : this.saves.load();
+    if (save) {
+      this.menu.setLoading('Spielstand wird geladen …');
+      await nextFrame();
+      this.applySave(save);
+    } else {
+      this.inventory.add('axe', 1);
+    }
 
     // UI (Icons werden aus den 3D-Modellen gerendert)
     const icons = renderIcons();
@@ -327,14 +349,96 @@ export class Game {
     await this.renderer.compileAsync(this.scene, this.camera);
 
     this.wireEvents();
+    if (save) this.events.emit('hud:message', { text: `Willkommen zurück – ${this.dayNight.clockText}.` });
     if (this.opts.autostart) {
+      this.saveEnabled = true;
       this.menu.hide();
       this.hud.visible = true;
       this.mode = 'playing';
     } else {
       this.mode = 'paused';
-      this.menu.showStart();
+      this.menu.showStart(save ? this.saves.summary() : null);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Spielstände
+  // ---------------------------------------------------------------------------
+
+  /** Sammelt den kompletten Spielzustand ein (reine Daten, JSON-tauglich). */
+  collectSave(): SaveData {
+    const p = this.player;
+    const s = p.stats;
+    const cfg = this.config;
+    return {
+      version: SAVE_VERSION,
+      world: worldKey(cfg.seed, cfg.world.size, cfg.world.cellSize),
+      savedAt: new Date().toISOString(),
+      player: {
+        p: [p.position.x, p.position.y, p.position.z],
+        yaw: p.yaw,
+        pitch: p.pitch,
+        health: s.health,
+        stamina: s.stamina,
+        hunger: s.hunger,
+        thirst: s.thirst,
+        respawn: [this.respawnPoint.x, this.respawnPoint.y, this.respawnPoint.z],
+        selected: this.tools.selected,
+      },
+      time: { day: this.dayNight.day, hour: this.dayNight.hour },
+      inventory: this.inventory.serialize(),
+      vegetation: this.world.vegetation.serialize(),
+      harvest: this.harvest.serialize(),
+      structures: this.building.serialize(),
+      cooking: this.cooking.serialize(),
+      items: this.worldItems.serialize(),
+      enemies: this.enemies.serialize(),
+      animals: this.animals.serialize(),
+    };
+  }
+
+  /** Stellt einen Spielstand in der frisch erzeugten Welt wieder her (nur beim Start). */
+  private applySave(d: SaveData): void {
+    this.inventory.load(d.inventory, isItemId);
+    this.world.vegetation.load(d.vegetation);
+    this.harvest.load(d.harvest);
+    const structures = this.building.load(d.structures, isStructureId);
+    this.cooking.load(d.cooking, structures);
+    this.worldItems.load(d.items, isItemId);
+    this.enemies.load(d.enemies);
+    this.animals.load(d.animals);
+
+    const p = d.player;
+    const s = this.player.stats;
+    this.player.spawn(new THREE.Vector3(...p.p), p.yaw);
+    this.player.pitch = p.pitch;
+    const clampStat = (v: number) => Math.max(0, Math.min(s.max, Number.isFinite(v) ? v : s.max));
+    // Wer tot gespeichert hat (sollte nicht vorkommen), wacht mit etwas Leben auf.
+    s.health = Math.max(10, clampStat(p.health));
+    s.stamina = clampStat(p.stamina);
+    s.hunger = clampStat(p.hunger);
+    s.thirst = clampStat(p.thirst);
+    this.respawnPoint.set(...p.respawn);
+    this.tools.select(Math.max(0, Math.min(this.inventory.hotbarSize - 1, p.selected | 0)));
+    this.dayNight.day = Math.max(1, d.time.day | 0);
+    this.dayNight.hour = ((d.time.hour % 24) + 24) % 24;
+    this.lastSaved = new Date(d.savedAt);
+  }
+
+  /** Speichert sofort (nicht im Tod oder beim Laden). @returns true bei Erfolg. */
+  saveNow(): boolean {
+    if (!this.saveEnabled || this.mode === 'loading' || this.mode === 'dead' || this.player.stats.isDead) return false;
+    const ok = this.saves.save(this.collectSave());
+    if (ok) this.lastSaved = new Date();
+    this.autosaveTimer = 0;
+    return ok;
+  }
+
+  private updateAutosave(dt: number): void {
+    if (this.mode !== 'playing' && this.mode !== 'inventory') return;
+    this.autosaveTimer += dt;
+    // Nicht mitten in einem Baumfall oder Schlaf speichern (Zwischenzustände).
+    if (this.autosaveTimer >= AUTOSAVE_INTERVAL && this.harvest.fallingCount === 0 && this.sleepTimer <= 0) this.saveNow();
   }
 
   /** Blickrichtung beim Spawn: ins Inselinnere (Richtung Zentrum). */
@@ -344,6 +448,19 @@ export class Game {
   }
 
   private wireEvents(): void {
+    this.menu.onNewGame = () => {
+      if (!window.confirm('Den Spielstand verwerfen und eine neue Insel-Expedition beginnen?')) return;
+      this.saveEnabled = false;
+      this.saves.clear();
+      // Frische Welt = Seite neu laden (alle Systeme starten sauber aus dem Seed).
+      window.location.reload();
+    };
+    // Beim Verlassen der Seite (Tab schließen, Neuladen, App-Wechsel) sichern.
+    window.addEventListener('pagehide', () => this.saveNow());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.saveNow();
+    });
+
     this.menu.onPlay = (wantsFullscreen) => {
       if (this.mode === 'dead') {
         this.player.respawn(this.respawnPoint);
@@ -356,6 +473,7 @@ export class Game {
 
     this.input.onLockChange = (locked) => {
       if (locked) {
+        this.saveEnabled = true;
         this.mode = 'playing';
         this.menu.hide();
         this.hud.visible = true;
@@ -385,7 +503,8 @@ export class Game {
 
   private pause(): void {
     this.mode = 'paused';
-    this.menu.showPaused();
+    this.saveNow();
+    this.menu.showPaused(this.lastSaved);
   }
 
   private openInventory(): void {
@@ -450,6 +569,7 @@ export class Game {
       s.health = Math.min(s.max, s.health + 25);
       this.hud.faded = false;
       this.events.emit('hud:message', { text: 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.' });
+      this.saveNow();
     }
   }
 
@@ -519,6 +639,7 @@ export class Game {
     const step = this.config.physics.timestep;
     const player = this.player;
     this.updateSleep(dt);
+    this.updateAutosave(dt);
     const playing = this.mode === 'playing' && this.sleepTimer <= 0;
     const water = this.world.heightMap.waterLevel;
 

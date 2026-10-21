@@ -1,5 +1,6 @@
 import { collectRefs } from './dom';
 import type { DamageSource } from '../core/EventBus';
+import type { SaveSummary } from '../systems/SaveGame';
 
 export type MenuState = 'loading' | 'start' | 'paused' | 'dead' | 'hidden';
 
@@ -20,12 +21,15 @@ export class Menu {
 
   /** Wird beim Klick auf den Haupt-Button aufgerufen (aus einer User-Geste heraus). */
   onPlay: ((wantsFullscreen: boolean) => void) | null = null;
+  /** "Neues Spiel" (nur sichtbar, wenn ein Spielstand existiert). */
+  onNewGame: (() => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
-    this.el = collectRefs(root, ['subtitle', 'play', 'controls', 'fullscreen', 'fullscreenOption'] as const);
+    this.el = collectRefs(root, ['subtitle', 'play', 'newGame', 'saveInfo', 'controls', 'fullscreen', 'fullscreenOption'] as const);
     this.el.play.addEventListener('click', () => {
       this.onPlay?.((this.el.fullscreen as HTMLInputElement).checked);
     });
+    this.el.newGame.addEventListener('click', () => this.onNewGame?.());
   }
 
   get current(): MenuState {
@@ -37,14 +41,23 @@ export class Menu {
     this.show(text, null);
   }
 
-  showStart(): void {
+  /** @param save Kurzinfo des geladenen Spielstands (null = neues Spiel). */
+  showStart(save: SaveSummary | null): void {
     this.state = 'start';
-    this.show('Überlebe auf der Insel.', 'Spielen');
+    if (save) {
+      const h = Math.floor(save.hour);
+      const m = Math.floor((save.hour - h) * 60);
+      const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      this.show(`Spielstand: Tag ${save.day} · ${clock} Uhr`, 'Fortsetzen', `Gespeichert ${formatDate(save.savedAt)}`);
+      this.el.newGame.classList.remove('hidden');
+    } else {
+      this.show('Überlebe auf der Insel.', 'Spielen');
+    }
   }
 
-  showPaused(): void {
+  showPaused(lastSaved: Date | null): void {
     this.state = 'paused';
-    this.show('Pausiert', 'Weiterspielen');
+    this.show('Pausiert', 'Weiterspielen', lastSaved ? `Automatisch gespeichert ${formatDate(lastSaved)}` : null);
   }
 
   showDeath(cause: DamageSource): void {
@@ -62,8 +75,11 @@ export class Menu {
     this.root.classList.add('hidden');
   }
 
-  private show(subtitle: string, button: string | null): void {
+  private show(subtitle: string, button: string | null, saveInfo: string | null = null): void {
     this.root.classList.remove('hidden');
+    this.el.newGame.classList.add('hidden');
+    this.el.saveInfo.classList.toggle('hidden', !saveInfo);
+    this.el.saveInfo.textContent = saveInfo ?? '';
     this.el.subtitle.textContent = subtitle;
     this.el.play.classList.toggle('hidden', button === null);
     if (button) this.el.play.textContent = button;
@@ -71,4 +87,11 @@ export class Menu {
     this.el.controls.classList.toggle('hidden', !interactive || this.state === 'dead');
     this.el.fullscreenOption.classList.toggle('hidden', !interactive || this.state === 'dead');
   }
+}
+
+/** "heute 14:32" bzw. "am 03.05. um 14:32". */
+function formatDate(d: Date): string {
+  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? `heute ${time}` : `am ${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} um ${time}`;
 }

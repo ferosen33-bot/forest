@@ -16,6 +16,8 @@ import type { Projectiles } from './Projectiles';
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
 const EAT_AT = 0.55;
+/** Bis zu dieser Entfernung wird der Wurf auf das anvisierte Ziel ausgerichtet (m). */
+const AIM_RANGE = 40;
 
 /**
  * Ausrüstung & Werkzeuge: Schnellzugriffs-Auswahl (1–6, Mausrad), Schläge mit dem
@@ -191,17 +193,23 @@ export class ToolController {
     }
     const stack = this.inventory.takeFromSlot(this.selected, 1);
     if (!stack) return;
+    const eye = this.camera.getWorldPosition(new THREE.Vector3());
     const dir = this.camera.getWorldDirection(new THREE.Vector3());
     const right = new THREE.Vector3().crossVectors(dir, this.camera.up).normalize();
-    // Abwurf über der rechten Schulter; Spielergeschwindigkeit wird mitgegeben.
-    const origin = this.camera.getWorldPosition(new THREE.Vector3()).addScaledVector(right, 0.18).addScaledVector(dir, 0.3);
+    // Abwurf über der rechten Schulter …
+    const origin = eye.clone().addScaledVector(right, 0.18).addScaledVector(dir, 0.3);
     origin.y += 0.05;
-    // Leicht angehoben: auf ~12 m trifft der Speer genau die Bildmitte.
-    const velocity = dir.multiplyScalar(t.speed).add(this.player.velocity);
+    // … aber auf den Punkt unter dem Fadenkreuz gerichtet (sonst landet er seitlich daneben).
+    const aim = this.interaction.raycast(AIM_RANGE);
+    const distance = aim && aim.type !== 'water' ? Math.max(4, aim.hit.distance) : AIM_RANGE;
+    const target = eye.addScaledVector(dir, distance);
+    const throwDir = target.sub(origin).normalize();
+    // Leicht angehoben: auf ~12 m fällt der Speer genau auf die Zielhöhe.
+    const velocity = throwDir.multiplyScalar(t.speed).add(this.player.velocity);
     velocity.y += 1.2;
     this.projectiles.launch(stack.id, stack.durability, tool.damage * t.damageMultiplier, origin, velocity);
+    // Der Wurf selbst ist lautlos – erst der Einschlag macht Lärm (sonst flieht das Ziel vorher).
     this.viewModel.playThrow();
-    this.events.emit('noise', { position: this.player.position, radius: 6 });
     this.throwCooldown = 0.4;
     this.aiming = false;
   }

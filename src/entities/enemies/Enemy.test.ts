@@ -1,10 +1,11 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CollisionGroup, interactionGroups, Physics, RAPIER } from '../../core/Physics';
 import { HeightMap } from '../../world/HeightMap';
 import { NavGrid } from '../../systems/ai/NavGrid';
 import { CONFIG } from '../../config';
 import { Enemy, type EnemyContext, type PlayerTarget } from './Enemy';
+import { mulberry32 } from '../../utils/random';
 
 const DT = 1 / 60;
 
@@ -31,6 +32,13 @@ describe('Enemy (KI)', () => {
   let w: Awaited<ReturnType<typeof setup>>;
   beforeAll(async () => {
     w = await setup();
+  });
+  // Die KI würfelt (Patrouillenziele, Wartezeiten): mit festem Seed sind die Tests reproduzierbar.
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockImplementation(mulberry32(1234));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   /** Spieler-Attrappe: Kapsel-Collider in der Spieler-Gruppe + Trefferzähler. */

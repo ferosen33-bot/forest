@@ -13,6 +13,8 @@ export const COOK_TIME = 12;
 const RAW = new THREE.Color(0xa8343a);
 const DONE = new THREE.Color(0x6b3a1e);
 
+export type CookingSave = { structure: number; pieces: number[] }[];
+
 interface Piece {
   progress: number;
   mesh: THREE.Object3D;
@@ -94,7 +96,7 @@ export class Cooking {
   }
 
   /** Legt ein Stück rohes Fleisch auf. */
-  add(s: Structure, progress = 0): boolean {
+  add(s: Structure, progress = 0, quiet = false): boolean {
     let spit = this.spits.get(s);
     if (!spit) {
       const object = createSpitModel();
@@ -113,8 +115,9 @@ export class Cooking {
     mesh.position.set((slot - 1) * 0.36, 0.7, 0);
     mesh.rotation.set(0, 0, Math.PI / 2);
     spit.object.add(mesh);
+    material.color.copy(RAW).lerp(DONE, progress);
     spit.pieces[slot] = { progress, mesh, material };
-    this.audio.play('sizzle', { volume: 0.8, position: this.tmp.copy(s.position).setY(s.position.y + 0.7) });
+    if (!quiet) this.audio.play('sizzle', { volume: 0.8, position: this.tmp.copy(s.position).setY(s.position.y + 0.7) });
     return true;
   }
 
@@ -173,11 +176,19 @@ export class Cooking {
     this.spits.delete(spit.structure);
   }
 
-  /** Für Spielstände: Garzustand aller Spieße (Feuer → Fortschritt je Stück). */
-  serialize(): { structure: Structure; pieces: number[] }[] {
+  /** Spielstand: Garfortschritt je Stück, Feuer über ihren Index in `building.structures`. */
+  serialize(): CookingSave {
     return [...this.spits.values()].map((s) => ({
-      structure: s.structure,
+      structure: this.building.structures.indexOf(s.structure),
       pieces: s.pieces.filter((p): p is Piece => p !== null).map((p) => p.progress),
     }));
+  }
+
+  load(data: CookingSave, structures: readonly Structure[]): void {
+    for (const spit of data) {
+      const s = structures[spit.structure];
+      if (!s || s.def.interaction !== 'fire') continue;
+      for (const progress of spit.pieces.slice(0, SPIT_SLOTS)) this.add(s, Math.max(0, Math.min(1, progress)), true);
+    }
   }
 }

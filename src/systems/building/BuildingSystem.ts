@@ -28,6 +28,14 @@ export interface Structure {
   shake: number;
 }
 
+export interface StructureSave {
+  id: StructureId;
+  p: [number, number, number];
+  rotation: number;
+  health: number;
+  lit: boolean;
+}
+
 export interface Placement {
   valid: boolean;
   /** Grund, warum nicht gebaut werden kann (für das HUD). */
@@ -341,6 +349,32 @@ export class BuildingSystem {
     this.structures.push(structure);
     this.events.emit('structure:placed', { id, position: position.clone(), rotation });
     return structure;
+  }
+
+  serialize(): StructureSave[] {
+    return this.structures.map((s) => ({
+      id: s.def.id,
+      p: [s.position.x, s.position.y, s.position.z],
+      rotation: s.rotation,
+      health: s.health,
+      lit: s.lit,
+    }));
+  }
+
+  /** Stellt gespeicherte Bauwerke wieder her (unbekannte Typen werden übersprungen). */
+  load(list: StructureSave[], isKnown: (id: string) => boolean): Structure[] {
+    const out: Structure[] = [];
+    for (const d of list) {
+      if (!isKnown(d.id)) continue;
+      const s = this.place(d.id, new THREE.Vector3(...d.p), d.rotation);
+      s.health = Math.min(s.def.maxHealth, d.health);
+      if (s.fire) {
+        s.lit = d.lit;
+        s.fire.visible = d.lit;
+      }
+      out.push(s);
+    }
+    return out;
   }
 
   getByCollider(collider: RAPIER.Collider): Structure | undefined {

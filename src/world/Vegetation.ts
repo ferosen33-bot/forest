@@ -41,6 +41,12 @@ export interface VegetationInstance {
   berries: VegetationInstance | null;
 }
 
+export interface VegetationSave {
+  removed: number[];
+  /** [Busch-ID, Sekunden bis die Beeren nachwachsen] */
+  regrow: [number, number][];
+}
+
 export interface VegetationOptions {
   seed: number;
   /** Kantenlänge einer Render-Zelle in Metern. */
@@ -576,6 +582,30 @@ export class Vegetation {
       if (r.bush.alive && r.bush.berries) {
         r.bush.berries.alive = true;
         this.restore(r.bush.berries);
+      }
+    }
+  }
+
+  /** Spielstand: entfernte Objekte (gefällt, aufgehoben, geräumt) und nachwachsende Beeren. */
+  serialize(): VegetationSave {
+    const removed: number[] = [];
+    for (const v of this.instances) if (!v.alive && v.kind !== 'berries') removed.push(v.id);
+    return {
+      removed,
+      regrow: this.regrowQueue.map((r) => [r.bush.id, Math.max(0, r.at - this.elapsed)] as [number, number]),
+    };
+  }
+
+  load(data: VegetationSave): void {
+    for (const id of data.removed) {
+      const v = this.instances[id];
+      if (v?.id === id) this.remove(v);
+    }
+    for (const [id, remaining] of data.regrow) {
+      const bush = this.instances[id];
+      if (bush?.id === id && this.hasRipeBerries(bush)) {
+        this.harvestBerries(bush);
+        this.regrowQueue[this.regrowQueue.length - 1].at = this.elapsed + remaining;
       }
     }
   }

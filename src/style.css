@@ -393,6 +393,21 @@ html, body {
   text-transform: uppercase;
   transition: background 0.15s, border-color 0.15s;
 }
+.menu__button--secondary {
+  display: block;
+  margin: 12px auto 0;
+  padding: 7px 26px;
+  font-size: 12px;
+  background: transparent;
+  border-color: rgba(220, 211, 188, 0.22);
+  color: var(--ui-muted);
+}
+.menu__save {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--ui-muted);
+  opacity: 0.8;
+}
 .menu__button:hover {
   background: rgba(60, 72, 52, 0.9);
   border-color: rgba(220, 211, 188, 0.8);

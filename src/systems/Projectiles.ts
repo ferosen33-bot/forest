@@ -6,7 +6,7 @@ import { createItemMesh } from '../entities/items/ItemMeshes';
 import type { WorldItems } from '../entities/items/WorldItems';
 import type { EnemyDirector } from './ai/EnemyDirector';
 import type { AnimalDirector } from './AnimalDirector';
-import type { BuildingSystem } from './building/BuildingSystem';
+import type { BuildingSystem, Structure } from './building/BuildingSystem';
 import type { Audio } from './Audio';
 import type { Particles } from './Particles';
 
@@ -33,6 +33,8 @@ export interface ProjectileDeps {
   /** Collider des Werfers (wird vom Strahl ignoriert). */
   thrower: () => RAPIER.Collider;
   waterLevel: number;
+  /** Bodenhöhe (gleiche Interpolation wie die Kollision) – Absicherung gegen verfehlte Terrain-Strahlen. */
+  groundAt: (x: number, z: number) => number;
 }
 
 /** Etwas weniger als echte Schwerkraft: Würfe sollen sich gut anfühlen, nicht realistisch abfallen. */
@@ -110,7 +112,7 @@ export class Projectiles {
     // Sensoren von Pflanzen/Stöcken überspringen, Kopf-Sensoren der Schrate aber treffen.
     for (let guard = 0; guard < 4 && remaining > 0; guard++) {
       const hit = this.d.physics.raycast(origin, this.dir, remaining, this.d.thrower());
-      if (!hit) return false;
+      if (!hit) return this.groundCheck(p, origin, remaining);
       const point = new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
       this.normal.set(hit.normal.x, hit.normal.y, hit.normal.z);
       const c = hit.collider;
@@ -135,17 +137,45 @@ export class Projectiles {
         remaining -= advance;
         continue;
       }
-      // Boden, Baum, Fels oder Bauwerk: steckenbleiben.
-      const structure = this.d.building.getByCollider(c);
-      if (structure) this.d.building.damage(structure, 3, point, this.normal, true);
-      this.d.audio.play(structure ? 'chop' : 'stoneHit', { volume: 0.6, position: point });
-      this.d.particles.burst(point, { count: 5, color: 0x6b5a45, direction: this.normal, speed: 1.5, size: 0.025 });
-      this.d.events.emit('noise', { position: point, radius: 12 });
-      p.position.copy(point).addScaledVector(this.dir, -0.75 + 0.18);
-      this.drop(p, true);
+      this.stick(p, point, this.d.building.getByCollider(c) ?? null);
       return true;
     }
     return false;
+  }
+
+  /**
+   * Rapiers Heightfield-Raycast verfehlt in seltenen Fällen (fast achsparallele Strahlen) den Boden.
+   * Daher zusätzlich prüfen, ob das Segment unter die Höhenkarte taucht; den Eintrittspunkt per Bisektion finden.
+   */
+  private groundCheck(p: Projectile, from: { x: number; y: number; z: number }, length: number): boolean {
+    const below = (t: number) => {
+      const x = from.x + this.dir.x * t;
+      const z = from.z + this.dir.z * t;
+      return from.y + this.dir.y * t < this.d.groundAt(x, z);
+    };
+    if (!below(length)) return false;
+    let lo = 0;
+    let hi = length;
+    if (below(0)) hi = 0;
+    for (let i = 0; i < 10 && hi > 0; i++) {
+      const mid = (lo + hi) / 2;
+      if (below(mid)) hi = mid;
+      else lo = mid;
+    }
+    const point = new THREE.Vector3(from.x + this.dir.x * hi, from.y + this.dir.y * hi, from.z + this.dir.z * hi);
+    this.normal.set(0, 1, 0);
+    this.stick(p, point, null);
+    return true;
+  }
+
+  /** Steckenbleiben in Boden, Baum, Fels oder Bauwerk. */
+  private stick(p: Projectile, point: THREE.Vector3, structure: Structure | null): void {
+    if (structure) this.d.building.damage(structure, 3, point, this.normal, true);
+    this.d.audio.play(structure ? 'chop' : 'stoneHit', { volume: 0.6, position: point });
+    this.d.particles.burst(point, { count: 5, color: 0x6b5a45, direction: this.normal, speed: 1.5, size: 0.025 });
+    this.d.events.emit('noise', { position: point, radius: 12 });
+    p.position.copy(point).addScaledVector(this.dir, -0.75 + 0.18);
+    this.drop(p, true);
   }
 
   /** Treffer an Lebewesen: Speer fällt herab, nutzt sich ab. */

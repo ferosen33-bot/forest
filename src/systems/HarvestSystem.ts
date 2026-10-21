@@ -9,6 +9,13 @@ import type { ItemService } from './ItemService';
 import type { Particles } from './Particles';
 import type { Audio } from './Audio';
 
+
+export interface HarvestSave {
+  felled: number[];
+  treeHealth: [number, number][];
+  rockStones: [number, number][];
+}
+
 /** Höhe, auf der der Stamm durchtrennt wird (Stumpfhöhe bei Skalierung 1). */
 const CUT_HEIGHT = 0.45;
 /** Ungefähre Gesamthöhe der Baummodelle bei Skalierung 1. */
@@ -37,6 +44,8 @@ export class HarvestSystem {
   private readonly treeHealth = new Map<number, number>();
   private readonly rockStones = new Map<number, number>();
   private readonly falling: FallingTree[] = [];
+  /** IDs gefällter Bäume (für Spielstände: dort stehen Stümpfe). */
+  private readonly felled = new Set<number>();
 
   private readonly stumpGeometry = new THREE.CylinderGeometry(0.27, 0.34, CUT_HEIGHT, 8);
   private readonly stumpMaterials = [
@@ -111,6 +120,7 @@ export class HarvestSystem {
     matrix.decompose(this.tmpPos, this.tmpQuat, this.tmpScale);
     this.vegetation.remove(tree);
     this.createStump(tree);
+    this.felled.add(tree.id);
 
     // Fallender Baum: Körperursprung auf Schnitthöhe, Mesh um diese Höhe nach unten versetzt.
     const cut = CUT_HEIGHT * s.y;
@@ -263,6 +273,23 @@ export class HarvestSystem {
   // ---------------------------------------------------------------------------
   // Update
   // ---------------------------------------------------------------------------
+
+  serialize(): HarvestSave {
+    // Hinweis: noch fallende Bäume sind nicht enthalten – das Autosave wartet, bis sie zerlegt sind.
+    return { felled: [...this.felled], treeHealth: [...this.treeHealth], rockStones: [...this.rockStones] };
+  }
+
+  load(data: HarvestSave): void {
+    for (const id of data.felled) {
+      const tree = this.vegetation.instances[id];
+      if (!tree || tree.id !== id || this.felled.has(id)) continue;
+      this.vegetation.remove(tree);
+      this.createStump(tree);
+      this.felled.add(id);
+    }
+    for (const [id, h] of data.treeHealth) this.treeHealth.set(id, h);
+    for (const [id, n] of data.rockStones) this.rockStones.set(id, n);
+  }
 
   update(dt: number): void {
     for (let i = this.falling.length - 1; i >= 0; i--) {
