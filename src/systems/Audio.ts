@@ -60,7 +60,10 @@ export class Audio {
   /** Ziel-Knoten des aktuellen `play()`-Aufrufs (trägt dessen Lautstärke). */
   private out: GainNode | null = null;
   private underwater = false;
+  /** Lautstärken 0..1 (Einstellungen); Gesamt wird intern auf 0,6 skaliert. */
   volume = 0.6;
+  sfxVolume = 1;
+  ambienceVolume = 0.8;
 
   /** Laufender AudioContext (null, solange Audio noch nicht freigegeben ist). */
   get context(): AudioContext | null {
@@ -75,6 +78,17 @@ export class Audio {
   /** 1 s weißes Rauschen – Rohmaterial für Effekte und Ambiente. */
   get noiseBuffer(): AudioBuffer | null {
     return this.noise1s;
+  }
+
+  /** Lautstärken setzen (0..1); wirkt sofort, auch bevor Audio freigegeben ist. */
+  setVolumes(master: number, sfx: number, ambience: number): void {
+    this.volume = 0.6 * master;
+    this.sfxVolume = sfx;
+    this.ambienceVolume = 0.8 * ambience;
+    const t = this.ctx?.currentTime ?? 0;
+    this.master?.gain.setTargetAtTime(this.volume, t, 0.05);
+    this.sfx?.gain.setTargetAtTime(this.sfxVolume, t, 0.05);
+    this.ambience?.gain.setTargetAtTime(this.ambienceVolume, t, 0.05);
   }
 
   /** Startet bzw. reaktiviert den AudioContext (muss aus einer User-Geste kommen). */
@@ -94,9 +108,10 @@ export class Audio {
       this.master.gain.value = this.volume;
       this.master.connect(this.underwaterFilter);
       this.sfx = ctx.createGain();
+      this.sfx.gain.value = this.sfxVolume;
       this.sfx.connect(this.master);
       this.ambience = ctx.createGain();
-      this.ambience.gain.value = 0.8;
+      this.ambience.gain.value = this.ambienceVolume;
       this.ambience.connect(this.master);
       // 1 s weißes Rauschen als Rohmaterial für alle perkussiven Sounds.
       this.noise1s = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);

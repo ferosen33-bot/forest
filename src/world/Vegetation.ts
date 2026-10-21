@@ -610,6 +610,11 @@ export class Vegetation {
     }
   }
 
+  /** Sichtweite der Vegetation (Grafikstufe). */
+  setCullDistance(distance: number): void {
+    this.opts.cullDistance = distance;
+  }
+
   /** Windstärke 0..1 (Sturm lässt die Kronen deutlich stärker schwanken). */
   setWind(strength: number): void {
     this.windUniforms.uWind.value = 0.018 * (0.6 + 2.2 * strength);

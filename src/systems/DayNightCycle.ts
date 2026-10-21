@@ -77,7 +77,7 @@ export class DayNightCycle {
   private readonly snapped = new THREE.Vector3();
   private readonly tmpColor = new THREE.Color();
   private weather: WeatherLook = CALM;
-  private readonly texelSize: number;
+  private texelSize: number;
   private static readonly ORIGIN = new THREE.Vector3();
   private static readonly UP = new THREE.Vector3(0, 1, 0);
 
@@ -253,6 +253,16 @@ export class DayNightCycle {
     this.light.target.position.copy(p);
     this.light.position.copy(p).addScaledVector(dir, 200);
     this.light.target.updateMatrixWorld();
+  }
+
+  /** Schatten-Auflösung ändern (Grafikstufe); die Shadow-Map wird beim nächsten Rendern neu angelegt. */
+  setShadowMapSize(size: number): void {
+    const s = this.light.shadow;
+    if (s.mapSize.x === size) return;
+    s.mapSize.set(size, size);
+    s.map?.dispose();
+    s.map = null;
+    this.texelSize = (this.opts.shadowRange * 2) / size;
   }
 
   /** Richtung zur aktuellen Lichtquelle (Sonne oder Mond). */

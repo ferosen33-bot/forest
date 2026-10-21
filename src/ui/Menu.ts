@@ -26,11 +26,36 @@ export class Menu {
   onNewGame: (() => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
-    this.el = collectRefs(root, ['subtitle', 'play', 'newGame', 'saveInfo', 'controls', 'fullscreen', 'fullscreenOption'] as const);
+    this.el = collectRefs(root, [
+      'subtitle',
+      'play',
+      'newGame',
+      'saveInfo',
+      'controls',
+      'fullscreen',
+      'fullscreenOption',
+      'settingsButton',
+      'settings',
+      'settingsForm',
+      'settingsBack',
+      'mainPanel',
+    ] as const);
+    this.el.settingsButton.addEventListener('click', () => this.toggleSettings(true));
+    this.el.settingsBack.addEventListener('click', () => this.toggleSettings(false));
     this.el.play.addEventListener('click', () => {
       this.onPlay?.((this.el.fullscreen as HTMLInputElement).checked);
     });
     this.el.newGame.addEventListener('click', () => this.onNewGame?.());
+  }
+
+  /** Container, in den das Einstellungsformular gebaut wird. */
+  get settingsContainer(): HTMLElement {
+    return this.el.settingsForm;
+  }
+
+  private toggleSettings(open: boolean): void {
+    this.el.settings.classList.toggle('hidden', !open);
+    this.el.mainPanel.classList.toggle('hidden', open);
   }
 
   get current(): MenuState {
@@ -87,6 +112,8 @@ export class Menu {
     const interactive = button !== null;
     this.el.controls.classList.toggle('hidden', !interactive || this.state === 'dead');
     this.el.fullscreenOption.classList.toggle('hidden', !interactive || this.state === 'dead');
+    this.el.settingsButton.classList.toggle('hidden', !interactive || this.state === 'dead');
+    this.toggleSettings(false);
   }
 }
 

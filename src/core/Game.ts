@@ -30,6 +30,8 @@ import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
 import { Climate } from '../systems/Climate';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
+import { QUALITY, SettingsStore, type Settings } from '../systems/Settings';
+import { SettingsUI } from '../ui/SettingsUI';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -121,6 +123,9 @@ export class Game {
   private sleepTimer = 0;
   private sleepApplied = false;
   saves!: SaveStore;
+  private readonly settingsStore = new SettingsStore();
+  settings: Settings;
+  private settingsUI!: SettingsUI;
   private autosaveTimer = 0;
   /** Erst speichern, wenn wirklich gespielt wurde (nicht schon im Startmenü) – und nie nach "Neues Spiel". */
   private saveEnabled = false;
@@ -135,6 +140,9 @@ export class Game {
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
     const g = this.config.graphics;
+    this.settings = this.settingsStore.load();
+    // ?nopost (URL) hat Vorrang vor der gespeicherten Einstellung.
+    if (!g.postProcessing) this.settings.postProcessing = false;
 
     // Mit Nachbearbeitung übernimmt das HDR-Render-Target das Multisampling.
     this.renderer = new THREE.WebGLRenderer({ antialias: !g.postProcessing, powerPreference: 'high-performance' });
@@ -361,11 +369,15 @@ export class Game {
     this.dayNight.update(0, 0, this.player.position, false);
     this.world.update(0, 0, this.player.position);
 
+    // Gespeicherte Einstellungen vor dem Vorkompilieren anwenden (Schatten, Nachbearbeitung).
+    this.applySettings();
     this.menu.setLoading('Shader werden kompiliert …');
     await nextFrame();
     await this.renderer.compileAsync(this.scene, this.camera);
 
     this.wireEvents();
+    this.settingsUI = new SettingsUI(this.menu.settingsContainer, this.settings);
+    this.settingsUI.onChange = (s) => this.updateSettings(s);
     if (save) this.events.emit('hud:message', { text: `Willkommen zurück – ${this.dayNight.clockText}.` });
     if (this.opts.autostart) {
       this.saveEnabled = true;
@@ -634,8 +646,7 @@ export class Game {
 
     if (this.input.wasPressed('debug')) this.hud.toggleDebug();
     if (this.input.wasPressed('postfx')) {
-      this.postFX.enabled = !this.postFX.enabled;
-      this.dayNight.linearOutput = this.postFX.enabled;
+      this.updateSettings({ ...this.settings, postProcessing: !this.postFX.enabled });
       this.events.emit('hud:message', { text: `Nachbearbeitung ${this.postFX.enabled ? 'an' : 'aus'}` });
     }
     const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
@@ -843,6 +854,41 @@ export class Game {
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
     ];
+  }
+
+  /** Übernimmt Einstellungen sofort (Ton, Steuerung, Grafik) und speichert sie. */
+  updateSettings(s: Settings): void {
+    this.settings = s;
+    this.settingsStore.save(s);
+    this.applySettings();
+    this.settingsUI?.set(s);
+  }
+
+  private applySettings(): void {
+    const s = this.settings;
+    this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.ambienceVolume);
+    if (this.player) {
+      this.player.mouseScale = s.mouseSensitivity;
+      this.player.invertY = s.invertY;
+      this.player.fov = s.fov;
+    }
+    // Umschalten der Nachbearbeitung kompiliert die Shader einmal neu (kurzer Ruckler).
+    this.postFX.enabled = s.postProcessing;
+    if (this.dayNight) this.dayNight.linearOutput = s.postProcessing;
+
+    const q = QUALITY[s.quality];
+    this.dayNight?.setShadowMapSize(q.shadowMapSize);
+    this.world?.grass?.setRadius(q.grassRadius);
+    this.world?.vegetation.setCullDistance(q.vegetationDistance);
+    if (this.camera.far !== q.viewDistance) {
+      this.camera.far = q.viewDistance;
+      this.camera.updateProjectionMatrix();
+    }
+    const ratio = Math.min(window.devicePixelRatio, q.maxPixelRatio);
+    if (this.renderer.getPixelRatio() !== ratio) {
+      this.renderer.setPixelRatio(ratio);
+      this.handleResize();
+    }
   }
 
   private handleResize = (): void => {

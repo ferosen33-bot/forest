@@ -52,6 +52,25 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 12 – Einstellungen
+
+- **Einstellungsfenster** im Start- und Pausenmenü:
+  - Ton: Gesamtlautstärke, Effekte und Umgebung getrennt
+  - Steuerung: Mausempfindlichkeit, Maus invertieren, Sichtfeld (60–100°)
+  - Grafik: Qualitätsstufe und Lichtstrahlen/Bloom
+- **Grafikstufen:**
+
+  | Stufe | Schatten | Gras-Radius | Sichtweite | Vegetation | Pixelverhältnis |
+  | --- | --- | --- | --- | --- | --- |
+  | Niedrig | 1024² | aus | 320 m | 190 m | 1 |
+  | Mittel | 2048² | 24 m | 400 m | 240 m | 1,5 |
+  | Hoch | 2048² | 36 m | 450 m | 280 m | 2 |
+
+- Alles wirkt sofort, ohne Neustart. Das Gras ist nach Entfernung sortiert, ein kleinerer Radius zeichnet einfach
+  weniger Büschel. Neu kompiliert wird nur beim Umschalten der Nachbearbeitung bzw. der Schattenauflösung.
+- Gespeichert im Browser (getrennt vom Spielstand – „Neues Spiel“ behält sie), defensiv geprüft. `F4` und `?nopost`
+  bleiben erhalten und stellen die Einstellung mit um.
+
 ### Meilenstein 11 – Gegnertypen & Schleichangriffe
 
 - **Drei Gegnertypen** (Werte in `EnemyKinds.ts` als Faktoren auf `CONFIG.ai`):
@@ -323,6 +342,7 @@ src/
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
+│   ├── Settings.ts         Einstellungen, Grafikstufen, Speicherung (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -335,6 +355,7 @@ src/
 │   ├── InventoryUI.ts      Inventarfenster mit Drag & Drop
 │   ├── ItemIcons.ts        Icons aus den 3D-Modellen rendern
 │   ├── Menu.ts             Lade-, Start-, Pause- und Todesbildschirm
+│   ├── SettingsUI.ts       Einstellungsformular (Ton, Steuerung, Grafik)
 │   ├── slots.ts / dom.ts   Kleine DOM-Helfer
 └── utils/                  Mathe- und Zufallshelfer (deterministischer PRNG)
 ```
@@ -371,3 +392,4 @@ src/
 10. ~~Wetter, Regen, Nässe, Wasserschale~~ ✓
 11. ~~Böden, Treppen & Tore~~ ✓
 12. ~~Gegnertypen & Schleichangriffe~~ ✓
+13. ~~Einstellungen (Ton, Steuerung, Grafikstufen)~~ ✓

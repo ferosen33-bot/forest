@@ -75,6 +75,10 @@ function createClumpGeometry(): THREE.BufferGeometry {
 export class Grass {
   readonly mesh: THREE.Mesh;
   readonly count: number;
+  readonly maxRadius: number;
+  /** Quadrierter Abstand jedes Büschels zur Mitte (aufsteigend). */
+  private readonly radiusSq: number[];
+  private readonly geometry: THREE.InstancedBufferGeometry;
   private readonly uniforms;
   private readonly spacing: number;
 
@@ -97,18 +101,23 @@ export class Grass {
     maskTex.minFilter = THREE.LinearFilter;
     maskTex.needsUpdate = true;
 
-    // Instanz-Raster um den Ursprung (lokal), kreisförmig beschnitten.
-    const offsets: number[] = [];
+    // Instanz-Raster um den Ursprung (lokal), kreisförmig beschnitten und von innen nach außen
+    // sortiert: Ein kleinerer Radius (Grafikstufe) zeichnet einfach nur die ersten N Büschel.
+    const cells: [number, number][] = [];
     const n = Math.ceil(radius / this.spacing);
     for (let z = -n; z <= n; z++) {
       for (let x = -n; x <= n; x++) {
-        if (x * x + z * z <= n * n) offsets.push(x * this.spacing, z * this.spacing);
+        if (x * x + z * z <= n * n) cells.push([x, z]);
       }
     }
-    this.count = offsets.length / 2;
+    cells.sort((a, b) => a[0] * a[0] + a[1] * a[1] - (b[0] * b[0] + b[1] * b[1]));
+    this.radiusSq = cells.map(([x, z]) => (x * x + z * z) * this.spacing * this.spacing);
+    const offsets = cells.flatMap(([x, z]) => [x * this.spacing, z * this.spacing]);
+    this.count = cells.length;
+    this.maxRadius = radius;
 
     const base = createClumpGeometry();
-    const geometry = new THREE.InstancedBufferGeometry();
+    const geometry = (this.geometry = new THREE.InstancedBufferGeometry());
     geometry.setAttribute('position', base.getAttribute('position'));
     geometry.setAttribute('normal', base.getAttribute('normal'));
     geometry.setAttribute('aHeight', base.getAttribute('aHeight'));
@@ -221,6 +230,17 @@ diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7)
     this.mesh.name = 'Grass';
     this.mesh.frustumCulled = false;
     this.mesh.receiveShadow = true;
+  }
+
+  /** Gras-Radius ändern (Grafikstufe, 0 = aus); höchstens der beim Erzeugen gewählte Radius. */
+  setRadius(radius: number): void {
+    const r = Math.min(radius, this.maxRadius);
+    const r2 = r * r;
+    let count = 0;
+    if (r > 0) while (count < this.radiusSq.length && this.radiusSq[count] <= r2) count++;
+    this.geometry.instanceCount = count;
+    this.uniforms.uRadius.value = Math.max(r, 0.01);
+    this.mesh.visible = count > 0;
   }
 
   /** Windstärke 0..1 */

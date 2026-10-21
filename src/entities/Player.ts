@@ -39,6 +39,10 @@ export class Player {
   oxygen = MAX_OXYGEN;
   /** Blockt gerade mit der Waffe (rechte Maustaste, vom ToolController gesetzt). */
   blocking = false;
+  /** Einstellungen: Mausempfindlichkeit (Faktor), invertierte Y-Achse, Sichtfeld (Grad). */
+  mouseScale = 1;
+  invertY = false;
+  fov: number;
 
   private readonly cfg: GameConfig['player'];
   private readonly statsCfg: GameConfig['stats'];
@@ -83,7 +87,7 @@ export class Player {
     this.stats = new PlayerStats(config, events);
     this.height = this.cfg.standHeight;
     this.eyeHeight = this.height - this.cfg.eyeFromTop;
-    this.fovCurrent = this.cfg.fov;
+    this.fovCurrent = this.fov = this.cfg.fov;
 
     const world = physics.world;
     this.body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 50, 0));
@@ -217,9 +221,9 @@ export class Player {
       return;
     }
     const { dx, dy } = this.input.consumeMouseDelta();
-    const sens = this.cfg.mouseSensitivity;
+    const sens = this.cfg.mouseSensitivity * this.mouseScale;
     this.yaw -= dx * sens;
-    this.pitch = clamp(this.pitch - dy * sens, -MAX_PITCH, MAX_PITCH);
+    this.pitch = clamp(this.pitch - dy * sens * (this.invertY ? -1 : 1), -MAX_PITCH, MAX_PITCH);
 
     const inp = this.input;
     this.moveInput.set(
@@ -439,7 +443,7 @@ export class Player {
     this.camera.rotation.set(this.pitch + sy, this.yaw + sx, -bobX * 0.15 + sx * 0.5, 'YXZ');
 
     // Sprint-FOV
-    const targetFov = this.sprinting && hs > 2 ? cfg.sprintFov : cfg.fov;
+    const targetFov = this.sprinting && hs > 2 ? this.fov + (cfg.sprintFov - cfg.fov) : this.fov;
     const fov = damp(this.fovCurrent, targetFov, 6, dt);
     if (Math.abs(fov - this.camera.fov) > 0.01) {
       this.fovCurrent = fov;
