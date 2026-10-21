@@ -101,4 +101,30 @@ describe('Inventory – Haltbarkeit', () => {
     expect(inv.transform(slot, 'bowlWater')).toBe(0);
     expect(inv.get(slot)).toEqual({ id: 'bowlWater', count: 1 });
   });
+
+  it('verschiebt zwischen zwei Inventaren (Lagerkiste)', () => {
+    const player = new Inventory(6, 2);
+    const chest = new Inventory(4, 0);
+    player.add('stick', 15);
+    const from = player.slots.findIndex((s) => s?.id === 'stick');
+    // Auf einen leeren Kistenplatz
+    player.transferTo(from, chest, 2);
+    expect(chest.get(2)).toEqual({ id: 'stick', count: 15 });
+    expect(player.get(from)).toBeNull();
+    // Automatisch: erst auffüllen, Rest bleibt
+    player.add('stick', 20);
+    const again = player.slots.findIndex((s) => s?.id === 'stick');
+    const moved = player.get(again)!.count;
+    player.transferTo(again, chest);
+    expect(chest.count('stick')).toBe(15 + moved);
+    expect(player.count('stick')).toBe(20 - moved);
+    // Tausch bei verschiedenen Items
+    player.add('axe', 1);
+    const axe = player.slots.findIndex((s) => s?.id === 'axe');
+    chest.transferTo(2, player, axe);
+    expect(player.get(axe)?.id).toBe('stick');
+    expect(chest.get(2)?.id).toBe('axe');
+    expect(chest.takeAll().map((s) => s.id).sort()).toEqual(['axe', 'stick']);
+    expect(chest.slots.every((s) => s === null)).toBe(true);
+  });
 });

@@ -51,6 +51,8 @@ export interface InteractionDeps {
   heldItem: () => ItemId | null;
   /** Nimmt ein Stück des gehaltenen Items aus dem Inventar. */
   takeHeld: () => void;
+  /** Öffnet eine Lagerkiste. */
+  openStorage: (s: Structure) => void;
   /** Wandelt das gehaltene Item um (leere Schale → gefüllte). */
   transformHeld: (to: ItemId) => void;
 }
@@ -220,6 +222,7 @@ export class InteractionSystem {
           }
         }
         if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
+        if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
         if (s.def.interaction === 'sleep') {
           return this.deps.canSleep()
             ? { key: 'E', action: 'Schlafen', label }
@@ -283,6 +286,7 @@ export class InteractionSystem {
         }
         else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
         else if (s.def.interaction === 'door') this.building.toggleDoor(s);
+        else if (s.def.interaction === 'storage') this.deps.openStorage(s);
         break;
       }
       case 'animal':

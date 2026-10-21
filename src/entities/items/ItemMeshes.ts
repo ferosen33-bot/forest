@@ -29,6 +29,7 @@ const MATERIALS = {
   lightWood: mat(0x8a6a45),
   binding: mat(0x6b5a3a, { roughness: 1 }),
   cloth: mat(0x3a2f26, { roughness: 1 }),
+  feather: mat(0xd8d2c4, { side: THREE.DoubleSide }),
   water: mat(0x3d6f86, { roughness: 0.1, metalness: 0.1, flatShading: false }),
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
@@ -160,6 +161,36 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'bow': {
+      // Bogenarme als Kreisbogen (wölbt sich nach +X), Sehne entlang Y bei x = 0.
+      const R = 0.62;
+      const arc = 1.5;
+      const limbs = new THREE.TorusGeometry(R, 0.017, 5, 18, arc);
+      limbs.rotateZ(-arc / 2);
+      limbs.translate(-R * Math.cos(arc / 2), 0, 0);
+      g.add(new THREE.Mesh(limbs, MATERIALS.lightWood));
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.13, 6), MATERIALS.binding);
+      grip.position.x = R - R * Math.cos(arc / 2);
+      g.add(grip);
+      const half = R * Math.sin(arc / 2);
+      const string = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, half * 2, 3), MATERIALS.binding);
+      g.add(string);
+      break;
+    }
+    case 'arrow': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.68, 4), MATERIALS.lightWood);
+      g.add(shaft);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.06, 4), MATERIALS.stone);
+      tip.position.y = 0.37;
+      g.add(tip);
+      for (let i = 0; i < 3; i++) {
+        const vane = new THREE.Mesh(new THREE.PlaneGeometry(0.025, 0.08), MATERIALS.feather);
+        vane.position.y = -0.29;
+        vane.rotation.y = (i / 3) * Math.PI;
+        g.add(vane);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -213,6 +244,10 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
     case 'bowl':
     case 'bowlWater':
       return RAPIER.ColliderDesc.cylinder(0.045, 0.12).setDensity(500);
+    case 'bow':
+      return RAPIER.ColliderDesc.cuboid(0.1, 0.45, 0.03).setDensity(500);
+    case 'arrow':
+      return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
   }
 }
 

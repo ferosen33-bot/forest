@@ -5,7 +5,7 @@ import type { ItemCost } from '../../entities/items/ItemDefs';
 import { jitter } from '../../world/VegetationGeometry';
 import { mulberry32 } from '../../utils/random';
 
-export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs';
+export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs' | 'chest';
 
 export interface StructureDef {
   id: StructureId;
@@ -20,7 +20,9 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'sleep' | 'door';
+  interaction?: 'fire' | 'sleep' | 'door' | 'storage';
+  /** Lagerplätze (nur Kisten). */
+  storageSlots?: number;
   /** Böden: Oberseite trägt andere Bauwerke und den Spieler (Ursprung = Oberkante der Dielen). */
   support?: boolean;
   /** Darf über flachem Wasser stehen (Stege). */
@@ -343,6 +345,51 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'Floor');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(FLOOR_HALF, FLOOR_THICKNESS / 2, FLOOR_HALF).setTranslation(0, -FLOOR_THICKNESS / 2, 0)],
+  },
+
+  chest: {
+    id: 'chest',
+    name: 'Lagerkiste',
+    description: 'Eine Kiste aus Brettern mit 16 Lagerplätzen. E öffnet sie; wird sie zerstört, fällt der Inhalt heraus.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(0.55, 0.32, 0.35),
+    maxStep: 0.5,
+    maxHealth: 100,
+    interaction: 'storage',
+    storageSlots: 16,
+    build() {
+      const g = new THREE.Group();
+      // Wände aus liegenden, abgeflachten Stämmen
+      for (const [z, len] of [[-0.3, 0.55], [0.3, 0.55]] as const) {
+        for (let i = 0; i < 3; i++) {
+          const b = log(v(-len, 0.08 + i * 0.16, z), v(len, 0.08 + i * 0.16, z), 0.08);
+          b.scale.z *= 0.5;
+          g.add(b);
+        }
+      }
+      for (const x of [-0.5, 0.5]) {
+        for (let i = 0; i < 3; i++) {
+          const b = log(v(x, 0.08 + i * 0.16, -0.3), v(x, 0.08 + i * 0.16, 0.3), 0.08, M.barkDark);
+          b.scale.x *= 0.5;
+          g.add(b);
+        }
+      }
+      // Deckel mit Querleisten
+      for (let i = 0; i < 4; i++) {
+        const z = -0.27 + i * 0.18;
+        const plank = log(v(-0.56, 0.56, z), v(0.56, 0.56, z), 0.1);
+        plank.scale.z *= 0.9;
+        plank.scale.x *= 0.35;
+        g.add(plank);
+      }
+      g.add(log(v(-0.35, 0.62, -0.33), v(-0.35, 0.62, 0.33), 0.03, M.rope));
+      g.add(log(v(0.35, 0.62, -0.33), v(0.35, 0.62, 0.33), 0.03, M.rope));
+      return finish(g, 'Chest');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.56, 0.32, 0.36).setTranslation(0, 0.32, 0)],
   },
 
   stairs: {

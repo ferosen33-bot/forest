@@ -404,6 +404,9 @@ html, body {
   border-color: rgba(220, 211, 188, 0.22);
   color: var(--ui-muted);
 }
+.inventory__chest { min-width: 0; }
+.inventory__grid--chest { grid-template-columns: repeat(4, var(--slot-size, 56px)); }
+.inventory__chest-hint { margin-top: 10px; font-size: 12px; color: var(--ui-muted); }
 .settings__title {
   margin: 0 0 18px;
   font-weight: 300;

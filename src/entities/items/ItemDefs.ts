@@ -15,7 +15,9 @@ export type ItemId =
   | 'spear'
   | 'torch'
   | 'bowl'
-  | 'bowlWater';
+  | 'bowlWater'
+  | 'bow'
+  | 'arrow';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -57,6 +59,16 @@ export interface FoodStats {
   leftover?: ItemId;
 }
 
+export interface RangedStats {
+  ammo: ItemId;
+  /** Sekunden bis voll gespannt. */
+  drawTime: number;
+  minSpeed: number;
+  maxSpeed: number;
+  minDamage: number;
+  maxDamage: number;
+}
+
 export interface ItemDef {
   id: ItemId;
   name: string;
@@ -70,6 +82,8 @@ export interface ItemDef {
   durability?: number;
   /** Kann geworfen werden (rechte Maustaste zielen, linke werfen). */
   throwable?: { speed: number; damageMultiplier: number };
+  /** Fernwaffe: Linksklick gedrückt halten zum Spannen, loslassen zum Schießen. */
+  ranged?: RangedStats;
   tool?: ToolStats;
   food?: FoodStats;
   light?: HeldLight;
@@ -191,6 +205,22 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       reach: 3.4,
       animation: 'thrust',
     },
+  },
+  bow: {
+    id: 'bow',
+    name: 'Bogen',
+    description: 'Linksklick halten zum Spannen, loslassen zum Schießen; Rechtsklick zielt genauer. Braucht Pfeile.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 150,
+    ranged: { ammo: 'arrow', drawTime: 0.9, minSpeed: 16, maxSpeed: 46, minDamage: 10, maxDamage: 42 },
+  },
+  arrow: {
+    id: 'arrow',
+    name: 'Pfeil',
+    description: 'Angespitzter Stock mit Steinspitze. Steckt nach dem Schuss oft noch im Ziel oder Boden – aufsammeln!',
+    category: 'resource',
+    maxStack: 30,
   },
   torch: {
     id: 'torch',

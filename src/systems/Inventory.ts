@@ -198,6 +198,44 @@ export class Inventory {
     this.changed();
   }
 
+  /**
+   * Verschieben in ein anderes Inventar (Lagerkiste): auf einen leeren Slot oder gleichen Stapel
+   * (Rest bleibt), sonst Tausch. Mit `to = -1` wird der erste passende Platz gesucht.
+   */
+  transferTo(from: number, other: Inventory, to = -1): void {
+    const a = this.slots[from];
+    if (!a) return;
+    if (to < 0) {
+      // Erst auffüllen, dann der Rest in freie Plätze – so wie beim Aufheben.
+      const rest = other.add(a.id, a.count, a.durability);
+      if (rest === a.count) return;
+      if (rest === 0) this.slots[from] = null;
+      else a.count = rest;
+      this.changed();
+      return;
+    }
+    const b = other.slots[to];
+    if (b && b.id === a.id && stackable(a.id)) {
+      const n = Math.min(getItem(a.id).maxStack - b.count, a.count);
+      b.count += n;
+      a.count -= n;
+      if (a.count === 0) this.slots[from] = null;
+    } else {
+      other.slots[to] = a;
+      this.slots[from] = b;
+    }
+    this.changed();
+    other.changed();
+  }
+
+  /** Alle Stapel entnehmen (z. B. wenn eine Kiste zerstört wird). */
+  takeAll(): ItemStack[] {
+    const out = this.slots.filter((s): s is ItemStack => s !== null).map((s) => ({ ...s }));
+    this.slots.fill(null);
+    this.changed();
+    return out;
+  }
+
   /** Schnelles Umlagern: Schnellzugriffsleiste ↔ Rucksack. */
   quickMove(index: number): void {
     const s = this.slots[index];

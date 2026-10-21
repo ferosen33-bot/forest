@@ -33,6 +33,9 @@ export class ToolController {
   private eating: { def: ItemDef; time: number; done: boolean } | null = null;
   /** Wurfwaffe angelegt (rechte Maustaste gehalten). */
   aiming = false;
+  /** Spannung des Bogens 0..1 (> 0 = wird gespannt). */
+  drawCharge = 0;
+  private drawing = false;
   /** Abbrandfaktor der Fackel (Regen lässt sie schneller herunterbrennen) – vom Spiel gesetzt. */
   torchBurnRate = 1;
   private throwCooldown = 0;
@@ -72,6 +75,14 @@ export class ToolController {
     this.selected = index;
     this.swing = null;
     this.eating = null;
+    this.cancelDraw();
+  }
+
+  private cancelDraw(): void {
+    this.drawing = false;
+    this.drawCharge = 0;
+    this.viewModel.setDraw(0);
+    this.player.zoom = 0;
   }
 
   /** @param active false, solange Menüs/Inventar offen sind (nur Animationen laufen weiter). */
@@ -101,6 +112,11 @@ export class ToolController {
 
     // Rechte Maustaste: Wurfwaffen anlegen, sonst mit der Waffe blocken.
     const def = stack ? getItem(stack.id) : undefined;
+    if (def?.ranged) {
+      this.updateBow(dt, active, def);
+      return;
+    }
+    if (this.drawing || this.player.zoom > 0) this.cancelDraw();
     const rmb = active && !this.player.stats.isDead && !!def?.tool && this.input.isMouseDown(2) && !this.swing && !this.eating;
     this.aiming = rmb && !!def?.throwable && !this.viewModel.busy;
     const blocking = rmb && !def?.throwable;
@@ -184,6 +200,64 @@ export class ToolController {
     this.wearEquipped(1);
   }
 
+  /** Bogen: Linksklick halten = spannen, loslassen = schießen; Rechtsklick = Zielzoom. */
+  private updateBow(dt: number, active: boolean, def: ItemDef): void {
+    const r = def.ranged!;
+    const usable = active && !this.player.stats.isDead && !this.viewModel.busy;
+    this.player.blocking = false;
+    this.viewModel.setBlocking(false);
+    this.viewModel.setAiming(false);
+    this.player.zoom = usable && this.input.isMouseDown(2) ? 1 : 0;
+    if (!usable) {
+      if (this.drawing) this.cancelDraw();
+      return;
+    }
+    if (this.input.wasMousePressed(0) && !this.drawing) {
+      if (!this.inventory.has(r.ammo)) {
+        this.audio.play('denied');
+        this.events.emit('hud:message', { text: `Keine ${getItem(r.ammo).name}e – herstellen oder aufsammeln.` });
+        return;
+      }
+      this.drawing = true;
+      this.drawCharge = 0;
+      this.audio.play('bowDraw', 0.7);
+    }
+    if (!this.drawing) return;
+    if (this.input.isMouseDown(0)) {
+      this.drawCharge = Math.min(1, this.drawCharge + dt / r.drawTime);
+      this.viewModel.setDraw(this.drawCharge);
+      return;
+    }
+    // Losgelassen: zu wenig gespannt → Pfeil bleibt in der Hand.
+    const charge = this.drawCharge;
+    this.drawing = false;
+    this.drawCharge = 0;
+    this.viewModel.setDraw(0);
+    if (charge < 0.15 || !this.inventory.remove(r.ammo, 1)) return;
+    const speed = r.minSpeed + (r.maxSpeed - r.minSpeed) * charge;
+    const damage = r.minDamage + (r.maxDamage - r.minDamage) * charge * charge;
+    const { origin, dir } = this.aimRay(0.08, -0.02);
+    const velocity = dir.multiplyScalar(speed).add(this.player.velocity);
+    velocity.y += 0.6;
+    this.projectiles.launch(r.ammo, undefined, damage, origin, velocity);
+    this.audio.play('bowShot');
+    this.viewModel.playHit();
+    this.wearEquipped(1);
+  }
+
+  /** Abwurf-/Abschusspunkt seitlich der Kamera, ausgerichtet auf den Punkt unter dem Fadenkreuz. */
+  private aimRay(side: number, up: number): { origin: THREE.Vector3; dir: THREE.Vector3 } {
+    const eye = this.camera.getWorldPosition(new THREE.Vector3());
+    const look = this.camera.getWorldDirection(new THREE.Vector3());
+    const right = new THREE.Vector3().crossVectors(look, this.camera.up).normalize();
+    const origin = eye.clone().addScaledVector(right, side).addScaledVector(look, 0.3);
+    origin.y += up;
+    const aim = this.interaction.raycast(AIM_RANGE);
+    const distance = aim && aim.type !== 'water' ? Math.max(4, aim.hit.distance) : AIM_RANGE;
+    const dir = eye.addScaledVector(look, distance).sub(origin).normalize();
+    return { origin, dir };
+  }
+
   /** Wirft die Waffe in der Hand entlang der Blickrichtung. */
   private throwEquipped(def: ItemDef): void {
     const tool = def.tool!;
@@ -197,17 +271,8 @@ export class ToolController {
     }
     const stack = this.inventory.takeFromSlot(this.selected, 1);
     if (!stack) return;
-    const eye = this.camera.getWorldPosition(new THREE.Vector3());
-    const dir = this.camera.getWorldDirection(new THREE.Vector3());
-    const right = new THREE.Vector3().crossVectors(dir, this.camera.up).normalize();
-    // Abwurf über der rechten Schulter …
-    const origin = eye.clone().addScaledVector(right, 0.18).addScaledVector(dir, 0.3);
-    origin.y += 0.05;
-    // … aber auf den Punkt unter dem Fadenkreuz gerichtet (sonst landet er seitlich daneben).
-    const aim = this.interaction.raycast(AIM_RANGE);
-    const distance = aim && aim.type !== 'water' ? Math.max(4, aim.hit.distance) : AIM_RANGE;
-    const target = eye.addScaledVector(dir, distance);
-    const throwDir = target.sub(origin).normalize();
+    // Abwurf über der rechten Schulter, aber auf den Punkt unter dem Fadenkreuz gerichtet.
+    const { origin, dir: throwDir } = this.aimRay(0.18, 0.05);
     // Leicht angehoben: auf ~12 m fällt der Speer genau auf die Zielhöhe.
     const velocity = throwDir.multiplyScalar(t.speed).add(this.player.velocity);
     velocity.y += 1.2;

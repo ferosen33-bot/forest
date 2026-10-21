@@ -29,12 +29,25 @@ export const RECIPES: Recipe[] = [
   ]),
   item('torch', [{ item: 'stick', count: 2 }]),
   item('bowl', [{ item: 'log', count: 1 }]),
+  item('bow', [
+    { item: 'log', count: 1 },
+    { item: 'stick', count: 2 },
+  ]),
+  item(
+    'arrow',
+    [
+      { item: 'stick', count: 2 },
+      { item: 'stone', count: 1 },
+    ],
+    4,
+  ),
   structure('campfire'),
   structure('floor'),
   structure('wall'),
   structure('gate'),
   structure('stairs'),
   structure('shelter'),
+  structure('chest'),
   structure('spikeTrap'),
 ];
 

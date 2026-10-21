@@ -39,7 +39,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
 | `R` / Mausrad       | Bauvorschau drehen                    |
-| Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bauen abbrechen |
+| Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bogen: zielen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `F4`                | Nachbearbeitung an/aus                |
 | `T` (mit F3)        | Zeitraffer                            |
@@ -51,6 +51,18 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 13 – Bogen & Lagerkiste
+
+- **Bogen** (1 Stamm + 2 Stöcke) und **Pfeile** (2 Stöcke + 1 Stein → 4 Pfeile): Linksklick gedrückt halten spannt
+  (0,9 s bis voll), Loslassen schießt; Rechtsklick zoomt zum Zielen. Geschwindigkeit 16–46 m/s und Schaden 10–42
+  wachsen mit der Spannung (Schaden quadratisch – halb gespannt lohnt kaum). Zu kurz gespannt bleibt der Pfeil in der
+  Hand. Pfeile fliegen über das bestehende Geschoss-System (Segment-Raycast, Kopftreffer, Schleichangriff ×3) und
+  bleiben stecken oder fallen herab – zum Wiederaufsammeln; ein Teil zerbricht.
+- **Lagerkiste** (16 Plätze): `E` öffnet das Inventar mit der Kiste anstelle der Rezepte. Ziehen zwischen Rucksack und
+  Kiste (auffüllen, stapeln oder tauschen), `Shift`+Klick bzw. Rechtsklick lagert in das jeweils andere Inventar um.
+  Der Inhalt wird mitgespeichert; wird die Kiste zerstört, fällt er heraus. Das Fenster schließt sich, wenn die Kiste
+  verschwindet.
 
 ### Meilenstein 12 – Einstellungen
 
@@ -393,3 +405,4 @@ src/
 11. ~~Böden, Treppen & Tore~~ ✓
 12. ~~Gegnertypen & Schleichangriffe~~ ✓
 13. ~~Einstellungen (Ton, Steuerung, Grafikstufen)~~ ✓
+14. ~~Bogen & Pfeile, Lagerkiste~~ ✓

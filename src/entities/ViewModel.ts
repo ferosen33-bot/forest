@@ -25,6 +25,9 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   torch: { position: new THREE.Vector3(0.36, -0.44, -0.66), rotation: new THREE.Euler(-0.55, 0, -0.3), grip: new THREE.Vector3(0, -0.15, 0), scale: 0.85 },
   bowl: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
   bowlWater: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
+  // Bogen senkrecht vor der Mitte, Wölbung nach vorne (lokal +X → Blickrichtung).
+  bow: { position: new THREE.Vector3(0.1, -0.16, -0.62), rotation: new THREE.Euler(0, Math.PI / 2 - 0.25, 0.22, 'YXZ'), grip: new THREE.Vector3(0.18, 0, 0), scale: 0.62 },
+  arrow: { position: new THREE.Vector3(0.26, -0.3, -0.48), rotation: new THREE.Euler(-1.3, 0.1, 0), grip: new THREE.Vector3(0, -0.15, 0), scale: 1 },
   log: { position: new THREE.Vector3(0.05, -0.45, -0.75), rotation: new THREE.Euler(0, 0, Math.PI / 2 - 0.1), grip: new THREE.Vector3(0, 0, 0), scale: 0.8 },
 };
 
@@ -101,6 +104,10 @@ export class ViewModel {
   private blocking = false;
   private aim = 0;
   private aiming = false;
+  /** Spannung des Bogens 0..1 */
+  private draw = 0;
+  /** Eingelegter Pfeil (sichtbar, solange gespannt wird). */
+  private readonly nocked = createItemMesh('arrow').clone();
   private swayX = 0;
   private swayY = 0;
   private lastYaw = 0;
@@ -122,6 +129,10 @@ export class ViewModel {
     this.handLight.position.set(0.25, -0.05, -0.45);
     this.camera.add(this.root);
     this.root.add(this.pose);
+    // Pfeil zeigt entlang der Blickrichtung (seine Längsachse ist +Y).
+    this.nocked.rotation.x = -Math.PI / 2;
+    this.nocked.visible = false;
+    this.pose.add(this.nocked);
     this.arm = this.createArm();
     this.pose.add(this.arm);
     this.arm.visible = false;
@@ -173,6 +184,11 @@ export class ViewModel {
   /** Wurfhaltung: Speer über der Schulter zurückgezogen. */
   setAiming(on: boolean): void {
     this.aiming = on;
+  }
+
+  /** Bogen spannen (0 = locker, 1 = voll gespannt). */
+  setDraw(charge: number): void {
+    this.draw = charge;
   }
 
   /** Abwurf: sofort aus der Zielhaltung nach vorne schnellen. */
@@ -228,6 +244,15 @@ export class ViewModel {
       this.animRot.z += 1.25 * this.block;
       this.animRot.x += 0.2 * this.block;
     }
+    // Bogen: beim Spannen leicht anheben und zur Mitte ziehen; Pfeil wandert mit der Sehne zurück.
+    const bowHeld = this.currentId === 'bow';
+    if (bowHeld && this.draw > 0) {
+      this.animPos.x -= 0.08 * this.draw;
+      this.animPos.y += 0.05 * this.draw;
+      this.animPos.z += 0.04 * this.draw;
+    }
+    this.nocked.visible = bowHeld && this.draw > 0.02 && this.raise > 0.9;
+    if (this.nocked.visible) this.nocked.position.set(-0.01, 0, -0.08 + 0.14 * this.draw);
     this.aim = damp(this.aim, this.aiming ? 1 : 0, 10, dt);
     if (this.aim > 0.001) {
       // Ausholen: hoch über die Schulter, nach hinten gezogen, leicht zitternd.

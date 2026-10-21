@@ -42,7 +42,9 @@ export type SoundId =
   | 'sizzle'
   | 'thunder'
   | 'thunderNear'
-  | 'door';
+  | 'door'
+  | 'bowShot'
+  | 'bowDraw';
 
 export interface PlayOptions {
   volume?: number;
@@ -325,6 +327,14 @@ export class Audio {
         break;
       case 'thunder':
         this.rumble(t, pitch);
+        break;
+      // Bogen: Sehne schnellt (tiefer Zupfton + Luftzug), Spannen knarzt leise.
+      case 'bowShot':
+        this.tone(t, 'triangle', 190 * pitch, 120, 0.18, 0.5, 1600);
+        this.noise(t, 0.25, 'bandpass', 900, 1, 0.25, 2600);
+        break;
+      case 'bowDraw':
+        this.tone(t, 'sawtooth', 120 * pitch, 160, 0.5, 0.05, 600);
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

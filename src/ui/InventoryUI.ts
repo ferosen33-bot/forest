@@ -11,8 +11,14 @@ interface RecipeCard {
   cost: HTMLElement;
 }
 
+/** Ein Slot in einem der beiden Inventare (Spieler oder geöffnete Kiste). */
+interface SlotRef {
+  inv: Inventory;
+  index: number;
+}
+
 interface DragState {
-  from: number;
+  from: SlotRef;
   startX: number;
   startY: number;
   ghost: HTMLElement | null;
@@ -40,7 +46,11 @@ export class InventoryUI {
   private readonly cards: RecipeCard[] = [];
   private hoveredRecipe: Recipe | null = null;
   private drag: DragState | null = null;
-  private hovered = -1;
+  private hovered: SlotRef | null = null;
+  /** Geöffnete Lagerkiste (null = Herstellen-Spalte sichtbar). */
+  private chest: Inventory | null = null;
+  private chestSlotEls: HTMLElement[] = [];
+  private unsubscribeChest: (() => void) | null = null;
   private _open = false;
 
   constructor(
@@ -50,7 +60,19 @@ export class InventoryUI {
     private readonly getSelected: () => number,
     private readonly crafting: Crafting,
   ) {
-    this.el = collectRefs(root, ['panel', 'grid', 'hotbarGrid', 'detailIcon', 'detailName', 'detailDesc', 'recipes'] as const);
+    this.el = collectRefs(root, [
+      'panel',
+      'grid',
+      'hotbarGrid',
+      'detailIcon',
+      'detailName',
+      'detailDesc',
+      'recipes',
+      'chestPanel',
+      'chestGrid',
+      'chestTitle',
+      'craftingPanel',
+    ] as const);
     this.buildRecipeCards();
 
     for (let i = 0; i < inventory.size; i++) {
@@ -92,6 +114,40 @@ export class InventoryUI {
     this._open = false;
     this.cancelDrag();
     this.root.classList.add('hidden');
+    this.setChest(null);
+  }
+
+  /** Öffnet das Fenster mit einer Lagerkiste neben dem Rucksack (statt der Rezepte). */
+  showChest(chest: Inventory, title: string): void {
+    this.setChest(chest);
+    this.el.chestTitle.textContent = title;
+    this.show();
+  }
+
+  get chestOpen(): boolean {
+    return this.chest !== null;
+  }
+
+  private setChest(chest: Inventory | null): void {
+    this.unsubscribeChest?.();
+    this.unsubscribeChest = null;
+    this.chest = chest;
+    this.el.chestGrid.replaceChildren();
+    this.chestSlotEls = [];
+    this.el.chestPanel.classList.toggle('hidden', !chest);
+    this.el.craftingPanel.classList.toggle('hidden', !!chest);
+    if (!chest) return;
+    for (let i = 0; i < chest.size; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.dataset.index = String(i);
+      slot.dataset.inv = 'chest';
+      this.el.chestGrid.appendChild(slot);
+      this.chestSlotEls.push(slot);
+    }
+    this.unsubscribeChest = chest.onChange(() => {
+      if (this._open) this.render();
+    });
   }
 
   private render(): void {
@@ -100,6 +156,7 @@ export class InventoryUI {
       renderSlot(el, this.inventory.get(i), this.icons.items);
       el.classList.toggle('is-selected', i === selected);
     });
+    if (this.chest) this.chestSlotEls.forEach((el, i) => renderSlot(el, this.chest!.get(i), this.icons.items));
     this.renderRecipes();
     this.renderDetails();
   }
@@ -177,7 +234,7 @@ export class InventoryUI {
         recipeDescription(recipe) + (recipe.kind === 'structure' ? ' Klicken, um den Bauplan zu platzieren.' : '');
       return;
     }
-    const stack = this.hovered >= 0 ? this.inventory.get(this.hovered) : null;
+    const stack = this.hovered ? this.hovered.inv.get(this.hovered.index) : null;
     if (!stack) {
       icon.hidden = true;
       this.el.detailName.textContent = '–';
@@ -193,38 +250,54 @@ export class InventoryUI {
     this.el.detailDesc.textContent = desc;
   }
 
-  private slotIndexAt(target: EventTarget | null): number {
+  private slotAt(target: EventTarget | null): SlotRef | null {
     const el = (target as HTMLElement | null)?.closest?.<HTMLElement>('.slot');
-    return el?.dataset.index !== undefined ? Number(el.dataset.index) : -1;
+    if (el?.dataset.index === undefined || el.classList.contains('slot--ghost')) return null;
+    const inv = el.dataset.inv === 'chest' ? this.chest : this.inventory;
+    return inv ? { inv, index: Number(el.dataset.index) } : null;
+  }
+
+  private slotEl(ref: SlotRef): HTMLElement {
+    return ref.inv === this.inventory ? this.slotEls[ref.index] : this.chestSlotEls[ref.index];
+  }
+
+  /** Bei geöffneter Kiste: Stapel ins jeweils andere Inventar. @returns true, wenn umgelagert wurde. */
+  private transferAcross(ref: SlotRef): boolean {
+    if (!this.chest) return false;
+    const other = ref.inv === this.chest ? this.inventory : this.chest;
+    ref.inv.transferTo(ref.index, other);
+    return true;
   }
 
   // --- Maus/Pointer ---
 
   private handlePointerOver = (e: PointerEvent): void => {
-    const index = this.slotIndexAt(e.target);
-    if (index !== this.hovered) {
-      this.hovered = index;
+    const ref = this.slotAt(e.target);
+    if (ref?.inv !== this.hovered?.inv || ref?.index !== this.hovered?.index) {
+      this.hovered = ref;
       this.renderDetails();
     }
   };
 
   private handleContextMenu = (e: MouseEvent): void => {
     e.preventDefault();
-    const index = this.slotIndexAt(e.target);
-    if (index >= 0 && this.inventory.get(index)) this.onUse?.(index);
+    const ref = this.slotAt(e.target);
+    if (!ref || !ref.inv.get(ref.index)) return;
+    // Mit offener Kiste lagert Rechtsklick um, sonst: benutzen/ausrüsten.
+    if (!this.transferAcross(ref)) this.onUse?.(ref.index);
   };
 
   private handlePointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
-    const index = this.slotIndexAt(e.target);
-    if (index < 0 || !this.inventory.get(index)) return;
+    const ref = this.slotAt(e.target);
+    if (!ref || !ref.inv.get(ref.index)) return;
     e.preventDefault();
 
     if (e.shiftKey) {
-      this.inventory.quickMove(index);
+      if (!this.transferAcross(ref)) this.inventory.quickMove(ref.index);
       return;
     }
-    this.drag = { from: index, startX: e.clientX, startY: e.clientY, ghost: null };
+    this.drag = { from: ref, startX: e.clientX, startY: e.clientY, ghost: null };
     window.addEventListener('pointermove', this.handlePointerMove);
     window.addEventListener('pointerup', this.handlePointerUp);
   };
@@ -233,11 +306,11 @@ export class InventoryUI {
     const drag = this.drag;
     if (!drag) return;
     if (!drag.ghost && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 4) {
-      drag.ghost = this.slotEls[drag.from].cloneNode(true) as HTMLElement;
+      drag.ghost = this.slotEl(drag.from).cloneNode(true) as HTMLElement;
       drag.ghost.classList.add('slot--ghost');
       drag.ghost.classList.remove('is-selected');
       document.body.appendChild(drag.ghost);
-      this.slotEls[drag.from].classList.add('is-dragging');
+      this.slotEl(drag.from).classList.add('is-dragging');
     }
     if (drag.ghost) drag.ghost.style.transform = `translate(${e.clientX - 28}px, ${e.clientY - 28}px)`;
   };
@@ -247,9 +320,12 @@ export class InventoryUI {
     if (!drag) return;
     if (drag.ghost) {
       const under = document.elementFromPoint(e.clientX, e.clientY);
-      const to = this.slotIndexAt(under);
-      if (to >= 0) this.inventory.move(drag.from, to);
-      else if (!this.el.panel.contains(under)) this.onDrop?.(drag.from);
+      const to = this.slotAt(under);
+      const from = drag.from;
+      if (to && to.inv === from.inv) from.inv.move(from.index, to.index);
+      else if (to) from.inv.transferTo(from.index, to.inv, to.index);
+      // Nur aus dem eigenen Inventar lässt sich etwas fallenlassen.
+      else if (!this.el.panel.contains(under) && from.inv === this.inventory) this.onDrop?.(from.index);
     }
     this.cancelDrag();
   };
@@ -257,7 +333,7 @@ export class InventoryUI {
   private cancelDrag(): void {
     if (this.drag) {
       this.drag.ghost?.remove();
-      this.slotEls[this.drag.from].classList.remove('is-dragging');
+      this.slotEl(this.drag.from).classList.remove('is-dragging');
     }
     this.drag = null;
     window.removeEventListener('pointermove', this.handlePointerMove);

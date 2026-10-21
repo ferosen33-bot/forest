@@ -79,7 +79,12 @@
             <li><kbd>Tab</kbd> / <kbd>I</kbd> Schließen</li>
           </ul>
         </aside>
-        <aside class="inventory__crafting">
+        <aside class="inventory__chest hidden" data-ref="chestPanel">
+          <h2 class="inventory__title" data-ref="chestTitle">Lagerkiste</h2>
+          <div class="inventory__grid inventory__grid--chest" data-ref="chestGrid"></div>
+          <p class="inventory__chest-hint"><kbd>Shift</kbd>+<kbd>Klick</kbd> oder <kbd>Rechtsklick</kbd> lagert um</p>
+        </aside>
+        <aside class="inventory__crafting" data-ref="craftingPanel">
           <h2 class="inventory__title">Herstellen</h2>
           <div class="recipes" data-ref="recipes"></div>
         </aside>

@@ -313,6 +313,7 @@ export class Game {
       onSleep: (shelter) => this.sleep(shelter),
       heldItem: () => this.tools.equipped?.id ?? null,
       takeHeld: () => void this.inventory.takeFromSlot(this.tools.selected, 1),
+      openStorage: (s) => this.openStorage(s),
       transformHeld: (to) => {
         if (this.inventory.transform(this.tools.selected, to) > 0) this.items.drop(to, 1, this.player.position);
       },
@@ -527,6 +528,7 @@ export class Game {
       this.building.cancel();
       this.sleepTimer = 0;
       this.hud.faded = false;
+      this.openChest = null;
       this.inventoryUI.hide();
       this.hud.inventoryOpen = false;
       this.input.exitLock();
@@ -540,6 +542,20 @@ export class Game {
     this.menu.showPaused(this.lastSaved);
   }
 
+  /** Lagerkiste, deren Inhalt gerade angezeigt wird. */
+  private openChest: Structure | null = null;
+
+  private openStorage(s: Structure): void {
+    if (!s.storage) return;
+    this.building.cancel();
+    this.openChest = s;
+    this.mode = 'inventory';
+    this.inventoryUI.showChest(s.storage, s.def.name);
+    this.hud.inventoryOpen = true;
+    this.audio.play('door', 0.5);
+    this.input.exitLock();
+  }
+
   private openInventory(): void {
     this.mode = 'inventory';
     this.inventoryUI.show();
@@ -548,6 +564,7 @@ export class Game {
   }
 
   private closeInventory(): void {
+    this.openChest = null;
     this.inventoryUI.hide();
     this.hud.inventoryOpen = false;
     this.mode = 'playing';
@@ -723,6 +740,9 @@ export class Game {
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position);
     this.updateClimate(dt);
+    // Kiste zerstört oder zu weit weg → Fenster schließen.
+    const chest = this.openChest;
+    if (chest && (!this.building.structures.includes(chest) || chest.position.distanceTo(player.position) > 4.5)) this.closeInventory();
 
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
     this.world.update(dt, this.elapsed, player.position);

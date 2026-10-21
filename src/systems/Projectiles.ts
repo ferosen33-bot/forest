@@ -39,6 +39,9 @@ export interface ProjectileDeps {
 
 /** Etwas weniger als echte Schwerkraft: Würfe sollen sich gut anfühlen, nicht realistisch abfallen. */
 const GRAVITY = 9.81 * 0.6;
+/** Abstand Mittelpunkt → Spitze je Geschoss (Speer 1,5 m, Pfeil 0,7 m). */
+const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38 };
+const tipOf = (id: ItemId) => TIP[id] ?? 0.4;
 const UP = new THREE.Vector3(0, 1, 0);
 /** Abnutzung des Speers pro Treffer. */
 const WEAR_PER_HIT = 2;
@@ -106,7 +109,7 @@ export class Projectiles {
 
   /** @returns true, wenn das Geschoss getroffen hat (und damit beendet ist). */
   private trace(p: Projectile, step: number): boolean {
-    const tip = this.point.copy(p.position).addScaledVector(this.dir, 0.75);
+    const tip = this.point.copy(p.position).addScaledVector(this.dir, tipOf(p.itemId));
     const origin = { x: tip.x, y: tip.y, z: tip.z };
     let remaining = step;
     // Sensoren von Pflanzen/Stöcken überspringen, Kopf-Sensoren der Schrate aber treffen.
@@ -174,18 +177,20 @@ export class Projectiles {
     this.d.audio.play(structure ? 'chop' : 'stoneHit', { volume: 0.6, position: point });
     this.d.particles.burst(point, { count: 5, color: 0x6b5a45, direction: this.normal, speed: 1.5, size: 0.025 });
     this.d.events.emit('noise', { position: point, radius: 12 });
-    p.position.copy(point).addScaledVector(this.dir, -0.75 + 0.18);
+    p.position.copy(point).addScaledVector(this.dir, -tipOf(p.itemId) + 0.12);
     this.drop(p, true);
   }
 
   /** Treffer an Lebewesen: Speer fällt herab, nutzt sich ab. */
   private bounce(p: Projectile, point: THREE.Vector3): void {
-    p.position.copy(point).addScaledVector(this.dir, -0.8);
+    p.position.copy(point).addScaledVector(this.dir, -tipOf(p.itemId) - 0.05);
     p.velocity.multiplyScalar(-0.08).setY(1);
     this.drop(p, false);
   }
 
   private drop(p: Projectile, stuck: boolean): void {
+    // Pfeile gehen öfter zu Bruch – an Lebewesen eher als im Boden.
+    if (p.itemId === 'arrow' && Math.random() < (stuck ? 0.15 : 0.35)) return;
     if (p.durability !== undefined) {
       p.durability -= WEAR_PER_HIT;
       if (p.durability <= 0) {

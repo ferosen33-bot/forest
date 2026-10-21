@@ -43,6 +43,8 @@ export class Player {
   mouseScale = 1;
   invertY = false;
   fov: number;
+  /** Zielzoom mit dem Bogen (0..1, verkleinert das Sichtfeld). */
+  zoom = 0;
 
   private readonly cfg: GameConfig['player'];
   private readonly statsCfg: GameConfig['stats'];
@@ -443,7 +445,7 @@ export class Player {
     this.camera.rotation.set(this.pitch + sy, this.yaw + sx, -bobX * 0.15 + sx * 0.5, 'YXZ');
 
     // Sprint-FOV
-    const targetFov = this.sprinting && hs > 2 ? this.fov + (cfg.sprintFov - cfg.fov) : this.fov;
+    const targetFov = (this.sprinting && hs > 2 ? this.fov + (cfg.sprintFov - cfg.fov) : this.fov) * (1 - 0.32 * this.zoom);
     const fov = damp(this.fovCurrent, targetFov, 6, dt);
     if (Math.abs(fov - this.camera.fov) > 0.01) {
       this.fovCurrent = fov;

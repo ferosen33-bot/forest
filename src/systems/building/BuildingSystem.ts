@@ -4,6 +4,8 @@ import type { EventBus } from '../../core/EventBus';
 import type { HeightMap } from '../../world/HeightMap';
 import type { WorldItems } from '../../entities/items/WorldItems';
 import { FireEffect } from '../../entities/FireEffect';
+import { Inventory, type InventoryData } from '../Inventory';
+import { isItemId } from '../../entities/items/ItemDefs';
 import type { Crafting } from '../Crafting';
 import type { Particles } from '../Particles';
 import type { LightPool, LightRequest } from '../LightPool';
@@ -26,6 +28,8 @@ export interface Structure {
   emberTimer: number;
   crackleTimer: number;
   shake: number;
+  /** Nur Lagerkisten */
+  storage?: Inventory;
   /** Nur Tore */
   open?: boolean;
   doorAngle?: number;
@@ -46,6 +50,7 @@ export interface StructureSave {
   health: number;
   lit: boolean;
   open?: boolean;
+  storage?: InventoryData;
 }
 
 export interface Placement {
@@ -473,6 +478,8 @@ export class BuildingSystem {
       this.byCollider.set(collider.handle, structure);
     }
 
+    if (def.storageSlots) structure.storage = new Inventory(def.storageSlots, 0);
+
     if (def.interaction === 'door') {
       structure.open = false;
       structure.doorAngle = 0;
@@ -506,6 +513,7 @@ export class BuildingSystem {
       health: s.health,
       lit: s.lit,
       ...(s.open ? { open: true } : {}),
+      ...(s.storage ? { storage: s.storage.serialize() } : {}),
     }));
   }
 
@@ -524,6 +532,7 @@ export class BuildingSystem {
         this.setOpen(s, true, true);
         s.doorAngle = GATE_OPEN_ANGLE;
       }
+      if (s.storage && Array.isArray(d.storage)) s.storage.load(d.storage, isItemId);
       out.push(s);
     }
     return out;
@@ -592,6 +601,11 @@ export class BuildingSystem {
           rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, Math.random() * 6, 0)),
         });
       }
+    }
+    // Inhalt einer Lagerkiste fällt heraus.
+    for (const stack of s.storage?.takeAll() ?? []) {
+      const pos = s.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.5, (Math.random() - 0.5) * 0.8));
+      this.worldItems.spawn(stack.id, stack.count, pos, { durability: stack.durability });
     }
     this.particles.burst(s.position.clone().add(new THREE.Vector3(0, 0.8, 0)), { count: 24, color: 0x6b5a45, speed: 3.5, spread: 1.4, size: 0.06 });
     this.audio.play('treeCrack');
