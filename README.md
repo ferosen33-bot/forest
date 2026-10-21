@@ -38,6 +38,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `1`–`6` / Mausrad   | Schnellzugriff wählen                 |
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
+| `M`                 | Inselkarte ein/aus                    |
 | `R` / Mausrad       | Bauvorschau drehen                    |
 | Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bogen: zielen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
@@ -51,6 +52,17 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 15 – Karte & Kompass
+
+- **Kompass** oben im HUD: Himmelsrichtungen und Gradstriche laufen mit der Blickrichtung mit (Norden = −Z), ein
+  Dreieck zeigt zum Aufwachpunkt, sobald man einen Unterstand benutzt hat.
+- **Inselkarte** (`M`): einmal beim Laden aus der Höhenkarte gezeichnet – Wasser nach Tiefe, Strand, Wiese, Fels,
+  Schummerung von Nordwesten, jeder Baum als Punkt. Darüber liegt Pergament-Nebel über allem, was man noch nicht
+  gesehen hat (128² Zellen, Aufdeckradius 70 m). Markiert sind Spieler mit Blickrichtung, eigene Bauwerke,
+  Aufwachpunkt und entdeckte Schrat-Lager. Die Karte deckt das Spiel nicht ab – man kann mit offener Karte laufen.
+- Der Nebel wird als winziges Bild (ein Pixel pro Zelle) einmal weichgezeichnet hochskaliert und nur bei neuen Zellen
+  neu berechnet. Erkundung und entdeckte Lager werden gespeichert (≈ 2,7 KB Base64-Bitfeld).
 
 ### Meilenstein 14 – Fernkampf der Späher
 
@@ -366,6 +378,7 @@ src/
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
 │   ├── Settings.ts         Einstellungen, Grafikstufen, Speicherung (getestet)
+│   ├── Exploration.ts      Erkundete Kartenzellen (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -379,6 +392,8 @@ src/
 │   ├── ItemIcons.ts        Icons aus den 3D-Modellen rendern
 │   ├── Menu.ts             Lade-, Start-, Pause- und Todesbildschirm
 │   ├── SettingsUI.ts       Einstellungsformular (Ton, Steuerung, Grafik)
+│   ├── MapUI.ts            Inselkarte mit Schummerung, Nebel und Markierungen
+│   ├── Compass.ts          Kompassband im HUD
 │   ├── slots.ts / dom.ts   Kleine DOM-Helfer
 └── utils/                  Mathe- und Zufallshelfer (deterministischer PRNG)
 ```
@@ -418,3 +433,4 @@ src/
 13. ~~Einstellungen (Ton, Steuerung, Grafikstufen)~~ ✓
 14. ~~Bogen & Pfeile, Lagerkiste~~ ✓
 15. ~~Fernkampf der Späher (Steinwürfe)~~ ✓
+16. ~~Karte & Kompass~~ ✓

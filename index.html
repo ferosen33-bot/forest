@@ -30,6 +30,7 @@
       <div class="toasts" data-ref="toasts"></div>
 
       <div class="clock" data-ref="clock"></div>
+      <canvas class="compass" data-ref="compass"></canvas>
 
       <div class="stats">
         <div class="stat stat--health"><span class="stat__icon">❤</span><div class="stat__bar"><div class="stat__fill" data-ref="health"></div></div></div>
@@ -91,6 +92,14 @@
       </div>
     </div>
 
+    <!-- Inselkarte (M) -->
+    <div id="map" class="hidden">
+      <div class="map__frame">
+        <canvas class="map__canvas"></canvas>
+        <p class="map__hint"><kbd>M</kbd> Karte schließen · <span data-ref="mapExplored"></span></p>
+      </div>
+    </div>
+
     <!-- Menü-Overlay: Laden, Start, Pause, Tod -->
     <div id="menu">
       <div class="menu__panel" data-ref="mainPanel">
@@ -114,6 +123,7 @@
           <div><kbd>1</kbd>–<kbd>6</kbd>/<kbd>Mausrad</kbd> Ausrüsten</div>
           <div><kbd>Tab</kbd>/<kbd>I</kbd> Inventar</div>
           <div><kbd>B</kbd> Herstellen &amp; Bauen</div>
+          <div><kbd>M</kbd> Karte</div>
           <div><kbd>Rechtsklick</kbd> Blocken / Speer anlegen</div>
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>

@@ -41,6 +41,9 @@ export interface SaveData {
   animals: AnimalSave[];
   /** Seit Meilenstein 9 (fehlt in älteren Ständen). */
   weather?: WeatherSave;
+  /** Seit Meilenstein 15: erkundete Kartenzellen (Base64-Bitfeld) und entdeckte Lager. */
+  explored?: string;
+  camps?: number[];
 }
 
 /** Kurzinfo für das Startmenü. */

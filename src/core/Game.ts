@@ -32,6 +32,9 @@ import { Climate } from '../systems/Climate';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
 import { QUALITY, SettingsStore, type Settings } from '../systems/Settings';
 import { SettingsUI } from '../ui/SettingsUI';
+import { Exploration } from '../systems/Exploration';
+import { MapUI } from '../ui/MapUI';
+import { Compass } from '../ui/Compass';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -126,6 +129,12 @@ export class Game {
   private readonly settingsStore = new SettingsStore();
   settings: Settings;
   private settingsUI!: SettingsUI;
+  exploration!: Exploration;
+  private mapUI!: MapUI;
+  private compass!: Compass;
+  /** Indizes der Lager, die der Spieler schon gesehen hat (Karte). */
+  private readonly discoveredCamps = new Set<number>();
+  private exploreTimer = 0;
   private autosaveTimer = 0;
   /** Erst speichern, wenn wirklich gespielt wurde (nicht schon im Startmenü) – und nie nach "Neues Spiel". */
   private saveEnabled = false;
@@ -361,6 +370,9 @@ export class Game {
       () => this.tools.selected,
       this.crafting,
     );
+    this.exploration = new Exploration(cfg.world.size);
+    this.mapUI = new MapUI(document.getElementById('map')!, this.world.heightMap, this.world.vegetation, this.exploration);
+    this.compass = new Compass(this.hud.compassCanvas);
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
     this.inventoryUI.onCraft = (recipe) => this.craft(recipe);
     this.inventoryUI.onDrop = (slot) => {
@@ -431,6 +443,8 @@ export class Game {
       enemies: this.enemies.serialize(),
       animals: this.animals.serialize(),
       weather: this.climate.weather.serialize(),
+      explored: this.exploration.serialize(),
+      camps: [...this.discoveredCamps],
     };
   }
 
@@ -457,6 +471,8 @@ export class Game {
     s.thirst = clampStat(p.thirst);
     s.wetness = Math.max(0, Math.min(1, p.wetness ?? 0));
     if (d.weather) this.climate.weather.load(d.weather);
+    if (typeof d.explored === 'string') this.exploration.load(d.explored);
+    for (const c of d.camps ?? []) if (Number.isInteger(c) && this.enemies.camps[c]) this.discoveredCamps.add(c);
     this.respawnPoint.set(...p.respawn);
     this.tools.select(Math.max(0, Math.min(this.inventory.hotbarSize - 1, p.selected | 0)));
     this.dayNight.day = Math.max(1, d.time.day | 0);
@@ -543,6 +559,7 @@ export class Game {
 
   private pause(): void {
     this.mode = 'paused';
+    this.mapUI.hide();
     this.saveNow();
     this.menu.showPaused(this.lastSaved);
   }
@@ -671,6 +688,7 @@ export class Game {
       this.updateSettings({ ...this.settings, postProcessing: !this.postFX.enabled });
       this.events.emit('hud:message', { text: `Nachbearbeitung ${this.postFX.enabled ? 'an' : 'aus'}` });
     }
+    if (this.mode === 'playing' && this.input.wasPressed('map')) this.mapUI.toggle();
     const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
     if (this.mode === 'playing' && toggleInventory && this.sleepTimer <= 0) {
       this.building.cancel();
@@ -685,6 +703,7 @@ export class Game {
     const building = this.building.isActive;
     const prompt = this.mode === 'playing' && !building ? this.interaction.prompt : null;
     this.hud.update(dt, this.player, this.dayNight.clockText, prompt, this.tools.selected, this.buildHint());
+    this.updateNavigation(dt);
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());
     this.input.endFrame();
   };
@@ -776,6 +795,38 @@ export class Game {
       sheltered: this.climate.sheltered,
     });
     this.footsteps.updatePlayer(dt, player);
+  }
+
+  /** Erkundung, Kompass und (falls offen) Karte. */
+  private updateNavigation(dt: number): void {
+    const p = this.player.position;
+    this.exploreTimer -= dt;
+    if (this.exploreTimer <= 0) {
+      this.exploreTimer = 0.5;
+      this.exploration.reveal(p.x, p.z, 70);
+      this.enemies.camps.forEach((c, i) => {
+        if (!this.discoveredCamps.has(i) && c.center.distanceTo(p) < 60) {
+          this.discoveredCamps.add(i);
+          this.events.emit('hud:message', { text: 'Ein Schrat-Lager – auf der Karte (M) markiert.' });
+        }
+      });
+    }
+    const deg = (r: number) => ((THREE.MathUtils.radToDeg(r) % 360) + 360) % 360;
+    // Blickrichtung (−Z = Norden, im Uhrzeigersinn): Peilung = −Gierwinkel.
+    const bearing = deg(-this.player.yaw);
+    const r = this.respawnPoint;
+    const showHome = r.distanceTo(this.world.spawnPoint) > 0.5 && r.distanceTo(p) > 8;
+    this.compass.update(bearing, showHome ? deg(Math.atan2(r.x - p.x, -(r.z - p.z))) : null);
+    if (!this.mapUI.open) return;
+    const kinds: Record<string, 'fire' | 'shelter' | 'wall' | 'other'> = { campfire: 'fire', shelter: 'shelter', wall: 'wall', gate: 'wall' };
+    this.mapUI.render({
+      player: { x: p.x, z: p.z, bearing: THREE.MathUtils.degToRad(bearing) },
+      respawn: showHome ? { x: r.x, z: r.z } : null,
+      structures: this.building.structures.map((s) => ({ x: s.position.x, z: s.position.z, kind: kinds[s.def.id] ?? 'other' })),
+      camps: [...this.discoveredCamps].map((i) => this.enemies.camps[i].center),
+    });
+    const explored = document.querySelector('[data-ref="mapExplored"]');
+    if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
   }
 
   /** Wetter, Nässe, Regenwasser in der Schale, Fackel im Regen. */

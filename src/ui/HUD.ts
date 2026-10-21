@@ -24,6 +24,7 @@ const REFS = [
   'oxygenRow',
   'wet',
   'wetRow',
+  'compass',
   'toasts',
   'hotbar',
   'hotbarName',
@@ -68,6 +69,11 @@ interface Toast {
  */
 export class HUD {
   private readonly el: Record<RefName, HTMLElement>;
+
+  /** Canvas des Kompassbands. */
+  get compassCanvas(): HTMLCanvasElement {
+    return this.el.compass as HTMLCanvasElement;
+  }
   private readonly rows = new Map<BarName, HTMLElement>();
   private readonly cache = new Map<string, string | number | boolean>();
   private readonly hotbarSlots: HTMLElement[] = [];
