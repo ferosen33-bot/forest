@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PART_GEOMETRY, type EnemyRig, type PartType } from './EnemyRig';
 import { RigRenderer } from '../RigRenderer';
+import { ENEMY_KINDS, type EnemyKind } from './EnemyKinds';
 
 const skin = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true });
 const MATERIALS: Record<PartType, THREE.Material> = {
@@ -16,8 +17,10 @@ const MATERIALS: Record<PartType, THREE.Material> = {
   club: new THREE.MeshStandardMaterial({ color: 0x4f3a26, roughness: 0.95, flatShading: true }),
 };
 
-/** Hautfarben (fahl, gräulich) – pro Gegner leicht variiert. */
-const SKIN_TONES = [0x8d8577, 0x7f796f, 0x958a79, 0x77746d].map((c) => new THREE.Color(c));
+/** Hautfarben je Gegnertyp – pro Gegner leicht variiert. */
+const SKIN_TONES = Object.fromEntries(
+  Object.values(ENEMY_KINDS).map((k) => [k.kind, k.tones.map((c) => new THREE.Color(c))]),
+) as Record<EnemyKind, THREE.Color[]>;
 
 /** Alle Schrate: ≈ 9 Draw Calls, egal wie viele unterwegs sind. */
 export class EnemyRenderer {
@@ -41,7 +44,12 @@ export class EnemyRenderer {
     return this.rigs.group;
   }
 
-  render(enemies: { rig: EnemyRig; tone: number }[]): void {
-    this.rigs.render(enemies.map(({ rig, tone }) => ({ parts: rig.parts, tint: SKIN_TONES[tone % SKIN_TONES.length] })));
+  render(enemies: { rig: EnemyRig; tone: number; kind: EnemyKind }[]): void {
+    this.rigs.render(
+      enemies.map(({ rig, tone, kind }) => {
+        const tones = SKIN_TONES[kind];
+        return { parts: rig.parts, tint: tones[tone % tones.length] };
+      }),
+    );
   }
 }

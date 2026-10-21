@@ -31,7 +31,7 @@ export type GameEvents = {
   'structure:door': { id: StructureId; position: Vector3; rotation: number; open: boolean };
   /** Lautes Ereignis, das Gegner im Umkreis `radius` hören. */
   noise: { position: Vector3; radius: number };
-  'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean };
+  'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean; sneak: boolean; name: string };
   /** Kurze Statusmeldung im HUD. */
   'hud:message': { text: string };
 };

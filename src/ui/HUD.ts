@@ -35,6 +35,7 @@ const REFS = [
   'damageDir',
   'enemyHealth',
   'enemyHealthFill',
+  'enemyName',
   'debug',
 ] as const;
 
@@ -109,7 +110,8 @@ export class HUD {
         this.damageDirTimer = 1.3;
       }
     });
-    events.on('enemy:hit', ({ health, maxHealth, killed }) => {
+    events.on('enemy:hit', ({ health, maxHealth, killed, name }) => {
+      this.el.enemyName.textContent = name;
       this.enemyHealthTimer = killed ? 1.2 : 2.5;
       this.el.enemyHealthFill.style.transform = `scaleX(${Math.max(0, health / maxHealth)})`;
       if (killed) {

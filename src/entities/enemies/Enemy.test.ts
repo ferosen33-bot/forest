@@ -6,6 +6,7 @@ import { NavGrid } from '../../systems/ai/NavGrid';
 import { CONFIG } from '../../config';
 import { Enemy, type EnemyContext, type PlayerTarget } from './Enemy';
 import { mulberry32 } from '../../utils/random';
+import { ENEMY_KINDS, type EnemyKind } from './EnemyKinds';
 
 const DT = 1 / 60;
 
@@ -54,6 +55,7 @@ describe('Enemy (KI)', () => {
       eye: pos.clone().add(new THREE.Vector3(0, 1.65, 0)),
       collider,
       isDead: false,
+      stealthy: false,
       receiveHit: (amount) => hits.push(amount),
     };
     return { target, hits, dispose: () => w.physics.world.removeCollider(collider, false) };
@@ -184,5 +186,53 @@ describe('Enemy (KI)', () => {
     w.physics.world.removeCollider(wall, false);
     e.dispose();
     p.dispose();
+  });
+
+  describe('Gegnertypen & Schleichen', () => {
+    const spawnKind = (kind: EnemyKind, yaw = 0) => {
+      const e = new Enemy(2, w.physics, w.origin, w.origin, CONFIG.ai, 0, ENEMY_KINDS[kind].scale, kind);
+      e.yaw = yaw;
+      w.physics.step();
+      return e;
+    };
+
+    it('Koloss: zäh und lässt sich von leichten Treffern nicht aus dem Tritt bringen', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 3)));
+      const k = spawnKind('koloss');
+      const ctx = makeCtx(p.target, [k]);
+      expect(k.maxHealth).toBeCloseTo(CONFIG.ai.health * ENEMY_KINDS.koloss.health, 5);
+      k.takeDamage(20, p.target.position, ctx);
+      expect(k.state).not.toBe('stagger');
+      expect(k.isAggressive).toBe(true);
+      k.takeDamage(40, p.target.position, ctx);
+      expect(k.state).toBe('stagger');
+      k.dispose();
+      p.dispose();
+    });
+
+    it('Späher: weicht nach einem Hieb zurück (zuschlagen und Abstand halten)', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 1.2)));
+      const s = spawnKind('spaeher');
+      const ctx = makeCtx(p.target, [s]);
+      s.alertedBy(p.target.position, ctx);
+      expect(run(s, ctx, 6, () => p.hits.length > 0)).toBe(true);
+      expect(p.hits[0]).toBeLessThan(CONFIG.ai.attackDamage);
+      run(s, ctx, 1, () => s.state === 'flee');
+      expect(s.state).toBe('flee');
+      s.dispose();
+      p.dispose();
+    });
+
+    it('nur wer den Spieler nicht bemerkt hat, ist für einen Schleichangriff offen', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, -6)));
+      const e = spawnKind('schrat', 0); // Spieler im Rücken
+      const ctx = makeCtx(p.target, [e]);
+      run(e, ctx, 1);
+      expect(e.unaware).toBe(true);
+      e.alertedBy(p.target.position, ctx);
+      expect(e.unaware).toBe(false);
+      e.dispose();
+      p.dispose();
+    });
   });
 });

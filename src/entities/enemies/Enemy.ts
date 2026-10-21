@@ -4,6 +4,7 @@ import type { NavGrid, NavPoint } from '../../systems/ai/NavGrid';
 import type { Structure } from '../../systems/building/BuildingSystem';
 import type { GameConfig } from '../../config';
 import { EnemyRig } from './EnemyRig';
+import { ENEMY_KINDS, type EnemyKind, type EnemyKindDef } from './EnemyKinds';
 import { clamp, damp } from '../../utils/math';
 
 export type EnemyState =
@@ -24,6 +25,8 @@ export interface PlayerTarget {
   eye: THREE.Vector3;
   collider: RAPIER.Collider;
   isDead: boolean;
+  /** Schleicht (geduckt, nicht rennend) – im Rücken erst ganz nah bemerkbar. */
+  stealthy: boolean;
   receiveHit(amount: number, from: THREE.Vector3): void;
 }
 
@@ -49,7 +52,6 @@ export interface EnemyContext {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-const ATTACK_TIME = 1.15;
 const STRIKE_AT = 0.6;
 const RADIUS = 0.32;
 const HEIGHT = 1.8;
@@ -62,6 +64,11 @@ const HEIGHT = 1.8;
  */
 export class Enemy {
   readonly rig: EnemyRig;
+  /** Typ (Schrat, Späher, Koloss) mit seinen Kampf- und Wahrnehmungswerten. */
+  readonly kind: EnemyKindDef;
+  private readonly walkSpeed: number;
+  private readonly runSpeed: number;
+  private readonly attackRange: number;
   state: EnemyState = 'idle';
   health: number;
   readonly maxHealth: number;
@@ -123,18 +130,24 @@ export class Enemy {
     private readonly cfg: GameConfig['ai'],
     readonly tone: number,
     scale: number,
+    kind: EnemyKind = 'schrat',
   ) {
-    this.rig = new EnemyRig(scale);
+    const def = (this.kind = ENEMY_KINDS[kind]);
+    this.rig = new EnemyRig(scale, def.club);
     this.home = home.clone();
-    this.maxHealth = this.health = cfg.health * scale;
+    // Lebenspunkte nach Typ; die kleine Größenvariation innerhalb des Typs wirkt mit.
+    this.maxHealth = this.health = cfg.health * def.health * (scale / def.scale);
+    this.walkSpeed = cfg.walkSpeed * def.speed;
+    this.runSpeed = cfg.runSpeed * def.speed;
+    this.attackRange = cfg.attackRange * def.attackRange;
 
     const world = physics.world;
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y + 0.05, spawn.z),
     );
     this.collider = world.createCollider(
-      RAPIER.ColliderDesc.capsule(HEIGHT / 2 - RADIUS, RADIUS)
-        .setTranslation(0, HEIGHT / 2, 0)
+      RAPIER.ColliderDesc.capsule(((HEIGHT / 2 - RADIUS) * scale), RADIUS * scale)
+        .setTranslation(0, (HEIGHT / 2) * scale, 0)
         .setCollisionGroups(this.groups),
       this.body,
     );
@@ -147,7 +160,7 @@ export class Enemy {
       this.body,
     );
     this.controller = world.createCharacterController(0.02);
-    this.controller.enableAutostep(0.45, 0.2, false);
+    this.controller.enableAutostep(0.45 * Math.max(1, scale), 0.2, false);
     this.controller.enableSnapToGround(0.5);
     this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(52));
     this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(58));
@@ -172,6 +185,11 @@ export class Enemy {
     return this.state === 'chase' || this.state === 'attack' || this.state === 'alert' || this.state === 'breach';
   }
 
+  /** Hat den Spieler (noch) nicht bemerkt → Schleichangriff möglich. */
+  get unaware(): boolean {
+    return !this.isDead && !this.isAggressive && this.state !== 'stagger' && this.state !== 'flee' && this.suspicion < 0.6;
+  }
+
   get forward(): THREE.Vector3 {
     return this.tmp2.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
   }
@@ -183,7 +201,7 @@ export class Enemy {
   /** Ein Geräusch wurde gehört (Sprinten, Holzhacken, Kampf …). */
   hear(position: THREE.Vector3, strength = 0.35): void {
     if (this.isDead || this.isAggressive) return;
-    this.suspicion = Math.min(1, this.suspicion + strength);
+    this.suspicion = Math.min(1, this.suspicion + strength * this.kind.hearing);
     this.investigateTarget.copy(position);
     if (this.state !== 'investigate') this.setState('investigate');
   }
@@ -217,12 +235,17 @@ export class Enemy {
       this.die();
       return true;
     }
-    // Rückstoß vom Spieler weg, Angriff wird unterbrochen.
-    this.knockback.subVectors(this.curr, from).setY(0).normalize().multiplyScalar(4);
     this.provokedUntil = ctx.time + 20;
     this.suspicion = 1;
     this.lastSeen.copy(ctx.player.position);
     this.lastSeenTime = ctx.time;
+    // Leichte Treffer bringen schwere Gegner nicht aus dem Tritt – sie greifen einfach weiter an.
+    if (amount < this.kind.staggerThreshold) {
+      if (!this.isAggressive) this.setState('chase');
+      return false;
+    }
+    // Rückstoß vom Spieler weg, Angriff wird unterbrochen.
+    this.knockback.subVectors(this.curr, from).setY(0).normalize().multiplyScalar(4 / this.rig.scale);
     this.setState('stagger');
     this.timer = 0.38;
     return false;
@@ -276,7 +299,7 @@ export class Enemy {
     const seen = this.canSee(ctx);
     if (seen) {
       const dist = this.curr.distanceTo(ctx.player.position);
-      const closeness = 1 - clamp(dist / ctx.sightRange, 0, 1);
+      const closeness = 1 - clamp(dist / (ctx.sightRange * this.kind.sight), 0, 1);
       // Weit entfernt baut sich Misstrauen langsam auf (Schleichen lohnt sich), nah sehr schnell.
       this.suspicion = Math.min(1, this.suspicion + interval * (0.45 + 2.6 * closeness * closeness));
       this.lastSeen.copy(ctx.player.position);
@@ -293,11 +316,12 @@ export class Enemy {
     const head = this.tmp.copy(this.curr).add(new THREE.Vector3(0, 1.65 * this.rig.scale, 0));
     const toPlayer = new THREE.Vector3().subVectors(player.eye, head);
     const dist = toPlayer.length();
-    if (dist > ctx.sightRange) return false;
+    if (dist > ctx.sightRange * this.kind.sight) return false;
     toPlayer.divideScalar(dist);
     const fov = Math.cos(THREE.MathUtils.degToRad(this.cfg.fieldOfViewDeg / 2));
     const facing = this.forward.dot(new THREE.Vector3(toPlayer.x, 0, toPlayer.z).normalize());
-    if (facing < fov && dist > 2.5) return false; // ganz nah wird man immer bemerkt
+    // Ganz nah wird man immer bemerkt – außer man schleicht sich von hinten an (Schleichangriff).
+    if (facing < fov && dist > (player.stealthy ? 1.2 : 2.5)) return false;
 
     // Sensoren ignorieren: der Strahl startet im eigenen Kopf-Hitbox-Sensor.
     const hit = this.physics.raycast(head, toPlayer, dist + 0.5, this.collider, true);
@@ -347,7 +371,7 @@ export class Enemy {
         break;
 
       case 'patrol':
-        if (this.moveTo(this.wanderTarget, this.cfg.walkSpeed, ctx)) {
+        if (this.moveTo(this.wanderTarget, this.walkSpeed, ctx)) {
           this.setState('idle');
           this.timer = 2 + Math.random() * 5;
         }
@@ -355,7 +379,7 @@ export class Enemy {
 
       case 'investigate':
         // Vorsichtig hingehen, dann umsehen.
-        if (this.moveTo(this.investigateTarget, 2.6, ctx) || this.pathFailed) {
+        if (this.moveTo(this.investigateTarget, 2.6 * this.kind.speed, ctx) || this.pathFailed) {
           if (this.timer <= 0) this.timer = 3.5;
           this.yaw += dt * 1.4 * Math.sin(ctx.time * 1.3);
           if (this.timer < 0.2) {
@@ -395,7 +419,7 @@ export class Enemy {
 
       case 'flee': {
         const away = this.tmp.subVectors(this.curr, player.position).setY(0).normalize().multiplyScalar(25).add(this.curr);
-        this.moveTo(away, this.cfg.runSpeed, ctx);
+        this.moveTo(away, this.runSpeed, ctx);
         if (this.timer <= 0) this.setState('chase');
         break;
       }
@@ -444,31 +468,31 @@ export class Enemy {
     const dist = this.curr.distanceTo(player.position);
 
     // Nachts halten Schrate Abstand zu brennenden Feuern – außer sie wurden provoziert.
-    const fire = ctx.isNight && ctx.time > this.provokedUntil ? ctx.fireNear(player.position, 5.5) : null;
+    const fire = this.kind.fearsFire && ctx.isNight && ctx.time > this.provokedUntil ? ctx.fireNear(player.position, 5.5) : null;
     if (fire) {
       const fromFire = this.curr.distanceTo(fire);
       if (fromFire < 8) {
         const away = this.tmp.subVectors(this.curr, fire).setY(0).normalize().multiplyScalar(10).add(fire);
-        this.moveTo(away, this.cfg.walkSpeed * 1.5, ctx);
+        this.moveTo(away, this.walkSpeed * 1.5, ctx);
       }
       this.faceTarget = player.position;
       return;
     }
 
-    if (seen && dist < this.cfg.attackRange) {
+    if (seen && dist < this.attackRange) {
       this.setState('attack');
       this.attackTime = 0;
       this.struck = false;
       ctx.sound('enemyAttack', this.curr);
       return;
     }
-    this.moveTo(target, this.cfg.runSpeed, ctx);
+    this.moveTo(target, this.runSpeed, ctx);
   }
 
   private updateAttack(dt: number, ctx: EnemyContext): void {
     const player = ctx.player;
     this.attackTime += dt;
-    const u = this.attackTime / ATTACK_TIME;
+    const u = this.attackTime / this.kind.attackTime;
     this.rig.anim.attack = u;
     // Während des Ausholens zum Spieler drehen – danach ist die Richtung festgelegt (ausweichbar!).
     if (u < STRIKE_AT - 0.08) this.faceTarget = player.position;
@@ -478,13 +502,19 @@ export class Enemy {
       const to = this.tmp.subVectors(player.position, this.curr).setY(0);
       const dist = to.length();
       const angle = this.forward.angleTo(to.normalize());
-      if (dist < this.cfg.attackRange + 0.65 && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
-        player.receiveHit(this.cfg.attackDamage * (0.85 + Math.random() * 0.3), this.curr);
+      if (dist < this.attackRange + 0.65 * this.rig.scale && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
+        player.receiveHit(this.cfg.attackDamage * this.kind.damage * (0.85 + Math.random() * 0.3), this.curr);
       }
     }
     if (u >= 1) {
       this.rig.anim.attack = -1;
-      this.setState('chase');
+      if (this.kind.hitAndRun) {
+        // Späher: nach dem Hieb kurz Abstand gewinnen, dann erneut zustoßen.
+        this.setState('flee');
+        this.timer = 1.6 + Math.random() * 0.8;
+      } else {
+        this.setState('chase');
+      }
     }
   }
 
@@ -499,11 +529,11 @@ export class Enemy {
     }
     this.faceTarget = s.position;
     this.attackTime += dt;
-    const u = this.attackTime / ATTACK_TIME;
+    const u = this.attackTime / this.kind.attackTime;
     this.rig.anim.attack = u;
     if (!this.struck && u >= STRIKE_AT) {
       this.struck = true;
-      ctx.damageStructure(s, 20, this.tmp.copy(this.curr).addScaledVector(this.forward, 0.8).setY(this.curr.y + 1));
+      ctx.damageStructure(s, this.kind.structureDamage, this.tmp.copy(this.curr).addScaledVector(this.forward, 0.8).setY(this.curr.y + 1));
     }
     if (u >= 1) {
       this.attackTime = 0;

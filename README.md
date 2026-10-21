@@ -52,6 +52,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 11 – Gegnertypen & Schleichangriffe
+
+- **Drei Gegnertypen** (Werte in `EnemyKinds.ts` als Faktoren auf `CONFIG.ai`):
+
+  | Typ | Merkmale |
+  | --- | --- |
+  | **Schrat** | der Standardgegner mit Keule |
+  | **Späher** | klein und flink (×1,28 Tempo), halb so viele Lebenspunkte, ohne Keule; sieht und hört weiter, sein Warnschrei alarmiert im doppelten Umkreis; greift an und weicht danach zurück |
+  | **Koloss** | ×1,4 Größe, ×2,6 Leben, ×2,2 Schaden, aber langsam und mit lang ausgeholtem, gut ausweichbarem Hieb; taumelt nur bei schweren Treffern, fürchtet kein Feuer und reißt Bauwerke dreimal so schnell ein |
+
+- **Lagerbesetzung:** jedes Lager hat einen Späher, jedes zweite zusätzlich einen Koloss; Gefallene werden durch
+  denselben Typ ersetzt. Kollisionskapsel, Kopf-Hitbox und Stufenhöhe skalieren mit der Größe.
+- **Schleichangriffe:** Treffer gegen Gegner, die den Spieler nicht bemerkt haben, richten dreifachen Schaden an
+  (auch mit dem Wurfspeer, Kopftreffer kommen noch hinzu). Ein lautloser Kill lockt kaum jemanden an.
+  Geduckt kann man sich von hinten bis auf etwa 1,2 m heranschleichen, aufrecht wird man schon auf 2,5 m bemerkt.
+- Die Lebensanzeige zeigt den Namen des Gegners; der Typ wird im Spielstand gespeichert.
+
 ### Meilenstein 10 – Böden, Treppen & Tore
 
 - **Holzboden (2,2 × 2,2 m):** Plattform auf Pfählen, die Dielen liegen knapp über dem höchsten Geländepunkt.
@@ -278,7 +295,8 @@ src/
 │   │   ├── Animal.ts       Wildtier: Character Controller, Flucht-KI, Tod/Leiche (getestet)
 │   │   └── AnimalRig.ts    Vierbeiner-Skelett (Hirsch, Hase) + Geometrien
 │   ├── enemies/
-│   │   ├── Enemy.ts        Schrat: Character Controller, Wahrnehmung, Zustandsautomat
+│   │   ├── Enemy.ts        Gegner: Character Controller, Wahrnehmung, Zustandsautomat
+│   │   ├── EnemyKinds.ts   Gegnertypen (Schrat, Späher, Koloss) und Schleichangriff-Faktor
 │   │   ├── EnemyRig.ts     Prozedurales Skelett + Animation, Körperteil-Geometrien
 │   │   └── EnemyRenderer.ts  Alle Gegner als InstancedMeshes (ein Draw Call pro Körperteil)
 │   └── items/
@@ -352,4 +370,4 @@ src/
 9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
 10. ~~Wetter, Regen, Nässe, Wasserschale~~ ✓
 11. ~~Böden, Treppen & Tore~~ ✓
-12. Als Nächstes: unterschiedliche Gegnertypen, Schleichangriffe
+12. ~~Gegnertypen & Schleichangriffe~~ ✓

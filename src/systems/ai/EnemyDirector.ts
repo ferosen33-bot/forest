@@ -7,6 +7,7 @@ import type { Vegetation } from '../../world/Vegetation';
 import { isTree } from '../../world/Vegetation';
 import type { Player } from '../../entities/Player';
 import { Enemy, type EnemyContext, type PlayerTarget } from '../../entities/enemies/Enemy';
+import { ENEMY_KINDS, isEnemyKind, SNEAK_MULTIPLIER, type EnemyKind } from '../../entities/enemies/EnemyKinds';
 import { EnemyRenderer } from '../../entities/enemies/EnemyRenderer';
 import { FireEffect } from '../../entities/FireEffect';
 import type { BuildingSystem } from '../building/BuildingSystem';
@@ -24,6 +25,8 @@ export type HitZone = 'head' | 'body';
 
 export interface EnemySave {
   camp: number;
+  /** Seit Meilenstein 11 (fehlt in älteren Ständen → Schrat). */
+  kind?: EnemyKind;
   p: [number, number, number];
   health: number;
   tone: number;
@@ -35,6 +38,8 @@ interface Camp {
   fire: FireEffect;
   light: LightRequest;
   members: Set<Enemy>;
+  /** Soll-Besetzung (Typen); Gefallene werden durch denselben Typ ersetzt. */
+  roster: EnemyKind[];
   respawnTimer: number;
 }
 
@@ -59,7 +64,6 @@ export interface DirectorDeps {
 }
 
 const MAX_ENEMIES = 24;
-const ALERT_RADIUS = 25;
 
 /**
  * Regie über alle Schrate: Lager, Spawns, Wahrnehmungs-Kontext, Geräusche,
@@ -118,6 +122,9 @@ export class EnemyDirector {
       get isDead() {
         return player.stats.isDead;
       },
+      get stealthy() {
+        return player.crouching && !player.sprinting;
+      },
       receiveHit: (amount, from) => {
         player.receiveHit(amount, from);
         d.audio.play('hurt');
@@ -139,7 +146,8 @@ export class EnemyDirector {
       damageStructure: (s, amount, point) => d.building.damage(s, amount, point, new THREE.Vector3(0, 1, 0), false),
       alertAllies: (source) => {
         for (const e of this.enemies) {
-          if (e !== source && e.feet.distanceTo(source.feet) < ALERT_RADIUS) e.alertedBy(player.position, this.ctx);
+          // Der Warnschrei eines Spähers trägt doppelt so weit.
+        if (e !== source && e.feet.distanceTo(source.feet) < source.kind.alertRadius) e.alertedBy(player.position, this.ctx);
         }
       },
       others: this.enemies,
@@ -216,13 +224,32 @@ export class EnemyDirector {
       fire,
       light: { position: center.clone().add(new THREE.Vector3(0, 0.8, 0)), color: new THREE.Color(0xff7a30), intensity: 0, distance: 28 },
       members: new Set(),
+      roster: this.rosterFor(this.camps.length),
       respawnTimer: 0,
     };
     this.camps.push(camp);
     for (let i = 0; i < this.cfg.perCamp; i++) this.spawnAt(camp);
   }
 
-  private spawnAt(camp: Camp): Enemy | null {
+  /** Gemischte Besetzung: jedes Lager hat einen Späher, jedes zweite einen Koloss. */
+  private rosterFor(index: number): EnemyKind[] {
+    const base: EnemyKind[] = index % 2 === 1 ? ['koloss', 'spaeher'] : ['spaeher'];
+    while (base.length < this.cfg.perCamp) base.push('schrat');
+    return base.slice(0, this.cfg.perCamp);
+  }
+
+  /** Typ, der in der Lagerbesetzung gerade fehlt. */
+  private missingKind(camp: Camp): EnemyKind {
+    const present = [...camp.members].filter((m) => !m.isDead).map((m) => m.kind.kind);
+    for (const k of camp.roster) {
+      const i = present.indexOf(k);
+      if (i < 0) return k;
+      present.splice(i, 1);
+    }
+    return 'schrat';
+  }
+
+  private spawnAt(camp: Camp, kind = this.missingKind(camp)): Enemy | null {
     if (this.enemies.length >= MAX_ENEMIES) return null;
     for (let i = 0; i < 10; i++) {
       const a = this.rng() * Math.PI * 2;
@@ -238,7 +265,8 @@ export class EnemyDirector {
         camp.center,
         this.cfg,
         Math.floor(this.rng() * 4),
-        0.92 + this.rng() * 0.16,
+        ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16),
+        kind,
       );
       this.enemies.push(enemy);
       camp.members.add(enemy);
@@ -262,13 +290,25 @@ export class EnemyDirector {
     if (enemy.isDead) return;
     const headshot = zone === 'head';
     const wasAggressive = enemy.isAggressive;
-    const killed = enemy.takeDamage(amount * (headshot ? this.cfg.headshotMultiplier : 1), from, this.ctx);
+    // Schleichangriff: wer den Spieler nicht bemerkt hat, trifft es dreifach – und leise.
+    const sneak = enemy.unaware;
+    const total = amount * (headshot ? this.cfg.headshotMultiplier : 1) * (sneak ? SNEAK_MULTIPLIER : 1);
+    const killed = enemy.takeDamage(total, from, this.ctx);
 
     this.d.particles.burst(point, { count: headshot ? 16 : 10, color: 0x5c0f10, direction: normal, speed: 3, size: 0.035 });
     this.d.audio.play('fleshHit');
     this.d.events.emit('tool:hit', { target: 'creature' });
-    this.d.events.emit('enemy:hit', { health: Math.max(0, enemy.health), maxHealth: enemy.maxHealth, killed, headshot });
-    this.propagateNoise(point, 15, 0.6);
+    this.d.events.emit('enemy:hit', {
+      health: Math.max(0, enemy.health),
+      maxHealth: enemy.maxHealth,
+      killed,
+      headshot,
+      sneak,
+      name: enemy.kind.name,
+    });
+    if (sneak) this.d.events.emit('hud:message', { text: killed ? `Lautlos ausgeschaltet: ${enemy.kind.name}` : 'Schleichangriff! (×3)' });
+    // Ein lautloser Kill ist kaum zu hören; sonst lockt der Kampflärm die Umgebung an.
+    this.propagateNoise(point, sneak && killed ? 5 : 15, 0.6);
 
     if (killed) {
       this.byCollider.delete(enemy.collider.handle);
@@ -320,7 +360,7 @@ export class EnemyDirector {
     this.updateCamps(dt);
 
     // LOD, Leichen, Darstellung
-    const visible: { rig: Enemy['rig']; tone: number }[] = [];
+    const visible: { rig: Enemy['rig']; tone: number; kind: EnemyKind }[] = [];
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       const dist = e.feet.distanceTo(player.position);
@@ -336,7 +376,7 @@ export class EnemyDirector {
           this.stepCounts.set(e, e.rig.steps);
           if (dist < 35) this.onEnemyStep?.(e.position, e.rig.anim.speed);
         }
-        visible.push({ rig: e.rig, tone: e.tone });
+        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind });
       }
     }
     this.renderer.render(visible);
@@ -354,7 +394,7 @@ export class EnemyDirector {
       // Gefallene Mitglieder werden ersetzt, wenn der Spieler weit genug weg ist.
       for (const m of camp.members) if (!this.enemies.includes(m)) camp.members.delete(m);
       const alive = [...camp.members].filter((m) => !m.isDead).length;
-      if (alive < this.cfg.perCamp) {
+      if (alive < camp.roster.length) {
         camp.respawnTimer += dt;
         if (camp.respawnTimer > this.cfg.respawnTime && dist > 90) {
           camp.respawnTimer = 0;
@@ -413,7 +453,7 @@ export class EnemyDirector {
       if (e.isDead) continue;
       const camp = this.camps.findIndex((c) => c.members.has(e));
       const f = e.feet;
-      out.push({ camp, p: [f.x, f.y, f.z], health: e.health, tone: e.tone, scale: e.rig.scale });
+      out.push({ camp, kind: e.kind.kind, p: [f.x, f.y, f.z], health: e.health, tone: e.tone, scale: e.rig.scale });
     }
     return out;
   }
@@ -425,7 +465,8 @@ export class EnemyDirector {
     for (const d of list) {
       const camp = this.camps[d.camp];
       if (!camp || this.enemies.length >= MAX_ENEMIES) continue;
-      const enemy = new Enemy(this.nextId++, this.d.physics, new THREE.Vector3(...d.p), camp.center, this.cfg, d.tone, d.scale);
+      const kind = isEnemyKind(d.kind) ? d.kind : 'schrat';
+      const enemy = new Enemy(this.nextId++, this.d.physics, new THREE.Vector3(...d.p), camp.center, this.cfg, d.tone, d.scale, kind);
       enemy.health = Math.min(enemy.maxHealth, d.health);
       this.enemies.push(enemy);
       camp.members.add(enemy);

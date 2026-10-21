@@ -153,7 +153,8 @@ export class EnemyRig {
   /** Körperbau-Variation pro Gegner. */
   readonly scale: number;
 
-  constructor(scale = 1) {
+  /** @param club Trägt eine Keule (Späher kämpfen mit bloßen Klauen). */
+  constructor(scale = 1, club = true) {
     this.scale = scale;
     const link = (parent: THREE.Object3D, child: THREE.Object3D, x: number, y: number, z: number) => {
       child.position.set(x, y, z);
@@ -187,8 +188,8 @@ export class EnemyRig {
       { type: 'thigh', bone: this.hipR },
       { type: 'shin', bone: this.kneeL },
       { type: 'shin', bone: this.kneeR },
-      { type: 'club', bone: this.hand },
     );
+    if (club) this.parts.push({ type: 'club', bone: this.hand });
   }
 
   /** Weltposition der Kopfmitte (für Sichtlinien). */
