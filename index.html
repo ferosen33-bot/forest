@@ -31,6 +31,7 @@
 
       <div class="clock" data-ref="clock"></div>
       <canvas class="compass" data-ref="compass"></canvas>
+      <div class="objectives" data-ref="objectives"></div>
 
       <div class="stats">
         <div class="stat stat--health"><span class="stat__icon">❤</span><div class="stat__bar"><div class="stat__fill" data-ref="health"></div></div></div>
@@ -100,6 +101,16 @@
       </div>
     </div>
 
+    <!-- Tagebuch (J) -->
+    <div id="journal" class="hidden">
+      <div class="journal__book">
+        <h2 class="journal__title">Tagebuch</h2>
+        <p class="journal__summary" data-ref="journalSummary"></p>
+        <div class="journal__pages" data-ref="journalPages"></div>
+        <p class="map__hint"><kbd>J</kbd> Tagebuch schließen</p>
+      </div>
+    </div>
+
     <!-- Menü-Overlay: Laden, Start, Pause, Tod -->
     <div id="menu">
       <div class="menu__panel" data-ref="mainPanel">
@@ -124,6 +135,7 @@
           <div><kbd>Tab</kbd>/<kbd>I</kbd> Inventar</div>
           <div><kbd>B</kbd> Herstellen &amp; Bauen</div>
           <div><kbd>M</kbd> Karte</div>
+          <div><kbd>J</kbd> Tagebuch &amp; Ziele</div>
           <div><kbd>Rechtsklick</kbd> Blocken / Speer anlegen</div>
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>

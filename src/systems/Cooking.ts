@@ -133,7 +133,10 @@ export class Cooking {
       spit.pieces[i] = null;
       n++;
     });
-    if (n > 0) this.items.give('cookedMeat', n, this.tmp.copy(s.position).setY(s.position.y + 0.7));
+    if (n > 0) {
+      this.items.give('cookedMeat', n, this.tmp.copy(s.position).setY(s.position.y + 0.7));
+      this.events.emit('food:cooked', { count: n });
+    }
     if (spit.pieces.every((p) => p === null)) this.removeSpit(spit);
     return n;
   }

@@ -7,6 +7,7 @@ import type { EnemySave } from './ai/EnemyDirector';
 import type { AnimalSave } from './AnimalDirector';
 import type { CookingSave } from './Cooking';
 import type { WeatherSave } from './Weather';
+import type { JournalSave } from './Journal';
 
 /** Erhöhen, wenn sich das Format inkompatibel ändert (ältere Stände werden dann verworfen). */
 export const SAVE_VERSION = 1;
@@ -47,6 +48,8 @@ export interface SaveData {
   /** Seit Meilenstein 15: erkundete Kartenzellen (Base64-Bitfeld) und entdeckte Lager. */
   explored?: string;
   camps?: number[];
+  /** Seit Meilenstein 17: Fortschritt im Tagebuch. */
+  journal?: JournalSave;
 }
 
 /** Kurzinfo für das Startmenü. */

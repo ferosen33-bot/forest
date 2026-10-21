@@ -35,6 +35,8 @@ import { SettingsUI } from '../ui/SettingsUI';
 import { Exploration } from '../systems/Exploration';
 import { MapUI } from '../ui/MapUI';
 import { Compass } from '../ui/Compass';
+import { CHAPTERS, Journal } from '../systems/Journal';
+import { JournalUI } from '../ui/JournalUI';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -132,6 +134,8 @@ export class Game {
   exploration!: Exploration;
   private mapUI!: MapUI;
   private compass!: Compass;
+  journal!: Journal;
+  private journalUI!: JournalUI;
   /** Indizes der Lager, die der Spieler schon gesehen hat (Karte). */
   private readonly discoveredCamps = new Set<number>();
   private exploreTimer = 0;
@@ -378,6 +382,16 @@ export class Game {
       () => this.tools.selected,
       this.crafting,
     );
+    this.journal = new Journal(this.events);
+    this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal);
+    this.events.on('journal:completed', ({ text, chapterDone }) => {
+      this.audio.play('craft', 0.7);
+      this.events.emit('hud:message', { text: `✔ Ziel erreicht: ${text}` });
+      if (chapterDone) {
+        const next = CHAPTERS[this.journal.currentChapter];
+        this.events.emit('hud:message', { text: next ? `Neues Kapitel im Tagebuch (J): ${next.title}` : 'Alle Ziele im Tagebuch erreicht!' });
+      }
+    });
     this.exploration = new Exploration(cfg.world.size);
     this.mapUI = new MapUI(document.getElementById('map')!, this.world.heightMap, this.world.vegetation, this.exploration);
     this.compass = new Compass(this.hud.compassCanvas);
@@ -455,6 +469,7 @@ export class Game {
       weather: this.climate.weather.serialize(),
       explored: this.exploration.serialize(),
       camps: [...this.discoveredCamps],
+      journal: this.journal.serialize(),
     };
   }
 
@@ -485,6 +500,7 @@ export class Game {
     s.wetness = Math.max(0, Math.min(1, p.wetness ?? 0));
     if (d.weather) this.climate.weather.load(d.weather);
     if (typeof d.explored === 'string') this.exploration.load(d.explored);
+    if (d.journal) this.journal.load(d.journal);
     for (const c of d.camps ?? []) if (Number.isInteger(c) && this.enemies.camps[c]) this.discoveredCamps.add(c);
     this.respawnPoint.set(...p.respawn);
     this.tools.select(Math.max(0, Math.min(this.inventory.hotbarSize - 1, p.selected | 0)));
@@ -573,6 +589,7 @@ export class Game {
   private pause(): void {
     this.mode = 'paused';
     this.mapUI.hide();
+    this.journalUI.hide();
     this.saveNow();
     this.menu.showPaused(this.lastSaved);
   }
@@ -654,6 +671,7 @@ export class Game {
       s.health = Math.min(s.max, s.health + 25);
       this.hud.faded = false;
       this.events.emit('hud:message', { text: 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.' });
+      this.events.emit('player:slept', {});
       this.saveNow();
     }
   }
@@ -733,7 +751,14 @@ export class Game {
       this.updateSettings({ ...this.settings, postProcessing: !this.postFX.enabled });
       this.events.emit('hud:message', { text: `Nachbearbeitung ${this.postFX.enabled ? 'an' : 'aus'}` });
     }
-    if (this.mode === 'playing' && this.input.wasPressed('map')) this.mapUI.toggle();
+    if (this.mode === 'playing' && this.input.wasPressed('map')) {
+      this.journalUI.hide();
+      this.mapUI.toggle();
+    }
+    if (this.mode === 'playing' && this.input.wasPressed('journal')) {
+      this.mapUI.hide();
+      this.journalUI.toggle();
+    }
     const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
     if (this.mode === 'playing' && toggleInventory && this.sleepTimer <= 0) {
       this.building.cancel();
@@ -842,8 +867,10 @@ export class Game {
     this.footsteps.updatePlayer(dt, player);
   }
 
-  /** Erkundung, Kompass und (falls offen) Karte. */
+  /** Erkundung, Kompass, Ziele und (falls offen) Karte. */
   private updateNavigation(dt: number): void {
+    this.journal.setDay(this.dayNight.day);
+    this.journalUI.update();
     const p = this.player.position;
     this.exploreTimer -= dt;
     if (this.exploreTimer <= 0) {
@@ -853,6 +880,7 @@ export class Game {
         if (!this.discoveredCamps.has(i) && c.center.distanceTo(p) < 60) {
           this.discoveredCamps.add(i);
           this.events.emit('hud:message', { text: 'Ein Schrat-Lager – auf der Karte (M) markiert.' });
+          this.events.emit('camp:discovered', { index: i });
         }
       });
     }

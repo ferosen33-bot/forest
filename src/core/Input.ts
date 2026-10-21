@@ -37,6 +37,8 @@ export const KEY_BINDINGS = {
   timeWarp: ['KeyT'],
   /** Inselkarte ein/aus. */
   map: ['KeyM'],
+  /** Tagebuch ein/aus. */
+  journal: ['KeyJ'],
   /** Debug: nächste Wetterlage (nur mit sichtbarer Debug-Anzeige). */
   weather: ['KeyY'],
 } as const satisfies Record<string, readonly string[]>;

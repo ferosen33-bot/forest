@@ -25,6 +25,7 @@ const REFS = [
   'wet',
   'wetRow',
   'compass',
+  'objectives',
   'toasts',
   'hotbar',
   'hotbarName',
@@ -69,6 +70,11 @@ interface Toast {
  */
 export class HUD {
   private readonly el: Record<RefName, HTMLElement>;
+
+  /** Liste der aktuellen Ziele. */
+  get objectivesElement(): HTMLElement {
+    return this.el.objectives;
+  }
 
   /** Canvas des Kompassbands. */
   get compassCanvas(): HTMLCanvasElement {

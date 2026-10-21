@@ -39,6 +39,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
 | `M`                 | Inselkarte ein/aus                    |
+| `J`                 | Tagebuch & Ziele                      |
 | `R` / Mausrad       | Bauvorschau drehen                    |
 | Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bogen: zielen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
@@ -52,6 +53,19 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 17 – Tagebuch & Ziele
+
+- **Vier Kapitel mit 21 Zielen** als roter Faden: *Gestrandet* (Stöcke, Steine, trinken, essen, Lagerfeuer) →
+  *Ein Dach über dem Kopf* (Bäume fällen, Steinaxt, Unterstand, schlafen, Wände) → *Jäger und Sammler* (Speer, Tier
+  erlegen, Fleisch braten, Bogen, Hirsche) → *Die Schrate* (Lager entdecken, Schrate besiegen, lautloser Kill,
+  Fellmantel, Koloss, zehn Tage überleben).
+- Der Fortschritt kommt allein aus Spielereignissen (`item:collected`, `structure:placed`, `enemy:hit` …, neu:
+  `animal:killed`, `player:slept`, `camp:discovered`, `food:cooked`); Ziele späterer Kapitel zählen schon mit.
+- **Zielanzeiger** im HUD (unter der Uhr): aktuelles Kapitel und die nächsten offenen Ziele mit Zählern.
+  Erreichte Ziele und neue Kapitel werden gemeldet.
+- **Tagebuch** (`J`): alle Kapitel mit Einleitung, Haken und Fortschritt; spätere Kapitel zeigen nur ihren Titel.
+  Der Fortschritt wird gespeichert. Die Definitionen liegen in `systems/Journal.ts` (reine Logik, getestet).
 
 ### Meilenstein 16 – Felle, Ausrüstung & Schlingfallen
 
@@ -390,6 +404,7 @@ src/
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
 │   ├── Settings.ts         Einstellungen, Grafikstufen, Speicherung (getestet)
 │   ├── Exploration.ts      Erkundete Kartenzellen (getestet)
+│   ├── Journal.ts          Tagebuch: Kapitel, Ziele, Fortschritt über Ereignisse (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -405,6 +420,7 @@ src/
 │   ├── SettingsUI.ts       Einstellungsformular (Ton, Steuerung, Grafik)
 │   ├── MapUI.ts            Inselkarte mit Schummerung, Nebel und Markierungen
 │   ├── Compass.ts          Kompassband im HUD
+│   ├── JournalUI.ts        Tagebuch-Fenster und Zielanzeiger
 │   ├── slots.ts / dom.ts   Kleine DOM-Helfer
 └── utils/                  Mathe- und Zufallshelfer (deterministischer PRNG)
 ```
@@ -446,3 +462,4 @@ src/
 15. ~~Fernkampf der Späher (Steinwürfe)~~ ✓
 16. ~~Karte & Kompass~~ ✓
 17. ~~Felle, großer Rucksack, Fellmantel, Schlingfallen~~ ✓
+18. ~~Tagebuch & Ziele~~ ✓

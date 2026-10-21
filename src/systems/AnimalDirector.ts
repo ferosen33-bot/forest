@@ -217,6 +217,7 @@ export class AnimalDirector {
       this.byCollider.delete(animal.collider.handle);
       this.byCollider.set(animal.corpse!.handle, animal);
       this.d.events.emit('hud:message', { text: `${animal.name} erlegt.` });
+      this.d.events.emit('animal:killed', { species: animal.species });
     }
     // Die Herde flieht mit.
     if (animal.species === 'deer') this.ctx.warnHerd(animal, from);
@@ -315,6 +316,7 @@ export class AnimalDirector {
           if (a.corpse) this.byCollider.set(a.corpse.handle, a);
           s.armed = false;
           this.d.onSnared(s);
+          this.d.events.emit('animal:killed', { species: 'rabbit' });
           break;
         }
         // Köder: etwa alle 6 s mit etwas Glück zur Falle hin (nur Hasen im Umkreis von 45 m).
