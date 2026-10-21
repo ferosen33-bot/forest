@@ -27,6 +27,8 @@ export interface EnemyKindDef {
   hitAndRun: boolean;
   /** Trägt eine Keule. */
   club: boolean;
+  /** Fernangriff: Steine werfen, wenn der Spieler in diesem Abstand sichtbar ist. */
+  ranged?: { minRange: number; maxRange: number; cooldown: number; speed: number; damage: number };
   /** Hauttöne (sRGB) für die Variation innerhalb des Typs. */
   tones: number[];
 }
@@ -69,6 +71,7 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     fearsFire: true,
     hitAndRun: true,
     club: false,
+    ranged: { minRange: 6, maxRange: 20, cooldown: 3.5, speed: 19, damage: 8 },
     tones: [0xa08a68, 0x947f61, 0xa99372],
   },
   // Groß, langsam und zäh – schlägt hart zu, fürchtet kein Feuer und reißt Bauwerke ein.

@@ -5,6 +5,7 @@ import type { Structure } from '../../systems/building/BuildingSystem';
 import type { GameConfig } from '../../config';
 import { EnemyRig } from './EnemyRig';
 import { ENEMY_KINDS, type EnemyKind, type EnemyKindDef } from './EnemyKinds';
+import { aimBallistic } from '../../utils/ballistics';
 import { clamp, damp } from '../../utils/math';
 
 export type EnemyState =
@@ -17,6 +18,7 @@ export type EnemyState =
   | 'stagger'
   | 'flee'
   | 'breach'
+  | 'throw'
   | 'dead';
 
 /** Was ein Gegner über den Spieler wissen darf. */
@@ -27,6 +29,8 @@ export interface PlayerTarget {
   isDead: boolean;
   /** Schleicht (geduckt, nicht rennend) – im Rücken erst ganz nah bemerkbar. */
   stealthy: boolean;
+  /** Bewegung (für vorausschauendes Zielen beim Steinwurf). */
+  velocity: THREE.Vector3;
   receiveHit(amount: number, from: THREE.Vector3): void;
 }
 
@@ -49,7 +53,13 @@ export interface EnemyContext {
   /** Globales Budget: darf in diesem Takt noch ein Pfad geplant werden? */
   allowPathPlan(): boolean;
   sound(id: 'growl' | 'scream' | 'enemyAttack', position: THREE.Vector3): void;
+  /** Feuert ein feindliches Wurfgeschoss ab. */
+  throwStone(origin: THREE.Vector3, velocity: THREE.Vector3, damage: number): void;
 }
+
+/** Dauer eines Wurfs (Ausholen bis Ausschwingen) und Zeitpunkt des Loslassens. */
+const THROW_TIME = 0.95;
+const RELEASE_AT = 0.55;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const STRIKE_AT = 0.6;
@@ -94,6 +104,7 @@ export class Enemy {
   private fled = false;
   private breachTarget: Structure | null = null;
   private trapCooldown = 0;
+  private throwCooldown = 1 + Math.random() * 2;
   private growlTimer = 3 + Math.random() * 8;
   private senseTimer = Math.random() * 0.15;
 
@@ -182,7 +193,9 @@ export class Enemy {
   }
 
   get isAggressive(): boolean {
-    return this.state === 'chase' || this.state === 'attack' || this.state === 'alert' || this.state === 'breach';
+    return (
+      this.state === 'chase' || this.state === 'attack' || this.state === 'alert' || this.state === 'breach' || this.state === 'throw'
+    );
   }
 
   /** Hat den Spieler (noch) nicht bemerkt → Schleichangriff möglich. */
@@ -344,6 +357,7 @@ export class Enemy {
     this.desiredSpeed = 0;
     this.faceTarget = null;
     this.trapCooldown -= dt;
+    this.throwCooldown -= dt;
     this.timer -= dt;
     this.rig.anim.alert = damp(this.rig.anim.alert, this.state === 'alert' ? 1 : 0, 10, dt);
 
@@ -427,6 +441,10 @@ export class Enemy {
       case 'breach':
         this.updateBreach(dt, ctx);
         break;
+
+      case 'throw':
+        this.updateThrow(dt, ctx);
+        break;
     }
   }
 
@@ -479,6 +497,14 @@ export class Enemy {
       return;
     }
 
+    // Fernkampf: aus mittlerer Distanz Steine werfen, statt heranzustürmen.
+    const ranged = this.kind.ranged;
+    if (ranged && seen && this.throwCooldown <= 0 && dist >= ranged.minRange && dist <= ranged.maxRange) {
+      this.setState('throw');
+      this.attackTime = 0;
+      this.struck = false;
+      return;
+    }
     if (seen && dist < this.attackRange) {
       this.setState('attack');
       this.attackTime = 0;
@@ -515,6 +541,34 @@ export class Enemy {
       } else {
         this.setState('chase');
       }
+    }
+  }
+
+  /** Steinwurf: ausholen (Richtung wird nachgeführt), loslassen, ausschwingen. */
+  private updateThrow(dt: number, ctx: EnemyContext): void {
+    const ranged = this.kind.ranged!;
+    const player = ctx.player;
+    this.attackTime += dt;
+    const u = this.attackTime / THROW_TIME;
+    this.rig.anim.attack = u;
+    if (u < RELEASE_AT) this.faceTarget = player.position;
+    if (!this.struck && u >= RELEASE_AT) {
+      this.struck = true;
+      const origin = this.tmp.copy(this.curr).addScaledVector(this.forward, 0.35);
+      origin.y += 1.55 * this.rig.scale;
+      // Vorhalt: dorthin zielen, wo der Spieler bei Ankunft des Steins sein wird – mit etwas Streuung.
+      const flight = origin.distanceTo(player.position) / ranged.speed;
+      const target = player.position.clone().addScaledVector(player.velocity, flight * 0.8);
+      target.y += 1.1;
+      target.x += (Math.random() - 0.5) * 1.2;
+      target.z += (Math.random() - 0.5) * 1.2;
+      const v = aimBallistic(origin, target, ranged.speed);
+      if (v) ctx.throwStone(origin.clone(), v, ranged.damage);
+    }
+    if (u >= 1) {
+      this.rig.anim.attack = -1;
+      this.throwCooldown = ranged.cooldown * (0.8 + Math.random() * 0.4);
+      this.setState('chase');
     }
   }
 

@@ -52,6 +52,17 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 14 – Fernkampf der Späher
+
+- **Steinwürfe:** Sieht ein Späher den Spieler in 6–20 m Entfernung, holt er aus und wirft einen Stein (8 Schaden,
+  alle ~3,5 s). Er zielt ballistisch (flache Lösung der Wurfparabel, `utils/ballistics.ts`) mit Vorhalt auf die
+  Laufrichtung und etwas Streuung – seitliches Ausweichen lohnt sich. Die Richtung wird nur während des Ausholens
+  nachgeführt, danach ist der Wurf festgelegt.
+- **Abwehr:** Blocken fängt auch Steine ab (≈ 80 % weniger Schaden). Steine sind sichtbar unterwegs, prallen ab und
+  bleiben als aufhebbare Steine liegen.
+- **Feindliche Geschosse** nutzen dasselbe System wie Speer und Pfeil: Segment-Raycast pro Physik-Takt, der Spieler ist
+  Ziel statt ausgenommen, Gegner und Tiere werden durchflogen (kein Eigenbeschuss).
+
 ### Meilenstein 13 – Bogen & Lagerkiste
 
 - **Bogen** (1 Stamm + 2 Stöcke) und **Pfeile** (2 Stöcke + 1 Stein → 4 Pfeile): Linksklick gedrückt halten spannt
@@ -406,3 +417,4 @@ src/
 12. ~~Gegnertypen & Schleichangriffe~~ ✓
 13. ~~Einstellungen (Ton, Steuerung, Grafikstufen)~~ ✓
 14. ~~Bogen & Pfeile, Lagerkiste~~ ✓
+15. ~~Fernkampf der Späher (Steinwürfe)~~ ✓

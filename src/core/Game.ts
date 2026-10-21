@@ -291,8 +291,13 @@ export class Game {
       thrower: () => this.player.collisionShape,
       waterLevel: this.world.heightMap.waterLevel,
       groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
+      hitPlayer: (damage, from) => {
+        this.player.receiveHit(damage, from);
+        this.audio.play('hurt');
+      },
     });
     this.scene.add(this.projectiles.group);
+    this.enemies.onThrow = (origin, velocity, damage) => this.projectiles.launch('stone', undefined, damage, origin, velocity, true);
     this.interaction = new InteractionSystem({
       physics: this.physics,
       camera: this.camera,

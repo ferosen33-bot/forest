@@ -9,6 +9,7 @@ import type { AnimalDirector } from './AnimalDirector';
 import type { BuildingSystem, Structure } from './building/BuildingSystem';
 import type { Audio } from './Audio';
 import type { Particles } from './Particles';
+import { PROJECTILE_GRAVITY } from '../utils/ballistics';
 
 interface Projectile {
   itemId: ItemId;
@@ -19,6 +20,8 @@ interface Projectile {
   readonly prev: THREE.Vector3;
   mesh: THREE.Object3D;
   age: number;
+  /** Von Gegnern geworfen: trifft den Spieler, fliegt durch Gegner und Tiere. */
+  hostile: boolean;
 }
 
 export interface ProjectileDeps {
@@ -35,12 +38,13 @@ export interface ProjectileDeps {
   waterLevel: number;
   /** Bodenhöhe (gleiche Interpolation wie die Kollision) – Absicherung gegen verfehlte Terrain-Strahlen. */
   groundAt: (x: number, z: number) => number;
+  /** Treffer eines feindlichen Geschosses am Spieler (Blocken wird dort berücksichtigt). */
+  hitPlayer: (damage: number, from: THREE.Vector3) => void;
 }
 
-/** Etwas weniger als echte Schwerkraft: Würfe sollen sich gut anfühlen, nicht realistisch abfallen. */
-const GRAVITY = 9.81 * 0.6;
+const GRAVITY = PROJECTILE_GRAVITY;
 /** Abstand Mittelpunkt → Spitze je Geschoss (Speer 1,5 m, Pfeil 0,7 m). */
-const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38 };
+const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38, stone: 0.08 };
 const tipOf = (id: ItemId) => TIP[id] ?? 0.4;
 const UP = new THREE.Vector3(0, 1, 0);
 /** Abnutzung des Speers pro Treffer. */
@@ -68,7 +72,14 @@ export class Projectiles {
     return this.active.length;
   }
 
-  launch(itemId: ItemId, durability: number | undefined, damage: number, origin: THREE.Vector3, velocity: THREE.Vector3): void {
+  launch(
+    itemId: ItemId,
+    durability: number | undefined,
+    damage: number,
+    origin: THREE.Vector3,
+    velocity: THREE.Vector3,
+    hostile = false,
+  ): void {
     const mesh = createItemMesh(itemId);
     mesh.position.copy(origin);
     this.group.add(mesh);
@@ -81,8 +92,9 @@ export class Projectiles {
       velocity: velocity.clone(),
       mesh,
       age: 0,
+      hostile,
     });
-    this.d.audio.play('throw');
+    if (itemId !== 'arrow') this.d.audio.play('throw', hostile ? { volume: 0.8, position: origin } : 1);
   }
 
   fixedUpdate(dt: number): void {
@@ -114,11 +126,29 @@ export class Projectiles {
     let remaining = step;
     // Sensoren von Pflanzen/Stöcken überspringen, Kopf-Sensoren der Schrate aber treffen.
     for (let guard = 0; guard < 4 && remaining > 0; guard++) {
-      const hit = this.d.physics.raycast(origin, this.dir, remaining, this.d.thrower());
+      const player = this.d.thrower();
+      const hit = this.d.physics.raycast(origin, this.dir, remaining, p.hostile ? undefined : player);
       if (!hit) return this.groundCheck(p, origin, remaining);
       const point = new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
       this.normal.set(hit.normal.x, hit.normal.y, hit.normal.z);
       const c = hit.collider;
+      if (p.hostile && c.handle === player.handle) {
+        this.d.hitPlayer(p.damage, p.prev);
+        this.d.audio.play('fleshHit', 0.8);
+        this.bounce(p, point);
+        return true;
+      }
+      // Feindliche Würfe fliegen durch Gegner und Tiere hindurch (kein Eigenbeschuss).
+      const passThrough = p.hostile && (this.d.enemies.getHitTarget(c) || this.d.animals.getByCollider(c));
+      if (passThrough || c.isSensor() || this.d.worldItems.getByCollider(c)) {
+        // Weiter hinter dem Sensor/Item suchen.
+        const advance = hit.distance + 0.05;
+        origin.x += this.dir.x * advance;
+        origin.y += this.dir.y * advance;
+        origin.z += this.dir.z * advance;
+        remaining -= advance;
+        continue;
+      }
       const enemy = this.d.enemies.getHitTarget(c);
       if (enemy) {
         this.d.enemies.damage(enemy.enemy, p.damage, enemy.zone, p.prev, point, this.normal);
@@ -130,15 +160,6 @@ export class Projectiles {
         this.d.animals.damage(animal, p.damage, p.prev, point, this.normal);
         this.bounce(p, point);
         return true;
-      }
-      if (c.isSensor() || this.d.worldItems.getByCollider(c)) {
-        // Weiter hinter dem Sensor/Item suchen.
-        const advance = hit.distance + 0.05;
-        origin.x += this.dir.x * advance;
-        origin.y += this.dir.y * advance;
-        origin.z += this.dir.z * advance;
-        remaining -= advance;
-        continue;
       }
       this.stick(p, point, this.d.building.getByCollider(c) ?? null);
       return true;
@@ -176,9 +197,11 @@ export class Projectiles {
     if (structure) this.d.building.damage(structure, 3, point, this.normal, true);
     this.d.audio.play(structure ? 'chop' : 'stoneHit', { volume: 0.6, position: point });
     this.d.particles.burst(point, { count: 5, color: 0x6b5a45, direction: this.normal, speed: 1.5, size: 0.025 });
-    this.d.events.emit('noise', { position: point, radius: 12 });
+    if (!p.hostile) this.d.events.emit('noise', { position: point, radius: 12 });
     p.position.copy(point).addScaledVector(this.dir, -tipOf(p.itemId) + 0.12);
-    this.drop(p, true);
+    // Steine prallen ab und bleiben liegen, statt stecken zu bleiben.
+    if (p.itemId === 'stone') p.velocity.reflect(this.normal).multiplyScalar(0.25);
+    this.drop(p, p.itemId !== 'stone');
   }
 
   /** Treffer an Lebewesen: Speer fällt herab, nutzt sich ab. */

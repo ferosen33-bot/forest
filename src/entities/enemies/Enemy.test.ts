@@ -7,6 +7,7 @@ import { CONFIG } from '../../config';
 import { Enemy, type EnemyContext, type PlayerTarget } from './Enemy';
 import { mulberry32 } from '../../utils/random';
 import { ENEMY_KINDS, type EnemyKind } from './EnemyKinds';
+import { PROJECTILE_GRAVITY } from '../../utils/ballistics';
 
 const DT = 1 / 60;
 
@@ -56,10 +57,13 @@ describe('Enemy (KI)', () => {
       collider,
       isDead: false,
       stealthy: false,
+      velocity: new THREE.Vector3(),
       receiveHit: (amount) => hits.push(amount),
     };
     return { target, hits, dispose: () => w.physics.world.removeCollider(collider, false) };
   }
+
+  const throws: { origin: THREE.Vector3; velocity: THREE.Vector3; damage: number }[] = [];
 
   function makeCtx(player: PlayerTarget, others: Enemy[]): EnemyContext {
     return {
@@ -76,6 +80,7 @@ describe('Enemy (KI)', () => {
       others,
       allowPathPlan: () => true,
       sound: () => {},
+      throwStone: (origin, velocity, damage) => throws.push({ origin, velocity, damage }),
     };
   }
 
@@ -232,6 +237,29 @@ describe('Enemy (KI)', () => {
       e.alertedBy(p.target.position, ctx);
       expect(e.unaware).toBe(false);
       e.dispose();
+      p.dispose();
+    });
+    it('Späher wirft aus mittlerer Distanz Steine, die den Spieler erreichen', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 12)));
+      const s = spawnKind('spaeher');
+      const ctx = makeCtx(p.target, [s]);
+      throws.length = 0;
+      s.alertedBy(p.target.position, ctx);
+      expect(run(s, ctx, 6, () => throws.length > 0)).toBe(true);
+      const t = throws[0];
+      expect(t.damage).toBe(ENEMY_KINDS.spaeher.ranged!.damage);
+      // Flugbahn nachrechnen: kommt nahe am Spieler (Brusthöhe) vorbei.
+      const pos = t.origin.clone();
+      const v = t.velocity.clone();
+      let closest = Infinity;
+      const chest = p.target.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+      for (let i = 0; i < 200; i++) {
+        v.y -= PROJECTILE_GRAVITY / 60;
+        pos.addScaledVector(v, 1 / 60);
+        closest = Math.min(closest, pos.distanceTo(chest));
+      }
+      expect(closest).toBeLessThan(1.2);
+      s.dispose();
       p.dispose();
     });
   });

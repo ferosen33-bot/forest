@@ -82,6 +82,8 @@ export class EnemyDirector {
   private readonly rng: () => number;
   private nextId = 1;
   private readonly stepCounts = new WeakMap<Enemy, number>();
+  /** Feindliche Würfe (vom Spiel an das Geschoss-System angebunden). */
+  onThrow: ((origin: THREE.Vector3, velocity: THREE.Vector3, damage: number) => void) | null = null;
   /** Wird bei jedem Schritt eines Gegners in Hörweite aufgerufen. */
   onEnemyStep: ((position: THREE.Vector3, speed: number) => void) | null = null;
   private noiseTimer = 0;
@@ -125,6 +127,9 @@ export class EnemyDirector {
       get stealthy() {
         return player.crouching && !player.sprinting;
       },
+      get velocity() {
+        return player.velocity;
+      },
       receiveHit: (amount, from) => {
         player.receiveHit(amount, from);
         d.audio.play('hurt');
@@ -153,6 +158,7 @@ export class EnemyDirector {
       others: this.enemies,
       allowPathPlan: () => this.pathPlansThisTick++ < 2,
       sound: (id, pos) => this.playAt(id, pos),
+      throwStone: (origin, velocity, damage) => this.onThrow?.(origin, velocity, damage),
     };
 
     this.createCamps();
