@@ -280,7 +280,7 @@ export class HarvestSystem {
         // Aufschlag: stark dämpfen, damit der Stamm liegen bleibt statt sich zu überschlagen.
         f.body.setAngularDamping(4);
         f.body.setLinearDamping(1.5);
-        this.audio.play('treeFall');
+        this.audio.play('treeFall', { position: f.object.position });
         this.events.emit('noise', { position: f.object.position.clone(), radius: 45 });
         this.events.emit('tree:landed', { position: f.object.position.clone() });
       } else if (f.landedFor >= 0) {

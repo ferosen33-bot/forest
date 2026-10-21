@@ -360,12 +360,14 @@ export class BuildingSystem {
     if (!s.lit) this.particles.burst(s.position.clone().add(new THREE.Vector3(0, 0.3, 0)), { count: 10, color: 0x444040, speed: 1.2, size: 0.06, gravity: -1, life: 1.4 });
   }
 
-  /** Schaden durch Werkzeuge; bei 0 wird das Bauwerk abgerissen und gibt die Hälfte des Materials zurück. */
-  /** @param byPlayer false bei Angriffen von Gegnern (kein Treffer-Feedback im HUD). */
+  /**
+   * Schaden durch Werkzeuge; bei 0 wird das Bauwerk abgerissen und gibt die Hälfte des Materials zurück.
+   * @param byPlayer false bei Angriffen von Gegnern (kein Treffer-Feedback im HUD).
+   */
   damage(s: Structure, amount: number, point: THREE.Vector3, normal: THREE.Vector3, byPlayer = true): void {
     s.health -= amount;
     s.shake = 0.3;
-    this.audio.play('chop');
+    this.audio.play('chop', byPlayer ? 1 : { position: point });
     this.particles.burst(point, { count: 8, color: 0xa88158, direction: normal, speed: 3, size: 0.03 });
     if (byPlayer) this.events.emit('tool:hit', { target: 'other' });
     if (s.health <= 0) this.demolish(s);
@@ -430,9 +432,9 @@ export class BuildingSystem {
       }
       // Knistern, leiser mit der Entfernung
       s.crackleTimer -= dt;
-      if (s.crackleTimer <= 0 && dist < 14) {
+      if (s.crackleTimer <= 0 && dist < 25) {
         s.crackleTimer = 0.08 + Math.random() * 0.5;
-        this.audio.play('crackle', (1 - dist / 14) * 0.8);
+        this.audio.play('crackle', { volume: 0.8, position: s.position });
       }
     }
   }

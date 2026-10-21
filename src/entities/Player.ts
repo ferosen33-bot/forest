@@ -343,6 +343,7 @@ export class Player {
         this.stats.damage((impact - cfg.fallDamageSpeed) * cfg.fallDamagePerMs, 'fall');
       }
       this.landDipVel -= Math.min(impact * 0.12, 1.4);
+      if (impact > 4) this.events.emit('player:landed', { impact });
     }
 
     if (!this.swimming) {

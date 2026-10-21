@@ -10,6 +10,8 @@ export type GameEvents = {
   /** `from`: Position des Angreifers (für die Richtungsanzeige). */
   'player:damaged': { amount: number; source: DamageSource; from?: Vector3 };
   'player:blocked': { amount: number };
+  /** Landung nach einem Sprung/Fall (Aufprallgeschwindigkeit in m/s). */
+  'player:landed': { impact: number };
   'player:died': { cause: DamageSource };
   'player:respawned': Record<string, never>;
   'player:drank': { amount: number };

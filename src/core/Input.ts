@@ -31,6 +31,8 @@ export const KEY_BINDINGS = {
   /** Im Pointer Lock fängt der Browser Esc selbst ab; hier nur für offene Fenster (Inventar). */
   cancel: ['Escape'],
   debug: ['F3'],
+  /** Nachbearbeitung an/aus. */
+  postfx: ['F4'],
   /** Debug: Zeitraffer, solange gehalten (nur mit sichtbarer Debug-Anzeige). */
   timeWarp: ['KeyT'],
 } as const satisfies Record<string, readonly string[]>;
@@ -144,7 +146,7 @@ export class Input {
 
   private handleKeyDown = (e: KeyboardEvent): void => {
     // Browser-Shortcuts unterdrücken, die das Spiel stören (Tab-Fokus, Space-Scroll, Strg+S ...).
-    if (this._locked || e.code === 'Tab' || e.code === 'F3') e.preventDefault();
+    if (this._locked || e.code === 'Tab' || e.code === 'F3' || e.code === 'F4') e.preventDefault();
     if (!e.repeat) this.pressed.add(e.code);
     this.down.add(e.code);
   };

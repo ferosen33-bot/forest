@@ -67,6 +67,9 @@ export class EnemyDirector {
   private readonly cfg: GameConfig['ai'];
   private readonly rng: () => number;
   private nextId = 1;
+  private readonly stepCounts = new WeakMap<Enemy, number>();
+  /** Wird bei jedem Schritt eines Gegners in Hörweite aufgerufen. */
+  onEnemyStep: ((position: THREE.Vector3, speed: number) => void) | null = null;
   private noiseTimer = 0;
   /** A*-Anfragen im aktuellen Takt (Budget gegen Lastspitzen). */
   private pathPlansThisTick = 0;
@@ -307,6 +310,11 @@ export class EnemyDirector {
       }
       if (dist < 220) {
         e.updateVisual(dt, alpha, player.position);
+        // Schritte hörbar machen (nur in der Nähe – leise genug, um Schleichende zu verraten).
+        if (e.rig.steps !== (this.stepCounts.get(e) ?? 0)) {
+          this.stepCounts.set(e, e.rig.steps);
+          if (dist < 35) this.onEnemyStep?.(e.position, e.rig.anim.speed);
+        }
         visible.push({ rig: e.rig, tone: e.tone });
       }
     }
@@ -389,11 +397,10 @@ export class EnemyDirector {
     }
   }
 
-  /** Spielt einen Sound mit entfernungsabhängiger Lautstärke. */
+  /** Spielt einen Sound räumlich an der Kopfhöhe des Gegners (3D-Ortung über HRTF). */
   private playAt(id: SoundId, pos: THREE.Vector3): void {
-    const dist = pos.distanceTo(this.d.player.position);
-    const volume = Math.max(0, 1 - dist / 45);
-    this.d.audio.play(id, volume * volume);
+    if (pos.distanceTo(this.d.player.position) > 80) return;
+    this.d.audio.play(id, { position: this.tmp.copy(pos).add(new THREE.Vector3(0, 1.5, 0)) });
   }
 
   /** Aktuelle Sichtweite der Gegner auf den Spieler (m). */

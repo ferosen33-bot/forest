@@ -4,10 +4,12 @@ const flameGeometry = new THREE.ConeGeometry(1, 1, 7, 1, true);
 flameGeometry.translate(0, 0.5, 0);
 
 /** Additiv geblendete, unbeleuchtete Flammen (leuchten auch nachts). */
+/** HDR-Helligkeit der Flammen (> 1) – lässt sie im Bloom glühen. */
+const FLAME_BRIGHTNESS = 2.2;
 const FLAME_MATERIALS = [0xff5a14, 0xff9a2e, 0xffe08a].map(
   (color) =>
     new THREE.MeshBasicMaterial({
-      color,
+      color: new THREE.Color(color).multiplyScalar(FLAME_BRIGHTNESS),
       transparent: true,
       opacity: 0.85,
       blending: THREE.AdditiveBlending,

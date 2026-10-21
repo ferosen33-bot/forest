@@ -50,6 +50,8 @@ export class DayNightCycle {
   day = 1;
   /** Zeitraffer-Faktor (Debug). */
   timeScale = 1;
+  /** true, wenn in ein lineares HDR-Target gerendert wird (Post-Processing aktiv). */
+  linearOutput = false;
 
   private readonly sunDir = new THREE.Vector3();
   private readonly moonDir = new THREE.Vector3();
@@ -173,8 +175,10 @@ export class DayNightCycle {
     u.uSunVisible.value = smoothstep(-0.05, 0.02, e);
     u.uNight.value = 1 - smoothstep(-0.2, 0.05, e);
     u.uHorizonFog.value = 0.12 + morningMist * 0.12 + (underwater ? 1 : 0);
-    // Three.js mischt Nebel im Ausgabe-Farbraum (sRGB) – die Kuppel muss dasselbe tun.
-    u.uFogColor.value.copy(this.fog.color).convertLinearToSRGB();
+    // Three.js mischt Nebel im Farbraum des Render-Ziels: Bildschirm = sRGB, HDR-Target = linear.
+    // Die Kuppel muss dasselbe tun, sonst passt der Horizont nicht zum vernebelten Gelände.
+    u.uFogColor.value.copy(this.fog.color);
+    if (!this.linearOutput) u.uFogColor.value.convertLinearToSRGB();
     u.uTime.value = elapsed;
     this.sky.follow(focus);
 
@@ -209,6 +213,22 @@ export class DayNightCycle {
     this.light.target.position.copy(p);
     this.light.position.copy(p).addScaledVector(dir, 200);
     this.light.target.updateMatrixWorld();
+  }
+
+  /** Richtung zur aktuellen Lichtquelle (Sonne oder Mond). */
+  lightDirection(out: THREE.Vector3): THREE.Vector3 {
+    return out.subVectors(this.light.position, this.light.target.position).normalize();
+  }
+
+  /**
+   * Stärke der Lichtstrahlen: am kräftigsten bei tief stehender Sonne und Morgennebel,
+   * mittags schwächer, nachts nur ein Hauch Mondlicht.
+   */
+  get rayStrength(): number {
+    const e = this.sunDir.y;
+    const fog = THREE.MathUtils.clamp((this.fog.density - 0.0085) / 0.014, 0, 1);
+    if (e > -0.02) return 0.6 * smoothstep(-0.02, 0.1, e) * (1 - 0.55 * smoothstep(0.3, 0.9, e)) * (1 + 0.9 * fog);
+    return 0.1 * smoothstep(0.05, 0.3, -e);
   }
 
   /** Sonnenstand normalisiert in [0, 1] für UI-Zwecke. */

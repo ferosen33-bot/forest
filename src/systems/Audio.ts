@@ -2,6 +2,11 @@
  * Prozedurale Soundeffekte über die Web Audio API – ganz ohne Audiodateien.
  * Jeder Effekt wird aus Rauschen, Oszillatoren, Filtern und Hüllkurven synthetisiert.
  *
+ * Signalweg:  Effekte ─┐
+ *                      ├─► Master ─► Unterwasser-Tiefpass ─► Ausgang
+ *            Ambiente ─┘
+ * Effekte mit Position laufen über einen HRTF-Panner (3D-Ortung relativ zur Kamera).
+ *
  * Browser erlauben Audio erst nach einer Nutzerinteraktion: `resume()` beim Spielstart aufrufen.
  */
 export type SoundId =
@@ -24,15 +29,46 @@ export type SoundId =
   | 'fleshHit'
   | 'enemyDeath'
   | 'block'
-  | 'hurt';
+  | 'hurt'
+  | 'land'
+  | 'stepGrass'
+  | 'stepSand'
+  | 'stepRock'
+  | 'stepWood'
+  | 'stepWater';
+
+export interface PlayOptions {
+  volume?: number;
+  /** Weltposition der Quelle → räumlicher Klang. Ohne Position: direkt "im Kopf". */
+  position?: { x: number; y: number; z: number };
+}
 
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private noiseBuffer: AudioBuffer | null = null;
+  private sfx: GainNode | null = null;
+  private ambience: GainNode | null = null;
+  private underwaterFilter: BiquadFilterNode | null = null;
+  private noise1s: AudioBuffer | null = null;
   /** Ziel-Knoten des aktuellen `play()`-Aufrufs (trägt dessen Lautstärke). */
   private out: GainNode | null = null;
+  private underwater = false;
   volume = 0.6;
+
+  /** Laufender AudioContext (null, solange Audio noch nicht freigegeben ist). */
+  get context(): AudioContext | null {
+    return this.ctx && this.ctx.state === 'running' ? this.ctx : null;
+  }
+
+  /** Eingang für Hintergrundgeräusche (Wind, Brandung, Tiere). */
+  get ambienceBus(): GainNode | null {
+    return this.ambience;
+  }
+
+  /** 1 s weißes Rauschen – Rohmaterial für Effekte und Ambiente. */
+  get noiseBuffer(): AudioBuffer | null {
+    return this.noise1s;
+  }
 
   /** Startet bzw. reaktiviert den AudioContext (muss aus einer User-Geste kommen). */
   resume(): void {
@@ -42,26 +78,101 @@ export class Audio {
       } catch {
         return; // kein Audio verfügbar (z. B. Headless-Tests)
       }
-      this.master = this.ctx.createGain();
+      const ctx = this.ctx;
+      this.underwaterFilter = ctx.createBiquadFilter();
+      this.underwaterFilter.type = 'lowpass';
+      this.underwaterFilter.frequency.value = 20000;
+      this.underwaterFilter.connect(ctx.destination);
+      this.master = ctx.createGain();
       this.master.gain.value = this.volume;
-      this.master.connect(this.ctx.destination);
+      this.master.connect(this.underwaterFilter);
+      this.sfx = ctx.createGain();
+      this.sfx.connect(this.master);
+      this.ambience = ctx.createGain();
+      this.ambience.gain.value = 0.8;
+      this.ambience.connect(this.master);
       // 1 s weißes Rauschen als Rohmaterial für alle perkussiven Sounds.
-      this.noiseBuffer = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
-      const data = this.noiseBuffer.getChannelData(0);
+      this.noise1s = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const data = this.noise1s.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
-  /** @param volume Lautstärkefaktor dieses Aufrufs (z. B. nach Entfernung abgeschwächt). */
-  play(id: SoundId, volume = 1): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.master || ctx.state !== 'running' || volume <= 0.01) return;
+  /**
+   * Position und Blickrichtung des Hörers (Kamera) – jedes Frame setzen.
+   */
+  setListener(pos: { x: number; y: number; z: number }, forward: { x: number; y: number; z: number }): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const l = ctx.listener;
+    if (l.positionX) {
+      const t = ctx.currentTime;
+      l.positionX.setTargetAtTime(pos.x, t, 0.02);
+      l.positionY.setTargetAtTime(pos.y, t, 0.02);
+      l.positionZ.setTargetAtTime(pos.z, t, 0.02);
+      l.forwardX.setTargetAtTime(forward.x, t, 0.02);
+      l.forwardY.setTargetAtTime(forward.y, t, 0.02);
+      l.forwardZ.setTargetAtTime(forward.z, t, 0.02);
+      l.upX.value = 0;
+      l.upY.value = 1;
+      l.upZ.value = 0;
+    } else {
+      // Ältere Implementierungen (Firefox) kennen nur die Methoden-API.
+      l.setPosition(pos.x, pos.y, pos.z);
+      l.setOrientation(forward.x, forward.y, forward.z, 0, 1, 0);
+    }
+  }
+
+  /** Kopf unter Wasser: alles dumpf (Tiefpass auf dem Master). */
+  setUnderwater(on: boolean): void {
+    const ctx = this.context;
+    if (!ctx || !this.underwaterFilter || on === this.underwater) return;
+    this.underwater = on;
+    this.underwaterFilter.frequency.setTargetAtTime(on ? 550 : 20000, ctx.currentTime, 0.08);
+  }
+
+  /** Erzeugt einen räumlichen Ausgang an `pos` (für eigene Klänge, z. B. Vogelrufe). */
+  createSpatialOutput(pos: { x: number; y: number; z: number }, bus: 'sfx' | 'ambience' = 'sfx'): AudioNode | null {
+    const ctx = this.context;
+    const target = bus === 'sfx' ? this.sfx : this.ambience;
+    if (!ctx || !target) return null;
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 4;
+    panner.maxDistance = 120;
+    panner.rolloffFactor = 1.1;
+    panner.positionX.value = pos.x;
+    panner.positionY.value = pos.y;
+    panner.positionZ.value = pos.z;
+    panner.connect(target);
+    return panner;
+  }
+
+  /**
+   * Spielt einen Effekt.
+   * @param opts Lautstärkefaktor oder Optionen (Lautstärke, Weltposition für 3D-Klang).
+   */
+  play(id: SoundId, opts: number | PlayOptions = 1): void {
+    const ctx = this.context;
+    const volume = typeof opts === 'number' ? opts : (opts.volume ?? 1);
+    const position = typeof opts === 'number' ? undefined : opts.position;
+    if (!ctx || !this.sfx || volume <= 0.01) return;
     const t = ctx.currentTime;
     const pitch = 0.9 + Math.random() * 0.2;
     this.out = ctx.createGain();
     this.out.gain.value = volume;
-    this.out.connect(this.master);
+    const destination = position ? this.createSpatialOutput(position) : this.sfx;
+    this.out.connect(destination!);
+    if (position) {
+      // Längster Effekt ≈ 1,2 s – danach Knoten lösen, damit der Audio-Graph nicht wächst.
+      const out = this.out;
+      setTimeout(() => {
+        out.disconnect();
+        destination!.disconnect();
+      }, 2500);
+    }
 
     switch (id) {
       case 'chop':
@@ -141,6 +252,31 @@ export class Audio {
         this.tone(t, 'triangle', 220 * pitch, 140, 0.25, 0.4, 1500);
         this.noise(t, 0.15, 'lowpass', 600, 1, 0.6);
         break;
+      case 'land':
+        this.noise(t, 0.18, 'lowpass', 400, 0.8, 0.9);
+        this.tone(t, 'sine', 80, 45, 0.18, 0.6);
+        break;
+      // Schritte: kurze, gefilterte Rauschimpulse – Farbe und Länge je Untergrund.
+      case 'stepGrass':
+        this.noise(t, 0.09, 'bandpass', 2200 * pitch, 0.9, 0.35);
+        this.noise(t + 0.02, 0.06, 'lowpass', 500, 0.7, 0.25);
+        break;
+      case 'stepSand':
+        this.noise(t, 0.13, 'highpass', 2800 * pitch, 0.5, 0.22);
+        this.noise(t, 0.08, 'lowpass', 350, 0.7, 0.2);
+        break;
+      case 'stepRock':
+        this.noise(t, 0.035, 'bandpass', 3200 * pitch, 1.5, 0.4);
+        this.tone(t, 'triangle', 380 * pitch, 260, 0.04, 0.12);
+        break;
+      case 'stepWood':
+        this.tone(t, 'sine', 170 * pitch, 110, 0.09, 0.45);
+        this.noise(t, 0.05, 'bandpass', 900, 1.4, 0.3);
+        break;
+      case 'stepWater':
+        this.noise(t, 0.22, 'bandpass', 1300 * pitch, 0.7, 0.45, 600);
+        this.tone(t + 0.02, 'sine', 500 * pitch, 900, 0.06, 0.12);
+        break;
     }
   }
 
@@ -156,7 +292,7 @@ export class Audio {
   ): void {
     const ctx = this.ctx!;
     const src = ctx.createBufferSource();
-    src.buffer = this.noiseBuffer;
+    src.buffer = this.noise1s;
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
     const filter = ctx.createBiquadFilter();
     filter.type = type;

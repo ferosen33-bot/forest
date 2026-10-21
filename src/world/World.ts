@@ -3,6 +3,7 @@ import { HeightMap } from './HeightMap';
 import { Terrain } from './Terrain';
 import { Water } from './Water';
 import { Vegetation } from './Vegetation';
+import { Grass } from './Grass';
 import type { Physics } from '../core/Physics';
 import type { GameConfig } from '../config';
 
@@ -15,6 +16,7 @@ export class World {
   readonly terrain: Terrain;
   readonly water: Water;
   readonly vegetation: Vegetation;
+  readonly grass: Grass | null;
   readonly spawnPoint: THREE.Vector3;
 
   constructor(scene: THREE.Scene, physics: Physics, config: GameConfig) {
@@ -50,6 +52,10 @@ export class World {
     });
     scene.add(this.vegetation.group);
     const tVeg = performance.now() - t;
+
+    const g = config.graphics;
+    this.grass = g.grassRadius > 0 ? new Grass(this.heightMap, { seed, radius: g.grassRadius, spacing: g.grassSpacing }) : null;
+    if (this.grass) scene.add(this.grass.mesh);
 
     console.info(
       `[World] Höhenkarte ${tHeight.toFixed(0)} ms · Terrain ${tTerrain.toFixed(0)} ms · ` +
@@ -90,5 +96,6 @@ export class World {
     this.water.update(elapsed);
     this.water.follow(focus.x, focus.z);
     this.vegetation.update(dt, elapsed, focus);
+    this.grass?.update(elapsed, focus);
   }
 }

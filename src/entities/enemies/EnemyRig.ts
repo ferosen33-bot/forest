@@ -33,7 +33,7 @@ function merge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
 /** Hagerer Schädel: gestreckter, leicht verbeulter Ikosaeder mit Kiefer und Wangenknochen. */
 function skull(): THREE.BufferGeometry {
-  const head = jitter(new THREE.IcosahedronGeometry(0.13, 1), 0.012, 31).toNonIndexed();
+  const head = jitter(new THREE.IcosahedronGeometry(0.13, 1), 0.012, 31);
   head.scale(0.85, 1.12, 1.0);
   head.translate(0, 0.15, 0.01);
   const jaw = new THREE.CylinderGeometry(0.07, 0.04, 0.09, 6).toNonIndexed();
@@ -52,7 +52,7 @@ function torso(): THREE.BufferGeometry {
   shoulders.rotateZ(Math.PI / 2);
   shoulders.translate(0, 0.55, -0.01);
   // Leichter Buckel – gibt die lauernde Silhouette.
-  const hump = jitter(new THREE.IcosahedronGeometry(0.12, 0), 0.02, 41).toNonIndexed();
+  const hump = jitter(new THREE.IcosahedronGeometry(0.12, 0), 0.02, 41);
   hump.scale(1.4, 0.9, 0.8);
   hump.translate(0, 0.5, -0.07);
   return merge([chest, shoulders, hump]);
@@ -99,7 +99,7 @@ export const PART_GEOMETRY: Record<PartType, THREE.BufferGeometry> = {
     const g = new THREE.CylinderGeometry(0.06, 0.028, 0.75, 6).toNonIndexed();
     g.rotateX(Math.PI / 2);
     g.translate(0, -0.02, 0.3);
-    const knot = jitter(new THREE.IcosahedronGeometry(0.07, 0), 0.02, 53).toNonIndexed();
+    const knot = jitter(new THREE.IcosahedronGeometry(0.07, 0), 0.02, 53);
     knot.translate(0, -0.02, 0.66);
     return merge([g, knot]);
   })(),
@@ -145,6 +145,9 @@ export class EnemyRig {
   private readonly kneeL = new THREE.Object3D();
   private readonly kneeR = new THREE.Object3D();
   private phase = Math.random() * 10;
+  /** Zählt Fußaufsetzer (für Schrittgeräusche). */
+  steps = 0;
+  private lastStepIndex = 0;
   private time = Math.random() * 10;
   private hitDecay = 0;
   /** Körperbau-Variation pro Gegner. */
@@ -207,6 +210,11 @@ export class EnemyRig {
     const moving = smoothstep(0.05, 0.6, a.speed);
     this.phase += dt * (a.speed * 2.1 + 0.5 * moving);
     const swing = Math.sin(this.phase) * (0.35 + 0.5 * run) * moving;
+    const stepIndex = Math.floor(this.phase / Math.PI);
+    if (stepIndex !== this.lastStepIndex) {
+      this.lastStepIndex = stepIndex;
+      if (a.speed > 0.6 && a.death < 0) this.steps++;
+    }
 
     this.hipL.rotation.set(-swing, 0, 0);
     this.hipR.rotation.set(swing, 0, 0);

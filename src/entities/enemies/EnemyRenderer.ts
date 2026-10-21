@@ -10,7 +10,7 @@ const MATERIALS: Record<PartType, THREE.Material> = {
   thigh: skin,
   shin: skin,
   // Leuchtende Augen – nachts das Erste, was man von ihnen sieht.
-  eyes: new THREE.MeshBasicMaterial({ color: 0xffb070 }),
+  eyes: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb070).multiplyScalar(2.5) }),
   hips: new THREE.MeshStandardMaterial({ color: 0x3e3226, roughness: 1, flatShading: true }),
   club: new THREE.MeshStandardMaterial({ color: 0x4f3a26, roughness: 0.95, flatShading: true }),
 };

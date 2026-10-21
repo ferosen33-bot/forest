@@ -7,7 +7,8 @@ const BONE = new THREE.MeshStandardMaterial({ color: 0xd8cfbb, roughness: 0.8, f
 const STONE = new THREE.MeshStandardMaterial({ color: 0x6f6b64, roughness: 1, flatShading: true });
 
 const at = (g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0) => {
-  const out = g.clone().toNonIndexed();
+  // Ikosaeder sind bereits nicht-indiziert; nur indizierte Geometrien umwandeln.
+  const out = g.index ? g.toNonIndexed() : g.clone();
   out.rotateX(rx);
   out.rotateZ(rz);
   out.translate(x, y, z);

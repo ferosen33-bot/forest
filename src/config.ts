@@ -113,6 +113,11 @@ export const CONFIG = {
     viewDistance: 450,
     /** Vegetationszellen weiter weg liegen vollständig im Nebel und werden ausgeblendet. */
     vegetationDistance: 280,
+    /** GPU-Gras: Radius um den Spieler und Rasterabstand der Büschel (0 = aus). */
+    grassRadius: 36,
+    grassSpacing: 0.55,
+    /** Nachbearbeitung (Lichtstrahlen, Bloom, Vignette). Abschaltbar mit F4 oder ?nopost. */
+    postProcessing: true,
   },
 };
 

@@ -8,10 +8,15 @@ import { RAPIER } from './core/Physics';
  * URL-Parameter (praktisch beim Entwickeln):
  *   ?seed=123     andere Insel generieren
  *   ?autostart    ohne Menü und Pointer Lock starten (Screenshots, Tests)
+ *   ?nopost       ohne Nachbearbeitung (Lichtstrahlen, Bloom) – für schwache Grafikkarten
  */
 const params = new URLSearchParams(window.location.search);
 const seedParam = Number(params.get('seed'));
-const config = Number.isFinite(seedParam) && params.has('seed') ? { ...CONFIG, seed: seedParam } : CONFIG;
+const config = {
+  ...CONFIG,
+  seed: Number.isFinite(seedParam) && params.has('seed') ? seedParam : CONFIG.seed,
+  graphics: { ...CONFIG.graphics, postProcessing: CONFIG.graphics.postProcessing && !params.has('nopost') },
+};
 
 const byId = (id: string) => {
   const el = document.getElementById(id);

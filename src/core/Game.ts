@@ -25,6 +25,9 @@ import { Crafting, recipeName, type Recipe } from '../systems/Crafting';
 import { BuildingSystem, type Structure } from '../systems/building/BuildingSystem';
 import { LightPool, type LightRequest } from '../systems/LightPool';
 import { EnemyDirector } from '../systems/ai/EnemyDirector';
+import { Ambience } from '../systems/Ambience';
+import { Footsteps } from '../systems/Footsteps';
+import { PostFX } from '../systems/PostFX';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -69,6 +72,7 @@ export class Game {
   readonly embers = new Particles(250, true);
   readonly viewModel = new ViewModel();
   readonly inventory = new Inventory(30, 6);
+  readonly postFX: PostFX;
   readonly crafting = new Crafting(this.inventory);
 
   physics!: Physics;
@@ -83,6 +87,8 @@ export class Game {
   building!: BuildingSystem;
   lights!: LightPool;
   enemies!: EnemyDirector;
+  ambience!: Ambience;
+  footsteps!: Footsteps;
   hud!: HUD;
   inventoryUI!: InventoryUI;
 
@@ -109,7 +115,8 @@ export class Game {
     this.config = opts.config ?? CONFIG;
     const g = this.config.graphics;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // Mit Nachbearbeitung übernimmt das HDR-Render-Target das Multisampling.
+    this.renderer = new THREE.WebGLRenderer({ antialias: !g.postProcessing, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, g.maxPixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -120,6 +127,8 @@ export class Game {
     // Zwei Render-Durchgänge pro Frame (Welt + ViewModel) → Statistik manuell zurücksetzen.
     this.renderer.info.autoReset = false;
     opts.container.appendChild(this.renderer.domElement);
+    this.postFX = new PostFX(this.renderer);
+    this.postFX.enabled = g.postProcessing;
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(this.config.player.fov, aspect, 0.1, g.viewDistance);
@@ -155,6 +164,7 @@ export class Game {
       shadowMapSize: cfg.graphics.shadowMapSize,
       shadowRange: cfg.graphics.shadowRange,
     });
+    this.dayNight.linearOutput = this.postFX.enabled;
 
     this.player = new Player(this.physics, this.camera, this.input, this.world.heightMap, this.events, cfg);
     this.player.spawn(this.world.spawnPoint, this.spawnYaw());
@@ -207,6 +217,9 @@ export class Game {
       isPlayerLit: () => !!(this.tools.equipped && getItem(this.tools.equipped.id).light),
     });
     this.scene.add(this.enemies.group);
+    this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
+    this.footsteps = new Footsteps(this.audio, this.world.heightMap, this.physics, this.building, this.events);
+    this.enemies.onEnemyStep = (pos, speed) => this.footsteps.enemyStep(pos, speed);
     console.info(
       `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
     );
@@ -437,6 +450,11 @@ export class Game {
     if (dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
     if (this.input.wasPressed('debug')) this.hud.toggleDebug();
+    if (this.input.wasPressed('postfx')) {
+      this.postFX.enabled = !this.postFX.enabled;
+      this.dayNight.linearOutput = this.postFX.enabled;
+      this.events.emit('hud:message', { text: `Nachbearbeitung ${this.postFX.enabled ? 'an' : 'aus'}` });
+    }
     const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
     if (this.mode === 'playing' && toggleInventory && this.sleepTimer <= 0) {
       this.building.cancel();
@@ -517,6 +535,17 @@ export class Game {
       this.lights.request(this.torchLight);
     }
     this.lights.update(this.camera.position);
+
+    // Audio: Hörer = Kamera, Unterwasser dumpf, Kulisse und Schritte.
+    this.camera.getWorldDirection(this.tmpDir);
+    this.audio.setListener(this.camera.position, this.tmpDir);
+    this.audio.setUnderwater(player.headUnderwater);
+    this.ambience.update(dt, {
+      listener: this.camera.position,
+      daylight: this.dayNight.daylight,
+      underwater: player.headUnderwater,
+    });
+    this.footsteps.updatePlayer(dt, player);
   }
 
   /** Baumodus: Drehen, Ghost nachführen, Bauen (Linksklick) und Abbrechen (Rechtsklick/Schnellzugriff). */
@@ -553,7 +582,17 @@ export class Game {
 
   private render(): void {
     this.renderer.info.reset();
-    this.renderer.render(this.scene, this.camera);
+    if (this.postFX.enabled) {
+      this.postFX.render(this.renderer, this.scene, this.camera, {
+        lightDir: this.dayNight.lightDirection(this.tmpDir),
+        lightColor: this.dayNight.light.color,
+        rays: this.dayNight.rayStrength,
+        bloom: this.dayNight.daylight > 0.5 ? 0.45 : 0.8,
+        underwater: this.player.headUnderwater,
+      });
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
     // ViewModel in eigenem Durchgang über die Welt legen (Tiefenpuffer geleert).
     if (this.viewModel.visible && this.mode !== 'dead') {
       this.renderer.autoClear = false;
@@ -589,5 +628,7 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.viewModel.setAspect(aspect);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.postFX.setSize(size.x, size.y);
   };
 }
