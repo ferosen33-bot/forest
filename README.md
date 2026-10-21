@@ -19,6 +19,7 @@ URL-Parameter für die Entwicklung:
 | ------------- | ------------------------------------------------------- |
 | `?seed=42`    | Andere Insel generieren (Standard-Seed: `1337`)         |
 | `?autostart`  | Ohne Menü und Pointer Lock starten (Screenshots/Tests)  |
+| `?nopost`     | Ohne Nachbearbeitung (für schwächere Grafikkarten)      |
 
 Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
@@ -39,6 +40,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `R` / Mausrad       | Bauvorschau drehen                    |
 | Rechtsklick         | Blocken (mit Waffe) / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
+| `F4`                | Nachbearbeitung an/aus                |
 | `T` (mit F3)        | Zeitraffer                            |
 | `Esc`               | Pause                                 |
 
@@ -47,6 +49,24 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 5 – Atmosphäre: Audio & Effekte
+
+- **3D-Audio:** Effekte mit Position laufen über HRTF-Panner. Man hört, aus welcher Richtung ein Schrat knurrt oder
+  ein Baum fällt (je höher der Ton, desto klarer die Ortung). Unter Wasser klingt alles dumpf (Tiefpass auf dem Master).
+- **Kulisse** (prozedural, ohne Audiodateien): böiger Wind (stärker in der Höhe und im Offenen, im Wald gedämpft),
+  Brandung bzw. Plätschern je nach Wassernähe (Meer lauter als See), Vogelrufe am Tag (häufiger im Wald),
+  Grillen und Eulen in der Nacht, Unterwasser-Rauschen.
+- **Schritte je Untergrund:** Gras, Sand, Fels, Holz (auf Bauwerken) und Wasser – synchron zum Head-Bob,
+  leiser beim Schleichen, Schwimmzüge, Landegeräusch. Auch die Schrate sind räumlich zu hören, wenn sie sich nähern.
+- **Gras:** ~14 000 Büschel komplett auf der GPU. Der Vertex-Shader liest Bodenhöhe (gleiche Dreiecks-Interpolation
+  wie die Kollision) und Dichte aus Texturen; dazu Wind, Wegbiegen um den Spieler und Ausblenden am Rand.
+  Ein Draw Call, keine CPU-Arbeit pro Frame.
+- **Nachbearbeitung** (HDR-Render-Target mit MSAA):
+  - Lichtstrahlen (Sonne bzw. Mond) durch Bäume, am stärksten bei tiefer Sonne und Morgennebel
+  - Bloom für Feuer, Fackel, Sonne und die Augen der Schrate
+  - Vignette, ACES-Tone-Mapping am Ende
+  - Abschaltbar mit `F4` bzw. `?nopost`. Beim Umschalten werden die Shader einmalig neu kompiliert (kurzer Ruckler).
 
 ### Meilenstein 4 – Gegner-KI & Kampf
 
@@ -146,6 +166,7 @@ src/
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
 │   ├── VegetationGeometry.ts  Low-Poly-Geometrien für Bäume/Büsche/Felsen
 │   ├── SkyDome.ts          Himmels-Shader (Gradient, Sonne, Mond, Sterne)
+│   ├── Grass.ts            GPU-Gras (Höhe/Dichte aus Texturen, Wind, Wegbiegen)
 │   └── World.ts            Bündelt alles, sucht den Spawnpunkt
 ├── entities/
 │   ├── Player.ts           First-Person-Controller
@@ -170,7 +191,10 @@ src/
 │   ├── Crafting.ts         Rezepte + Materialverbrauch (reine Logik, getestet)
 │   ├── LightPool.ts        Fester Pool an Punktlichtern für Feuer & Fackel
 │   ├── Particles.ts        Gepooltes Partikelsystem (Späne; leuchtend für Glut)
-│   ├── Audio.ts            Prozedurale Soundeffekte (Web Audio)
+│   ├── Audio.ts            Prozedurale Soundeffekte, Busse, 3D-Panner, Unterwasser-Filter
+│   ├── Ambience.ts         Wind, Brandung, Vögel, Grillen, Eulen
+│   ├── Footsteps.ts        Schritte je Untergrund (Spieler & Schrate)
+│   ├── PostFX.ts           Lichtstrahlen, Bloom, Vignette, Tone Mapping
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -207,7 +231,7 @@ src/
 4. ~~Bausystem~~ ✓
 5. ~~Kampf~~ ✓
 6. ~~Gegner-KI~~ ✓
-7. **Audio & Effekte:** Ambient-Sounds, Schritte je Untergrund, God-Rays (Post-Processing), Gras (Basis-SFX sind bereits da)
+7. ~~Audio & Effekte~~ ✓ (später noch: Wetter/Regen, Lautstärke-Einstellungen, Grafik-Qualitätsstufen)
 8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
 9. **Ausbau KI & Kampf:** Speer werfen, Tiere (Jagd, Fleisch), unterschiedliche Gegnertypen, Schleichangriffe
 10. **Ausbau Survival:** Haltbarkeit von Werkzeugen/Fackeln, Kochen am Feuer, Wasserbehälter, weitere Bauteile (Böden, Tore)
