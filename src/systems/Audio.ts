@@ -39,7 +39,9 @@ export type SoundId =
   | 'hoof'
   | 'deerAlarm'
   | 'throw'
-  | 'sizzle';
+  | 'sizzle'
+  | 'thunder'
+  | 'thunderNear';
 
 export interface PlayOptions {
   volume?: number;
@@ -299,7 +301,22 @@ export class Audio {
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
         break;
+      // Donner: langes, tiefes Grollen; nah zusätzlich ein trockener Knall.
+      case 'thunderNear':
+        this.noise(t, 0.35, 'highpass', 900, 0.5, 0.9);
+        this.noise(t + 0.05, 1.2, 'lowpass', 1200, 0.6, 0.7, 200);
+        this.rumble(t, pitch);
+        break;
+      case 'thunder':
+        this.rumble(t, pitch);
+        break;
     }
+  }
+
+  /** Grollen des Donners (zwei überlagerte, tiefe Rauschwellen). */
+  private rumble(t: number, pitch: number): void {
+    this.noise(t, 5, 'lowpass', 260 * pitch, 0.8, 0.9, 60);
+    this.noise(t + 0.4 + Math.random() * 0.5, 3.2, 'lowpass', 160 * pitch, 0.9, 0.7, 50);
   }
 
   /** Gefiltertes Rauschen mit exponentiellem Abklingen (optional mit Filter-Sweep). */

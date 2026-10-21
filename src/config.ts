@@ -72,6 +72,12 @@ export const CONFIG = {
     /** Ab dieser Sättigung/Hydration regeneriert sich Gesundheit. */
     regenNeedsThreshold: 55,
     drinkAmount: 25,
+    /** Gesundheitsverlust pro Sekunde bei Unterkühlung. */
+    coldDamage: 0.12,
+    /** Sekunden im Regen bis klatschnass bzw. am Feuer / an der Luft bis trocken. */
+    wetTime: 45,
+    dryTimeFire: 20,
+    dryTimeAir: 260,
   },
 
   ai: {

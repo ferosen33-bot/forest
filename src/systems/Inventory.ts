@@ -137,6 +137,24 @@ export class Inventory {
    * Verschleißt das Item in einem Slot.
    * @returns true, wenn es dabei zerbrochen bzw. abgebrannt ist (Slot ist danach leer).
    */
+  /**
+   * Wandelt ein Stück im Slot in ein anderes Item um (Schale füllen/austrinken). Liegt nur eins im Slot,
+   * wird es an Ort und Stelle ersetzt; sonst landet das neue Item im nächsten freien Platz.
+   * @returns Anzahl, die nicht mehr ins Inventar passte (0 oder 1).
+   */
+  transform(index: number, to: ItemId): number {
+    const s = this.slots[index];
+    if (!s) return 0;
+    if (s.count === 1) {
+      this.slots[index] = { id: to, count: 1 };
+      this.changed();
+      return 0;
+    }
+    s.count--;
+    this.changed();
+    return this.add(to, 1);
+  }
+
   wear(index: number, amount: number): boolean {
     const s = this.slots[index];
     if (!s || s.durability === undefined) return false;

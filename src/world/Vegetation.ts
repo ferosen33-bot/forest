@@ -610,6 +610,11 @@ export class Vegetation {
     }
   }
 
+  /** Windstärke 0..1 (Sturm lässt die Kronen deutlich stärker schwanken). */
+  setWind(strength: number): void {
+    this.windUniforms.uWind.value = 0.018 * (0.6 + 2.2 * strength);
+  }
+
   dispose(): void {
     Object.values(this.geometries).forEach((g) => g.dispose());
     this.materials.foliage.dispose();

@@ -12,6 +12,7 @@ import type { BuildingSystem } from './building/BuildingSystem';
 import type { EnemyDirector } from './ai/EnemyDirector';
 import type { AnimalDirector } from './AnimalDirector';
 import type { Projectiles } from './Projectiles';
+import type { ItemService } from './ItemService';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -32,6 +33,8 @@ export class ToolController {
   private eating: { def: ItemDef; time: number; done: boolean } | null = null;
   /** Wurfwaffe angelegt (rechte Maustaste gehalten). */
   aiming = false;
+  /** Abbrandfaktor der Fackel (Regen lässt sie schneller herunterbrennen) – vom Spiel gesetzt. */
+  torchBurnRate = 1;
   private throwCooldown = 0;
   private exhaustedHintCooldown = 0;
   private readonly fromDir = new THREE.Vector3();
@@ -52,6 +55,7 @@ export class ToolController {
     private readonly animals: AnimalDirector,
     private readonly projectiles: Projectiles,
     private readonly camera: THREE.Camera,
+    private readonly items: ItemService,
   ) {}
 
   get equipped(): ItemStack | null {
@@ -90,7 +94,7 @@ export class ToolController {
     const stack = this.equipped;
     this.viewModel.equip(stack?.id ?? null);
     // Fackeln brennen ab, solange man sie in der Hand hält.
-    if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt);
+    if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt * this.torchBurnRate);
 
     if (this.swing) this.updateSwing(dt);
     if (this.eating) this.updateEating(dt);
@@ -219,9 +223,19 @@ export class ToolController {
     const stack = this.inventory.get(slot);
     const def = stack ? getItem(stack.id) : undefined;
     if (!def?.food) return false;
-    this.inventory.takeFromSlot(slot, 1);
-    this.applyFood(def);
+    this.consume(slot, def);
     return true;
+  }
+
+  /** Nimmt ein Stück aus dem Slot (Behälter bleiben als Leergut zurück) und wendet die Wirkung an. */
+  private consume(slot: number, def: ItemDef): void {
+    const leftover = def.food?.leftover;
+    if (leftover) {
+      if (this.inventory.transform(slot, leftover) > 0) this.items.drop(leftover, 1, this.player.position);
+    } else {
+      this.inventory.takeFromSlot(slot, 1);
+    }
+    this.applyFood(def);
   }
 
   private applyFood(def: ItemDef): void {
@@ -229,7 +243,7 @@ export class ToolController {
     const stats = this.player.stats;
     stats.eat(food.hunger);
     stats.thirst = Math.max(0, Math.min(stats.max, stats.thirst + food.thirst));
-    this.audio.play('eat');
+    this.audio.play(food.hunger === 0 && food.thirst > 0 ? 'drink' : 'eat');
     this.events.emit('player:ate', { item: def.id });
     if (food.health >= 0) {
       stats.health = Math.min(stats.max, stats.health + food.health);
@@ -263,10 +277,7 @@ export class ToolController {
       eating.done = true;
       const food = eating.def.food;
       // Nur essen, wenn das Item noch im Slot liegt (könnte inzwischen verschoben worden sein).
-      if (food && this.equipped?.id === eating.def.id) {
-        this.inventory.takeFromSlot(this.selected, 1);
-        this.applyFood(eating.def);
-      }
+      if (food && this.equipped?.id === eating.def.id) this.consume(this.selected, eating.def);
     }
     if (eating.time >= EAT_DURATION) this.eating = null;
   }

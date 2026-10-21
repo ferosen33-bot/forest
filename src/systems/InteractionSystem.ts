@@ -51,6 +51,8 @@ export interface InteractionDeps {
   heldItem: () => ItemId | null;
   /** Nimmt ein Stück des gehaltenen Items aus dem Inventar. */
   takeHeld: () => void;
+  /** Wandelt das gehaltene Item um (leere Schale → gefüllte). */
+  transformHeld: (to: ItemId) => void;
 }
 
 /** Was `E` an einem Lagerfeuer gerade bewirkt. */
@@ -230,6 +232,7 @@ export class InteractionSystem {
         if (!target.animal.isDead || target.hit.distance > INTERACT_REACH) return null;
         return { key: 'E', action: 'Ausnehmen', label: target.animal.name };
       case 'water':
+        if (this.deps.heldItem() === 'bowl') return { key: 'E', action: 'Schale füllen', label: 'Wasser' };
         return { key: 'E', action: 'Trinken', label: 'Wasser' };
     }
   }
@@ -284,6 +287,11 @@ export class InteractionSystem {
         this.deps.animals.butcher(target.animal);
         break;
       case 'water':
+        if (this.deps.heldItem() === 'bowl') {
+          this.deps.transformHeld('bowlWater');
+          this.audio.play('drink', 0.6);
+          break;
+        }
         this.player.stats.drink(this.config.stats.drinkAmount);
         this.audio.play('drink');
         this.events.emit('hud:message', { text: 'Erfrischend.' });

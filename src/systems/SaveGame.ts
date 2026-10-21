@@ -6,6 +6,7 @@ import type { WorldItemSave } from '../entities/items/WorldItems';
 import type { EnemySave } from './ai/EnemyDirector';
 import type { AnimalSave } from './AnimalDirector';
 import type { CookingSave } from './Cooking';
+import type { WeatherSave } from './Weather';
 
 /** Erhöhen, wenn sich das Format inkompatibel ändert (ältere Stände werden dann verworfen). */
 export const SAVE_VERSION = 1;
@@ -26,6 +27,8 @@ export interface SaveData {
     thirst: number;
     respawn: [number, number, number];
     selected: number;
+    /** Seit Meilenstein 9 (fehlt in älteren Ständen). */
+    wetness?: number;
   };
   time: { day: number; hour: number };
   inventory: InventoryData;
@@ -36,6 +39,8 @@ export interface SaveData {
   items: WorldItemSave[];
   enemies: EnemySave[];
   animals: AnimalSave[];
+  /** Seit Meilenstein 9 (fehlt in älteren Ständen). */
+  weather?: WeatherSave;
 }
 
 /** Kurzinfo für das Startmenü. */

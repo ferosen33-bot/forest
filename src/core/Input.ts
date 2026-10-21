@@ -35,6 +35,8 @@ export const KEY_BINDINGS = {
   postfx: ['F4'],
   /** Debug: Zeitraffer, solange gehalten (nur mit sichtbarer Debug-Anzeige). */
   timeWarp: ['KeyT'],
+  /** Debug: nächste Wetterlage (nur mit sichtbarer Debug-Anzeige). */
+  weather: ['KeyY'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof KEY_BINDINGS;

@@ -119,6 +119,7 @@ export class Grass {
 
     this.uniforms = {
       uTime: { value: 0 },
+      uWindAmp: { value: 1 },
       uCenter: { value: new THREE.Vector2() },
       uPlayer: { value: new THREE.Vector3() },
       uRadius: { value: radius },
@@ -139,7 +140,7 @@ export class Grass {
           `#include <common>
 attribute vec2 aOffset;
 attribute float aHeight;
-uniform float uTime, uRadius, uSpacing, uSamples, uCellSize, uHalf;
+uniform float uTime, uRadius, uSpacing, uSamples, uCellSize, uHalf, uWindAmp;
 uniform vec2 uCenter;
 uniform vec3 uPlayer;
 uniform sampler2D uHeightTex, uMaskTex;
@@ -190,8 +191,8 @@ p *= size;
 // Wind: Spitzen schwingen in Böen
 float bend = aHeight * aHeight;
 float wind = sin(uTime * 1.6 + worldXZ.x * 0.32 + worldXZ.y * 0.21) + 0.5 * sin(uTime * 3.1 + worldXZ.y * 0.7);
-p.x += wind * 0.07 * bend * size;
-p.z += wind * 0.035 * bend * size;
+p.x += wind * 0.07 * bend * size * uWindAmp;
+p.z += wind * 0.035 * bend * size * uWindAmp;
 
 // Spieler biegt das Gras beim Durchlaufen weg
 vec2 away = worldXZ - uPlayer.xz;
@@ -220,6 +221,11 @@ diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7)
     this.mesh.name = 'Grass';
     this.mesh.frustumCulled = false;
     this.mesh.receiveShadow = true;
+  }
+
+  /** Windstärke 0..1 */
+  setWind(strength: number): void {
+    this.uniforms.uWindAmp.value = 0.7 + 2.3 * strength;
   }
 
   update(elapsed: number, player: THREE.Vector3): void {

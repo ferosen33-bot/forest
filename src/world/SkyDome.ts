@@ -20,7 +20,34 @@ uniform float uNight;     // 0 = Tag, 1 = Nacht
 uniform float uSunVisible;
 uniform float uHorizonFog;
 uniform float uTime;
+uniform float uClouds;    // Bedeckungsgrad 0..1
+uniform vec3 uCloudLit;   // Farbe sonnenbeschienener Wolken
+uniform vec3 uCloudShade; // Farbe der Wolkenunterseite
+uniform vec2 uCloudOffset;
+uniform float uFlash;     // Blitz
 varying vec3 vDir;
+
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453);
+  float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
+  float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+  float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float cloudFbm(vec2 p) {
+  float s = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 5; i++) {
+    s += vnoise(p) * amp;
+    p = p * 2.03 + vec2(13.7, 7.1);
+    amp *= 0.5;
+  }
+  return s;
+}
 
 float hash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
@@ -55,6 +82,21 @@ void main() {
     }
   }
 
+  // Wolkendecke: Rauschen auf einer gedachten Ebene über dem Spieler (Perspektive über 1/dir.y).
+  if (uClouds > 0.01 && dir.y > 0.0) {
+    vec2 uv = dir.xz / (dir.y + 0.12) * 0.9 + uCloudOffset;
+    float n = cloudFbm(uv);
+    float cover = smoothstep(1.0 - uClouds * 0.95 - 0.05, 1.08 - uClouds * 0.6, n);
+    // Dichte Bereiche sind dunkler (Unterseite), Ränder heller.
+    float thick = smoothstep(0.45, 0.95, n + uClouds * 0.2);
+    vec3 cloud = mix(uCloudLit, uCloudShade, thick);
+    // Sonne scheint durch dünne Ränder.
+    cloud += uSunColor * pow(sd, 8.0) * (1.0 - thick) * 0.5 * uSunVisible;
+    float alpha = cover * smoothstep(0.0, 0.18, dir.y);
+    col = mix(col, cloud, alpha);
+  }
+  col += vec3(0.75, 0.8, 1.0) * uFlash * (0.6 + 0.4 * uClouds);
+
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -81,6 +123,11 @@ export class SkyDome {
     uSunVisible: { value: 1 },
     uHorizonFog: { value: 0.18 },
     uTime: { value: 0 },
+    uClouds: { value: 0 },
+    uCloudLit: { value: new THREE.Color() },
+    uCloudShade: { value: new THREE.Color() },
+    uCloudOffset: { value: new THREE.Vector2() },
+    uFlash: { value: 0 },
   };
 
   constructor(radius = 500) {

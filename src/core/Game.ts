@@ -28,6 +28,7 @@ import { EnemyDirector } from '../systems/ai/EnemyDirector';
 import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
+import { Climate } from '../systems/Climate';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
@@ -101,6 +102,7 @@ export class Game {
   animals!: AnimalDirector;
   projectiles!: Projectiles;
   cooking!: Cooking;
+  climate!: Climate;
   ambience!: Ambience;
   footsteps!: Footsteps;
   hud!: HUD;
@@ -234,6 +236,7 @@ export class Game {
       config: cfg,
       spawnPoint: this.world.spawnPoint,
       isPlayerLit: () => !!(this.tools.equipped && getItem(this.tools.equipped.id).light),
+      rain: () => this.climate.weather.rain,
     });
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
@@ -257,6 +260,16 @@ export class Game {
     });
     this.scene.add(this.animals.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
+    this.climate = new Climate({
+      physics: this.physics,
+      player: this.player,
+      world: this.world,
+      building: this.building,
+      audio: this.audio,
+      events: this.events,
+      config: cfg,
+    });
+    this.scene.add(this.climate.rain.mesh);
     this.scene.add(this.cooking.group);
     this.projectiles = new Projectiles({
       physics: this.physics,
@@ -292,6 +305,9 @@ export class Game {
       onSleep: (shelter) => this.sleep(shelter),
       heldItem: () => this.tools.equipped?.id ?? null,
       takeHeld: () => void this.inventory.takeFromSlot(this.tools.selected, 1),
+      transformHeld: (to) => {
+        if (this.inventory.transform(this.tools.selected, to) > 0) this.items.drop(to, 1, this.player.position);
+      },
     });
     this.tools = new ToolController(
       this.inventory,
@@ -307,6 +323,7 @@ export class Game {
       this.animals,
       this.projectiles,
       this.camera,
+      this.items,
     );
 
     // Spielstand fortsetzen – oder neu beginnen mit der Axt aus dem Flugzeugwrack.
@@ -384,6 +401,7 @@ export class Game {
         thirst: s.thirst,
         respawn: [this.respawnPoint.x, this.respawnPoint.y, this.respawnPoint.z],
         selected: this.tools.selected,
+        wetness: s.wetness,
       },
       time: { day: this.dayNight.day, hour: this.dayNight.hour },
       inventory: this.inventory.serialize(),
@@ -394,6 +412,7 @@ export class Game {
       items: this.worldItems.serialize(),
       enemies: this.enemies.serialize(),
       animals: this.animals.serialize(),
+      weather: this.climate.weather.serialize(),
     };
   }
 
@@ -418,6 +437,8 @@ export class Game {
     s.stamina = clampStat(p.stamina);
     s.hunger = clampStat(p.hunger);
     s.thirst = clampStat(p.thirst);
+    s.wetness = Math.max(0, Math.min(1, p.wetness ?? 0));
+    if (d.weather) this.climate.weather.load(d.weather);
     this.respawnPoint.set(...p.respawn);
     this.tools.select(Math.max(0, Math.min(this.inventory.hotbarSize - 1, p.selected | 0)));
     this.dayNight.day = Math.max(1, d.time.day | 0);
@@ -690,8 +711,9 @@ export class Game {
     this.particles.update(dt);
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position);
+    this.updateClimate(dt);
 
-    this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater);
+    this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
     this.world.update(dt, this.elapsed, player.position);
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
 
@@ -713,8 +735,37 @@ export class Game {
       listener: this.camera.position,
       daylight: this.dayNight.daylight,
       underwater: player.headUnderwater,
+      rain: this.climate.weather.rain,
+      wind: this.climate.weather.wind,
+      sheltered: this.climate.sheltered,
     });
     this.footsteps.updatePlayer(dt, player);
+  }
+
+  /** Wetter, Nässe, Regenwasser in der Schale, Fackel im Regen. */
+  private updateClimate(dt: number): void {
+    const held = this.tools.equipped?.id;
+    const climate = this.climate;
+    if (this.hud.debugVisible && this.input.wasPressed('weather')) {
+      climate.weather.advance();
+      this.events.emit('hud:message', { text: `Wetter: ${climate.weather.name}` });
+    }
+    climate.update({
+      dt,
+      elapsed: this.elapsed,
+      camera: this.camera.position,
+      daylight: this.dayNight.daylight,
+      isNight: this.dayNight.isNight,
+      forest: this.ambience.env.forest,
+      holdingBowl: held === 'bowl',
+    });
+    if (climate.bowlFill >= 1 && held === 'bowl') {
+      climate.bowlFill = 0;
+      if (this.inventory.transform(this.tools.selected, 'bowlWater') > 0) this.items.drop('bowlWater', 1, this.player.position);
+      this.events.emit('hud:message', { text: 'Die Schale hat sich mit Regenwasser gefüllt.' });
+    }
+    // Im Regen brennt die Fackel deutlich schneller herunter.
+    this.tools.torchBurnRate = 1 + 2 * climate.exposure(this.ambience.env.forest);
   }
 
   /** Baumodus: Drehen, Ghost nachführen, Bauen (Linksklick) und Abbrechen (Rechtsklick/Schnellzugriff). */
@@ -788,6 +839,7 @@ export class Game {
       `Ziel       ${this.interaction.target?.type ?? '–'}`,
       `Schrate    ${this.enemies.aliveCount} lebend · ${this.enemies.aggressiveCount} aggressiv · Sicht ${this.enemies.sightRange.toFixed(0)} m`,
       `Terrain-LOD ${this.world.terrain.lodHistogram.join(' / ')} Chunks (Stufe 0–3)`,
+      `Wetter     ${this.climate.weather.name} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
     ];

@@ -22,6 +22,10 @@ export class PlayerStats {
   exhausted = false;
   /** In der Wärme eines Lagerfeuers: schnellere Regeneration (wird jedes Frame vom Spiel gesetzt). */
   warm = false;
+  /** Durchnässt (0 = trocken, 1 = klatschnass). Nass und ohne Feuer kühlt man aus. */
+  wetness = 0;
+  /** Nacht (kälter) – vom Spiel gesetzt. */
+  night = false;
 
   private regenDelay = 0;
   private readonly cfg: GameConfig['stats'];
@@ -62,7 +66,7 @@ export class PlayerStats {
     } else {
       // Wer hungrig oder durstig ist, regeneriert langsamer.
       const needs = Math.min(this.hunger, this.thirst) / c.max;
-      this.stamina += c.staminaRegen * (0.4 + 0.6 * needs) * (this.warm ? 1.6 : 1) * dt;
+      this.stamina += c.staminaRegen * (0.4 + 0.6 * needs) * (this.warm ? 1.6 : 1) * (1 - 0.45 * this.cold) * dt;
     }
     this.stamina = clamp(this.stamina, 0, c.max);
     if (this.stamina <= 0) this.exhausted = true;
@@ -77,10 +81,24 @@ export class PlayerStats {
     if (this.hunger <= 0) this.damage(c.starveDamage * dt, 'starvation', false);
     if (this.thirst <= 0) this.damage(c.starveDamage * 1.5 * dt, 'dehydration', false);
 
-    // Natürliche Heilung, wenn gut versorgt.
-    if (this.hunger > c.regenNeedsThreshold && this.thirst > c.regenNeedsThreshold) {
+    // Unterkühlung: nachts nass und fern vom Feuer verliert man langsam Gesundheit.
+    if (this.freezing) this.damage(c.coldDamage * dt, 'cold', false);
+
+    // Natürliche Heilung, wenn gut versorgt (nicht, solange man friert).
+    if (this.cold < 0.5 && this.hunger > c.regenNeedsThreshold && this.thirst > c.regenNeedsThreshold) {
       this.health = Math.min(c.max, this.health + c.healthRegen * (this.warm ? 4 : 1) * dt);
     }
+  }
+
+  /** Wie sehr man friert (0..1): Nässe zählt nur fern vom Feuer, nachts doppelt. */
+  get cold(): number {
+    if (this.warm) return 0;
+    return clamp(this.wetness * (this.night ? 1 : 0.6), 0, 1);
+  }
+
+  /** Unterkühlung: nachts klatschnass ohne Wärmequelle. */
+  get freezing(): boolean {
+    return this.night && !this.warm && this.wetness > 0.7;
   }
 
   /** Verbraucht Ausdauer, falls genug vorhanden ist. */
@@ -114,5 +132,6 @@ export class PlayerStats {
     this.health = this.stamina = this.hunger = this.thirst = this.cfg.max;
     this.exhausted = false;
     this.regenDelay = 0;
+    this.wetness = 0;
   }
 }

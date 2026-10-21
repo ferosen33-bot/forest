@@ -23,6 +23,8 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   // Speer zeigt nach vorne, leicht nach innen gedreht.
   spear: { position: new THREE.Vector3(0.26, -0.3, -0.45), rotation: new THREE.Euler(-1.45, 0.08, 0, 'XYZ'), grip: new THREE.Vector3(0, -0.2, 0), scale: 1 },
   torch: { position: new THREE.Vector3(0.36, -0.44, -0.66), rotation: new THREE.Euler(-0.55, 0, -0.3), grip: new THREE.Vector3(0, -0.15, 0), scale: 0.85 },
+  bowl: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
+  bowlWater: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
   log: { position: new THREE.Vector3(0.05, -0.45, -0.75), rotation: new THREE.Euler(0, 0, Math.PI / 2 - 0.1), grip: new THREE.Vector3(0, 0, 0), scale: 0.8 },
 };
 

@@ -54,6 +54,8 @@ export interface DirectorDeps {
   spawnPoint: THREE.Vector3;
   /** Trägt der Spieler gerade eine brennende Fackel? */
   isPlayerLit: () => boolean;
+  /** Regenstärke 0..1: schränkt Sicht und Gehör der Schrate ein. */
+  rain: () => number;
 }
 
 const MAX_ENEMIES = 24;
@@ -293,13 +295,15 @@ export class EnemyDirector {
     // Sichtweite: tagsüber weit, nachts kurz – außer der Spieler trägt Licht oder steht am Feuer.
     let range = lerp(this.cfg.sightNight, this.cfg.sightDay, d.dayNight.daylight);
     if (night && (d.isPlayerLit() || d.building.isNearLitFire(player.position, 6))) range = Math.max(range, this.cfg.sightLit);
-    this.ctx.sightRange = range * player.visibility;
+    const rain = d.rain();
+    this.ctx.sightRange = range * player.visibility * (1 - 0.35 * rain);
 
     // Schritte des Spielers sind hörbar.
     this.noiseTimer -= dt;
     if (this.noiseTimer <= 0) {
       this.noiseTimer = 0.3;
-      const r = player.noiseRadius;
+      // Prasselnder Regen übertönt Schritte.
+      const r = player.noiseRadius * (1 - 0.4 * rain);
       if (r > 0) this.propagateNoise(player.position, r, player.sprinting ? 0.4 : 0.18);
     }
 

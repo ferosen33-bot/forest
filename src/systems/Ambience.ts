@@ -11,6 +11,12 @@ export interface AmbienceState {
   /** Tageslicht in [0, 1]. */
   daylight: number;
   underwater: boolean;
+  /** Regenstärke 0..1 */
+  rain: number;
+  /** Windstärke 0..1 */
+  wind: number;
+  /** Unter einem Dach (Regen klingt dumpfer, prasselt auf Holz). */
+  sheltered: boolean;
 }
 
 /** Endlos laufende Rausch-Schleife mit Filter und Lautstärke (Wind, Brandung, Unterwasser). */
@@ -29,6 +35,8 @@ export class Ambience {
   private wind: Bed | null = null;
   private surf: Bed | null = null;
   private rumble: Bed | null = null;
+  private rainBed: Bed | null = null;
+  private rainLow: Bed | null = null;
   private time = 0;
   private sampleTimer = 0;
   private birdTimer = 2;
@@ -63,7 +71,14 @@ export class Ambience {
     // Wind: böig, stärker in der Höhe und im Offenen, im dichten Wald gedämpft.
     const gust = 0.55 + 0.25 * Math.sin(this.time * 0.21) + 0.2 * Math.sin(this.time * 0.57 + 1.3);
     const exposure = clamp(0.25 + smoothstep(8, 45, e.height) * 0.6 + (1 - e.forest) * 0.35, 0, 1);
-    this.set(this.wind!, (1 - under) * 0.14 * exposure * gust, 280 + 600 * gust, t);
+    // Sturm: deutlich lauter, heftigere Böen.
+    const windGain = 0.14 * (0.6 + 1.6 * s.wind) * (gust + s.wind * 0.3 * Math.sin(this.time * 1.7));
+    this.set(this.wind!, (1 - under) * windGain * exposure, 280 + 600 * gust + 300 * s.wind, t);
+
+    // Regen: breites Rauschen; unter dem Dach dumpfes Prasseln, im Wald etwas gedämpft.
+    const rain = (1 - under) * s.rain;
+    this.set(this.rainBed!, rain * 0.16 * (s.sheltered ? 0.35 : 1 - 0.25 * e.forest), s.sheltered ? 1400 : 3200, t);
+    this.set(this.rainLow!, rain * (s.sheltered ? 0.18 : 0.07), s.sheltered ? 420 : 650, t);
 
     // Brandung: Wellen rollen an (langsame Hüllkurve), am Meer lauter als am See.
     const swell = 0.55 + 0.45 * Math.sin(this.time * 0.42 + Math.sin(this.time * 0.13) * 2);
@@ -98,6 +113,8 @@ export class Ambience {
     this.wind = make('bandpass', 0.6);
     this.surf = make('lowpass', 0.5);
     this.rumble = make('lowpass', 0.7);
+    this.rainBed = make('bandpass', 0.35);
+    this.rainLow = make('lowpass', 0.6);
   }
 
   /** Wassernähe (Kreisabtastung der Höhenkarte), Walddichte und Höhe um den Hörer. */

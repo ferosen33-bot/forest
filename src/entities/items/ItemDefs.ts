@@ -13,7 +13,9 @@ export type ItemId =
   | 'axe'
   | 'stoneAxe'
   | 'spear'
-  | 'torch';
+  | 'torch'
+  | 'bowl'
+  | 'bowlWater';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -51,6 +53,8 @@ export interface FoodStats {
   hunger: number;
   thirst: number;
   health: number;
+  /** Bleibt nach dem Verzehr übrig (z. B. leere Schale). */
+  leftover?: ItemId;
 }
 
 export interface ItemDef {
@@ -108,6 +112,22 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'food',
     maxStack: 10,
     food: { hunger: 35, thirst: -2, health: 8 },
+  },
+  bowl: {
+    id: 'bowl',
+    name: 'Holzschale',
+    description: 'Aus einem Stamm geschnitzt. In der Hand: am Wasser mit E füllen – im Regen läuft sie von selbst voll.',
+    // Wird in der Hand benutzt → wie Werkzeuge bevorzugt in den Schnellzugriff.
+    category: 'tool',
+    maxStack: 3,
+  },
+  bowlWater: {
+    id: 'bowlWater',
+    name: 'Schale mit Wasser',
+    description: 'Frisches Wasser für unterwegs. Linksklick in der Hand oder Rechtsklick im Inventar: trinken.',
+    category: 'food',
+    maxStack: 1,
+    food: { hunger: 0, thirst: 45, health: 0, leftover: 'bowl' },
   },
   berries: {
     id: 'berries',

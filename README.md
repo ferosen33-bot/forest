@@ -43,6 +43,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `F4`                | Nachbearbeitung an/aus                |
 | `T` (mit F3)        | Zeitraffer                            |
+| `Y` (mit F3)        | Nächste Wetterlage                    |
 | `Esc`               | Pause                                 |
 
 > **Hinweis zu Strg:** `Strg+W` schließt im Browser den Tab. Deshalb ist Ducken zusätzlich auf `C`
@@ -50,6 +51,30 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 9 – Wetter & Wasser
+
+- **Wetterlagen:** klar → bewölkt → Regen (→ Gewitter) → aufklarend. Bewölkung, Regen und Wind gleiten weich auf die
+  Zielwerte jeder Phase zu; Regen setzt erst bei dichter Bewölkung ein. Reine Logik in `Weather.ts` (getestet).
+- **Himmel & Licht:** Wolkendecke im Himmels-Shader (fBm-Rauschen auf einer Perspektiv-Ebene, zieht mit dem Wind,
+  Sonne scheint durch dünne Ränder). Bedeckter Himmel vergraut Himmel, Nebel und Umgebungslicht, schluckt das direkte
+  Sonnenlicht und die Lichtstrahlen; Regen verdichtet den Nebel.
+- **Regen auf der GPU:** bis zu 9 000 Schlieren in einem Volumen, das mit der Kamera wandert (Modulo im Vertex-Shader,
+  im Wind geneigt) – ein Draw Call. Der Boden wird nass (dunkler, glänzender) und trocknet langsam wieder.
+- **Gewitter:** Blitze erhellen Himmel und Szene, der Donner folgt mit Schallgeschwindigkeit (nah: Knall + Grollen).
+  Sturmwind lässt Bäume und Gras stärker schwanken und rauscht lauter. Regen prasselt – unter dem Dach dumpfer.
+- **Nässe & Kälte:** Im Regen wird man nass (Baumkronen halten etwa die Hälfte ab, ein Dach alles), Schwimmen macht
+  sofort klatschnass. Am Feuer trocknet man schnell, an der Luft langsam. Nass regeneriert Ausdauer schlechter und
+  Gesundheit gar nicht; **nachts nass ohne Feuer kühlt man aus** (Lebensverlust, eigene Todesursache).
+  Anzeige: Nässe-Balken ☔ (pulsiert bei Unterkühlung).
+- **Feuer im Regen:** Ungeschützte Lagerfeuer erlöschen bei anhaltendem Starkregen – ein Unterstand darüber schützt
+  sie. Fackeln brennen im Regen dreimal so schnell herunter.
+- **Holzschale:** aus einem Stamm schnitzen. In der Hand am Wasser mit `E` füllen oder im Regen volllaufen lassen
+  (≈ 25 s). Trinken mit Linksklick (bzw. Rechtsklick im Inventar) → +45 Durst, die leere Schale bleibt im selben Slot.
+- **Schrate im Regen:** sehen 35 % weniger weit und hören Schritte schlechter – Regen ist die beste Zeit zum Schleichen.
+- Wetter und Nässe werden mitgespeichert (ältere Spielstände laden weiterhin).
+- **Behoben:** Der Dach-Collider des Unterstands (und die Blätterplatten) waren gespiegelt geneigt – vorne lag das Dach
+  physikalisch tief statt hoch. Jetzt passen Optik und Kollision zusammen.
 
 ### Meilenstein 8 – Speichern & Laden
 
@@ -221,6 +246,7 @@ src/
 │   ├── VegetationGeometry.ts  Low-Poly-Geometrien für Bäume/Büsche/Felsen
 │   ├── SkyDome.ts          Himmels-Shader (Gradient, Sonne, Mond, Sterne)
 │   ├── Grass.ts            GPU-Gras (Höhe/Dichte aus Texturen, Wind, Wegbiegen)
+│   ├── Rain.ts             GPU-Regen (mitwanderndes Schlieren-Volumen)
 │   └── World.ts            Bündelt alles, sucht den Spawnpunkt
 ├── entities/
 │   ├── Player.ts           First-Person-Controller
@@ -256,6 +282,8 @@ src/
 │   ├── AnimalDirector.ts   Wild: Verteilung, Rudel-Warnung, Treffer, Ausnehmen, Nachwachsen
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer
+│   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
+│   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
@@ -300,4 +328,5 @@ src/
 7. ~~Audio & Effekte~~ ✓ (später noch: Wetter/Regen, Lautstärke-Einstellungen, Grafik-Qualitätsstufen)
 8. ~~Größere Welt & Terrain-LOD~~ ✓ · ~~Savegames~~ ✓
 9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
-10. Später: unterschiedliche Gegnertypen, Schleichangriffe, Wasserbehälter, weitere Bauteile (Böden, Tore)
+10. ~~Wetter, Regen, Nässe, Wasserschale~~ ✓
+11. Als Nächstes: Böden & Tore, unterschiedliche Gegnertypen, Schleichangriffe

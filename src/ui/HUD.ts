@@ -22,6 +22,8 @@ const REFS = [
   'thirst',
   'oxygen',
   'oxygenRow',
+  'wet',
+  'wetRow',
   'toasts',
   'hotbar',
   'hotbarName',
@@ -36,7 +38,7 @@ const REFS = [
   'debug',
 ] as const;
 
-const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen'] as const;
+const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen', 'wet'] as const;
 type BarName = (typeof BARS)[number];
 type RefName = (typeof REFS)[number];
 
@@ -125,7 +127,11 @@ export class HUD {
     });
     events.on('item:collected', ({ item, count }) => this.itemToast(item, count));
     events.on('item:inventoryFull', ({ item }) => this.toast(`Inventar voll – ${getItem(item).name} liegt am Boden`, item));
-    events.on('player:ate', ({ item }) => this.toast(`${getItem(item).name} gegessen`, item));
+    events.on('player:ate', ({ item }) => {
+      const food = getItem(item).food;
+      const drink = !!food && food.hunger === 0 && food.thirst > 0;
+      this.toast(drink ? 'Wasser getrunken' : `${getItem(item).name} gegessen`, item);
+    });
     events.on('hud:message', ({ text }) => this.toast(text));
   }
 
@@ -163,6 +169,9 @@ export class HUD {
     this.bar('thirst', s.thirst / s.max, 0.2);
     this.bar('oxygen', player.oxygen / 100, 0.3);
     this.toggle('oxygenRow', 'hidden', player.oxygen >= 99.9);
+    this.bar('wet', s.wetness, 0);
+    this.toggle('wetRow', 'hidden', s.wetness < 0.03);
+    this.toggle('wetRow', 'is-freezing', s.freezing);
 
     this.updatePrompt(prompt);
     this.text('clock', clockText);

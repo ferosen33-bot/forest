@@ -27,6 +27,23 @@ const SUN_DAY = new THREE.Color(0xfff1da);
 const SUN_DUSK = new THREE.Color(0xff8e45);
 const MOON = new THREE.Color(0x8da6dc);
 const UNDERWATER = new THREE.Color(0x0b3a46);
+/** Grauer Himmel bei geschlossener Wolkendecke (Tag bzw. Nacht). */
+const OVERCAST_DAY = new THREE.Color(0x6f7880);
+const OVERCAST_NIGHT = new THREE.Color(0x0a0d12);
+const CLOUD_LIT = new THREE.Color(0xf2efe8);
+const CLOUD_DUSK = new THREE.Color(0xe8a07a);
+const CLOUD_SHADE_DAY = new THREE.Color(0x5d646c);
+const CLOUD_NIGHT = new THREE.Color(0x141820);
+
+/** Wetter-Einfluss auf Licht, Himmel und Nebel. */
+export interface WeatherLook {
+  clouds: number;
+  rain: number;
+  wind: number;
+  flash: number;
+}
+
+const CALM: WeatherLook = { clouds: 0.15, rain: 0, wind: 0.3, flash: 0 };
 
 export interface DayNightOptions {
   dayLength: number;
@@ -58,6 +75,8 @@ export class DayNightCycle {
   private readonly lightView = new THREE.Matrix4();
   private readonly lightViewInv = new THREE.Matrix4();
   private readonly snapped = new THREE.Vector3();
+  private readonly tmpColor = new THREE.Color();
+  private weather: WeatherLook = CALM;
   private readonly texelSize: number;
   private static readonly ORIGIN = new THREE.Vector3();
   private static readonly UP = new THREE.Vector3(0, 1, 0);
@@ -124,7 +143,8 @@ export class DayNightCycle {
    * @param focus Position, um die herum Schatten berechnet werden (Spieler).
    * @param underwater Kamera ist unter Wasser → dichter, blaugrüner Nebel.
    */
-  update(dt: number, elapsed: number, focus: THREE.Vector3, underwater: boolean): void {
+  update(dt: number, elapsed: number, focus: THREE.Vector3, underwater: boolean, weather: WeatherLook = CALM): void {
+    this.weather = weather;
     this.hour += (dt * this.timeScale * 24) / this.opts.dayLength;
     if (this.hour >= 24) {
       this.hour -= 24;
@@ -143,6 +163,16 @@ export class DayNightCycle {
     // Himmel noch hell, also soll auch die Szene nicht schlagartig schwarz werden.
     const ambientT = smoothstep(-0.22, 0.12, e);
     this.blendPalette(dayT, duskT * 0.85, ambientT);
+    // Bedeckter Himmel: Farben vergrauen, Abendrot verblasst.
+    const overcast = smoothstep(0.35, 1, weather.clouds) * 0.85;
+    if (overcast > 0) {
+      const grey = this.tmpColor.copy(OVERCAST_NIGHT).lerp(OVERCAST_DAY, ambientT);
+      const u0 = this.sky.uniforms;
+      u0.uZenith.value.lerp(grey, overcast);
+      u0.uHorizon.value.lerp(grey, overcast * 0.9);
+      this.fog.color.lerp(grey, overcast * 0.8);
+      this.hemi.color.lerp(grey, overcast * 0.5);
+    }
 
     // Richtungslicht: tagsüber Sonne, nachts Mond (Wechsel bei Intensität ≈ 0 am Horizont).
     const sunUp = e > -0.02;
@@ -155,12 +185,14 @@ export class DayNightCycle {
       this.light.intensity = 0.75 * smoothstep(-0.02, 0.2, -e);
       this.light.color.copy(MOON);
     }
+    // Wolken schlucken das direkte Licht – die Szene wird weicher und flacher.
+    this.light.intensity *= 1 - 0.8 * smoothstep(0.3, 1, weather.clouds);
     // Umgebungslicht: nachts gedämpft, aber lesbar (Silhouetten sollen erkennbar bleiben).
-    this.hemi.intensity = lerp(0.75, 1.15, ambientT);
+    this.hemi.intensity = lerp(0.75, 1.15, ambientT) * (1 - 0.2 * weather.clouds) + weather.flash * 2.5;
 
     // Nebel: tagsüber lichter, nachts dichter, morgens Bodennebel.
     const morningMist = smoothstep(4.5, 6.5, this.hour) * (1 - smoothstep(7, 9.5, this.hour));
-    let density = 0.0085 + (1 - dayT) * 0.008 + morningMist * 0.014;
+    let density = 0.0085 + (1 - dayT) * 0.008 + morningMist * 0.014 + weather.rain * 0.012 + weather.clouds * 0.0015;
     if (underwater) {
       density = 0.085;
       this.fog.color.lerp(UNDERWATER, 0.85);
@@ -172,7 +204,15 @@ export class DayNightCycle {
     u.uSunDir.value.copy(this.sunDir);
     u.uMoonDir.value.copy(this.moonDir);
     u.uSunColor.value.copy(SUN_DAY).lerp(SUN_DUSK, duskT);
-    u.uSunVisible.value = smoothstep(-0.05, 0.02, e);
+    u.uSunVisible.value = smoothstep(-0.05, 0.02, e) * (1 - 0.9 * smoothstep(0.4, 0.95, weather.clouds));
+    u.uClouds.value = weather.clouds;
+    u.uFlash.value = weather.flash;
+    u.uCloudLit.value.copy(CLOUD_NIGHT).lerp(CLOUD_LIT, ambientT).lerp(CLOUD_DUSK, duskT * 0.6 * (1 - overcast));
+    u.uCloudShade.value.copy(CLOUD_NIGHT).lerp(CLOUD_SHADE_DAY, ambientT);
+    if (overcast > 0) u.uCloudLit.value.lerp(u.uCloudShade.value, overcast * 0.5);
+    // Wolken ziehen mit dem Wind.
+    u.uCloudOffset.value.x += dt * (0.004 + weather.wind * 0.012);
+    u.uCloudOffset.value.y += dt * (0.0015 + weather.wind * 0.004);
     u.uNight.value = 1 - smoothstep(-0.2, 0.05, e);
     u.uHorizonFog.value = 0.12 + morningMist * 0.12 + (underwater ? 1 : 0);
     // Three.js mischt Nebel im Farbraum des Render-Ziels: Bildschirm = sRGB, HDR-Target = linear.
@@ -227,8 +267,9 @@ export class DayNightCycle {
   get rayStrength(): number {
     const e = this.sunDir.y;
     const fog = THREE.MathUtils.clamp((this.fog.density - 0.0085) / 0.014, 0, 1);
-    if (e > -0.02) return 0.6 * smoothstep(-0.02, 0.1, e) * (1 - 0.55 * smoothstep(0.3, 0.9, e)) * (1 + 0.9 * fog);
-    return 0.1 * smoothstep(0.05, 0.3, -e);
+    const clear = 1 - smoothstep(0.35, 0.9, this.weather.clouds);
+    if (e > -0.02) return 0.6 * smoothstep(-0.02, 0.1, e) * (1 - 0.55 * smoothstep(0.3, 0.9, e)) * (1 + 0.9 * fog) * clear;
+    return 0.1 * smoothstep(0.05, 0.3, -e) * clear;
   }
 
   /** Sonnenstand normalisiert in [0, 1] für UI-Zwecke. */

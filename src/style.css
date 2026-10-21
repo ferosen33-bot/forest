@@ -311,6 +311,8 @@ html, body {
 .stat--hunger .stat__fill { background: var(--hunger); }
 .stat--thirst .stat__fill { background: var(--thirst); }
 .stat--oxygen .stat__fill { background: var(--oxygen); }
+.stat--wet .stat__fill { background: #7f9fc2; }
+.stat--wet.is-freezing .stat__icon { color: #bfe4ff; animation: pulse 0.9s ease-in-out infinite alternate; }
 .stat.is-low .stat__icon { animation: pulse 0.9s ease-in-out infinite; }
 
 @keyframes pulse {

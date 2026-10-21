@@ -226,7 +226,8 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
         const plate = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.06, roofLen / 3 + 0.15), i % 2 ? M.leaves : M.leavesDark);
         const t = (i + 0.5) / 3;
         plate.position.set(0, top * (1 - t) + 0.09, front + (back - front) * t);
-        plate.rotation.x = angle;
+        // Negativ um X: die lokale +Z-Achse (nach vorne) steigt zum First hin an.
+        plate.rotation.x = -angle;
         g.add(plate);
       }
       return finish(g, 'Shelter');
@@ -237,7 +238,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       const top = 1.95;
       const roofLen = Math.hypot(top, front - back);
       const angle = Math.atan2(top, front - back);
-      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle);
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -angle);
       return [
         RAPIER.ColliderDesc.cuboid(1.4, 0.06, roofLen / 2)
           .setTranslation(0, top / 2, (front + back) / 2)

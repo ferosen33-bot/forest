@@ -29,6 +29,7 @@ const MATERIALS = {
   lightWood: mat(0x8a6a45),
   binding: mat(0x6b5a3a, { roughness: 1 }),
   cloth: mat(0x3a2f26, { roughness: 1 }),
+  water: mat(0x3d6f86, { roughness: 0.1, metalness: 0.1, flatShading: false }),
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
   bone: mat(0xe6dcc6, { roughness: 0.7 }),
@@ -144,6 +145,21 @@ function build(id: ItemId): THREE.Object3D {
       g.add(wrap);
       break;
     }
+    case 'bowl':
+    case 'bowlWater': {
+      // Gedrechselte Schale (Lathe), innen hohl; gefüllt mit Wasserspiegel.
+      const profile = [
+        [0.0, -0.04], [0.07, -0.04], [0.11, -0.01], [0.13, 0.04], [0.12, 0.045], [0.1, 0.0], [0.06, -0.025], [0.0, -0.025],
+      ].map(([x, y]) => new THREE.Vector2(x, y));
+      g.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 10), MATERIALS.lightWood));
+      if (id === 'bowlWater') {
+        const surface = new THREE.Mesh(new THREE.CircleGeometry(0.108, 12), MATERIALS.water);
+        surface.rotation.x = -Math.PI / 2;
+        surface.position.y = 0.025;
+        g.add(surface);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -194,6 +210,9 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.78, 0.03).setDensity(600);
     case 'torch':
       return RAPIER.ColliderDesc.cylinder(0.3, 0.04).setDensity(600);
+    case 'bowl':
+    case 'bowlWater':
+      return RAPIER.ColliderDesc.cylinder(0.045, 0.12).setDensity(500);
   }
 }
 

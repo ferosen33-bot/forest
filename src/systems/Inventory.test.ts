@@ -88,4 +88,17 @@ describe('Inventory – Haltbarkeit', () => {
     copy.load(JSON.parse(JSON.stringify(inv.serialize())), () => true);
     expect(copy.slots).toEqual(inv.slots);
   });
+
+  it('wandelt Behälter an Ort und Stelle um (Schale füllen/leeren)', () => {
+    const inv = new Inventory(4, 2);
+    inv.add('bowl', 2);
+    const slot = inv.slots.findIndex((s) => s?.id === 'bowl');
+    // Stapel aus zwei Schalen: eine wird gefüllt und landet woanders.
+    expect(inv.transform(slot, 'bowlWater')).toBe(0);
+    expect(inv.get(slot)).toEqual({ id: 'bowl', count: 1 });
+    expect(inv.count('bowlWater')).toBe(1);
+    // Einzelne Schale: Slot wird direkt ersetzt.
+    expect(inv.transform(slot, 'bowlWater')).toBe(0);
+    expect(inv.get(slot)).toEqual({ id: 'bowlWater', count: 1 });
+  });
 });
