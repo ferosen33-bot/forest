@@ -25,6 +25,9 @@ import { Crafting, recipeName, type Recipe } from '../systems/Crafting';
 import { BuildingSystem, type Structure } from '../systems/building/BuildingSystem';
 import { LightPool, type LightRequest } from '../systems/LightPool';
 import { EnemyDirector } from '../systems/ai/EnemyDirector';
+import { AnimalDirector } from '../systems/AnimalDirector';
+import { Projectiles } from '../systems/Projectiles';
+import { Cooking } from '../systems/Cooking';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
 import { PostFX } from '../systems/PostFX';
@@ -87,6 +90,9 @@ export class Game {
   building!: BuildingSystem;
   lights!: LightPool;
   enemies!: EnemyDirector;
+  animals!: AnimalDirector;
+  projectiles!: Projectiles;
+  cooking!: Cooking;
   ambience!: Ambience;
   footsteps!: Footsteps;
   hud!: HUD;
@@ -223,6 +229,35 @@ export class Game {
     console.info(
       `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
     );
+    this.animals = new AnimalDirector({
+      physics: this.physics,
+      heightMap: this.world.heightMap,
+      nav: this.enemies.nav,
+      player: this.player,
+      particles: this.particles,
+      audio: this.audio,
+      events: this.events,
+      items: this.items,
+      config: cfg,
+      spawnPoint: this.world.spawnPoint,
+      avoid: this.enemies.camps.map((c) => c.center),
+    });
+    this.scene.add(this.animals.group);
+    this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
+    this.scene.add(this.cooking.group);
+    this.projectiles = new Projectiles({
+      physics: this.physics,
+      worldItems: this.worldItems,
+      enemies: this.enemies,
+      animals: this.animals,
+      building: this.building,
+      audio: this.audio,
+      particles: this.particles,
+      events: this.events,
+      thrower: () => this.player.collisionShape,
+      waterLevel: this.world.heightMap.waterLevel,
+    });
+    this.scene.add(this.projectiles.group);
     this.interaction = new InteractionSystem({
       physics: this.physics,
       camera: this.camera,
@@ -233,12 +268,16 @@ export class Game {
       harvest: this.harvest,
       building: this.building,
       enemies: this.enemies,
+      animals: this.animals,
+      cooking: this.cooking,
       items: this.items,
       audio: this.audio,
       events: this.events,
       config: cfg,
       canSleep: () => this.dayNight.isSleepTime,
       onSleep: (shelter) => this.sleep(shelter),
+      heldItem: () => this.tools.equipped?.id ?? null,
+      takeHeld: () => void this.inventory.takeFromSlot(this.tools.selected, 1),
     });
     this.tools = new ToolController(
       this.inventory,
@@ -251,6 +290,9 @@ export class Game {
       this.player,
       this.audio,
       this.events,
+      this.animals,
+      this.projectiles,
+      this.camera,
     );
 
     // Startausrüstung: die Axt aus dem Flugzeugwrack.
@@ -490,10 +532,13 @@ export class Game {
     while (this.accumulator >= step && steps < this.config.physics.maxSubSteps) {
       player.fixedUpdate(step);
       this.enemies.fixedUpdate(step);
+      this.animals.fixedUpdate(step);
       this.worldItems.fixedUpdate(step, water);
       this.physics.step();
       player.afterPhysicsStep();
       this.enemies.afterPhysicsStep();
+      this.animals.afterPhysicsStep();
+      this.projectiles.fixedUpdate(step);
       this.accumulator -= step;
       steps++;
     }
@@ -517,6 +562,9 @@ export class Game {
     this.harvest.update(dt);
     this.building.update(dt, player.position);
     this.enemies.update(dt, alpha);
+    this.animals.update(dt, alpha);
+    this.projectiles.update(alpha);
+    this.cooking.update(dt);
     this.worldItems.update();
     this.particles.update(dt);
     this.embers.update(dt);
@@ -618,6 +666,7 @@ export class Game {
       `Objekte    ${this.worldItems.size} Items · ${this.building.structures.length} Bauwerke · ${this.harvest.fallingCount} fallend · ${this.particles.activeCount + this.embers.activeCount} Partikel`,
       `Ziel       ${this.interaction.target?.type ?? '–'}`,
       `Schrate    ${this.enemies.aliveCount} lebend · ${this.enemies.aggressiveCount} aggressiv · Sicht ${this.enemies.sightRange.toFixed(0)} m`,
+      `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
     ];
   }

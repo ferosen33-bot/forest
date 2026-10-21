@@ -13,6 +13,7 @@ export const CollisionGroup = {
   PLAYER: 1 << 2,
   ENEMY: 1 << 3,
   ITEM: 1 << 4,
+  ANIMAL: 1 << 5,
 } as const;
 
 export const interactionGroups = (membership: number, filter = 0xffff): number =>

@@ -8,15 +8,20 @@ export interface WorldItem {
   readonly id: number;
   readonly itemId: ItemId;
   count: number;
+  /** Zustand bei Items mit Haltbarkeit (bleibt beim Fallenlassen/Werfen erhalten). */
+  durability?: number;
   readonly mesh: THREE.Object3D;
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
 }
 
 export interface SpawnOptions {
+  durability?: number;
   rotation?: THREE.Quaternion;
   velocity?: THREE.Vector3;
   angularVelocity?: THREE.Vector3;
+  /** Steckt fest (z. B. Speer im Boden/Baum) – fällt nicht um, bis er aufgehoben wird. */
+  fixed?: boolean;
 }
 
 /** Obergrenze für gleichzeitig liegende Items; die ältesten verschwinden zuerst. */
@@ -44,7 +49,7 @@ export class WorldItems {
     const world = this.physics.world;
     const rot = opts.rotation ?? new THREE.Quaternion();
 
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+    const bodyDesc = (opts.fixed ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic())
       .setTranslation(position.x, position.y, position.z)
       .setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w })
       .setLinearDamping(0.15)
@@ -69,7 +74,7 @@ export class WorldItems {
     mesh.quaternion.copy(rot);
     this.group.add(mesh);
 
-    const item: WorldItem = { id: this.nextId++, itemId, count, mesh, body, collider };
+    const item: WorldItem = { id: this.nextId++, itemId, count, durability: opts.durability, mesh, body, collider };
     this.items.set(item.id, item);
     this.byCollider.set(collider.handle, item);
 

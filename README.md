@@ -32,13 +32,13 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Shift`             | Rennen (kostet Ausdauer)              |
 | `Leertaste`         | Springen / im Wasser auftauchen       |
 | `Strg` / `C`        | Ducken / im Wasser tauchen            |
-| `E`                 | Aufheben, Beeren pflücken, Trinken    |
-| Linksklick          | Mit Werkzeug schlagen / Nahrung essen |
+| `E`                 | Aufheben, Pflücken, Trinken, Ausnehmen, Fleisch braten/abnehmen |
+| Linksklick          | Mit Werkzeug schlagen / Nahrung essen / Speer werfen (beim Zielen) |
 | `1`–`6` / Mausrad   | Schnellzugriff wählen                 |
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
 | `R` / Mausrad       | Bauvorschau drehen                    |
-| Rechtsklick         | Blocken (mit Waffe) / Bauen abbrechen |
+| Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `F4`                | Nachbearbeitung an/aus                |
 | `T` (mit F3)        | Zeitraffer                            |
@@ -49,6 +49,27 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 6 – Survival-Ausbau: Jagd, Kochen, Haltbarkeit
+
+- **Wild:** Hirschrudel (mit und ohne Geweih) und Hasen auf offenen Wiesen, prozedural animiert (Trab/Galopp,
+  Hoppeln, Grasen, Sichern mit erhobenem Schwanz, Umkippen beim Tod). Alle Tiere einer Art = ein Draw Call pro Körperteil
+  (gemeinsamer `RigRenderer` mit den Schraten).
+- **Flucht-KI:** Tiere grasen und streifen umher. Kommt der Spieler zu nah, sichert ein Hirsch kurz, bellt und
+  warnt das Rudel, dann flieht alles im Galopp (schneller als der Spieler). Geduckt halbiert sich die Fluchtdistanz
+  deutlich, Rennen vergrößert sie. Lärm (Bäume fällen, Kämpfe, Würfe) verscheucht Wild im weiten Umkreis.
+  Bestände wachsen fernab des Spielers nach.
+- **Speerwurf:** Rechte Maustaste legt den Speer an, linke wirft. Das Geschoss fliegt ballistisch (auf ~12 m genau
+  auf die Bildmitte), richtet sich nach der Flugbahn aus und prüft pro Physik-Takt das zurückgelegte Segment per Raycast
+  (kein Durchtunneln, Kopftreffer bei Schraten). Im Boden, in Bäumen und Bauwerken bleibt der Speer stecken und
+  kann wieder aufgehoben werden; Wurfschaden ×1,6.
+- **Jagdbeute:** Erlegte Tiere mit `E` ausnehmen → rohes Fleisch (Hirsch 3, Hase 1). Roh gegessen macht es satt, aber
+  krank (Gesundheit sinkt).
+- **Kochen:** Mit rohem Fleisch in der Hand legt `E` an einem brennenden Lagerfeuer ein Stück auf den Bratspieß
+  (bis zu drei, 12 s Garzeit, sichtbare Verfärbung, Brutzeln). Fertiges nimmt `E` ab – gebratenes Fleisch sättigt
+  stark und heilt.
+- **Haltbarkeit:** Werkzeuge nutzen sich pro Treffer ab, Fackeln brennen in der Hand herunter (Zustandsbalken im
+  Inventar und Schnellzugriff). Beschädigte Werkzeuge stapeln nicht und behalten ihren Zustand beim Fallenlassen und Werfen.
 
 ### Meilenstein 5 – Atmosphäre: Audio & Effekte
 
@@ -173,6 +194,10 @@ src/
 │   ├── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
 │   ├── ViewModel.ts        Gegenstand in der Hand + Animationen (eigene Szene/Kamera)
 │   ├── FireEffect.ts       Flackernde Flamme (Lagerfeuer, Fackel)
+│   ├── RigRenderer.ts      Instanziertes Zeichnen prozeduraler Skelette (Gegner & Tiere)
+│   ├── animals/
+│   │   ├── Animal.ts       Wildtier: Character Controller, Flucht-KI, Tod/Leiche (getestet)
+│   │   └── AnimalRig.ts    Vierbeiner-Skelett (Hirsch, Hase) + Geometrien
 │   ├── enemies/
 │   │   ├── Enemy.ts        Schrat: Character Controller, Wahrnehmung, Zustandsautomat
 │   │   ├── EnemyRig.ts     Prozedurales Skelett + Animation, Körperteil-Geometrien
@@ -195,6 +220,9 @@ src/
 │   ├── Ambience.ts         Wind, Brandung, Vögel, Grillen, Eulen
 │   ├── Footsteps.ts        Schritte je Untergrund (Spieler & Schrate)
 │   ├── PostFX.ts           Lichtstrahlen, Bloom, Vignette, Tone Mapping
+│   ├── AnimalDirector.ts   Wild: Verteilung, Rudel-Warnung, Treffer, Ausnehmen, Nachwachsen
+│   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
+│   ├── Cooking.ts          Bratspieß am Lagerfeuer
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
@@ -233,5 +261,5 @@ src/
 6. ~~Gegner-KI~~ ✓
 7. ~~Audio & Effekte~~ ✓ (später noch: Wetter/Regen, Lautstärke-Einstellungen, Grafik-Qualitätsstufen)
 8. **Welt-Streaming:** LOD für entfernte Chunks, größere bzw. endlose Welten, Savegames
-9. **Ausbau KI & Kampf:** Speer werfen, Tiere (Jagd, Fleisch), unterschiedliche Gegnertypen, Schleichangriffe
-10. **Ausbau Survival:** Haltbarkeit von Werkzeugen/Fackeln, Kochen am Feuer, Wasserbehälter, weitere Bauteile (Böden, Tore)
+9. ~~Jagd & Survival-Ausbau: Speerwurf, Tiere, Fleisch, Kochen, Haltbarkeit~~ ✓
+10. Später: unterschiedliche Gegnertypen, Schleichangriffe, Wasserbehälter, weitere Bauteile (Böden, Tore)

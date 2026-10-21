@@ -13,6 +13,10 @@ import type { GameConfig } from '../config';
 import type { BuildingSystem, Structure } from './building/BuildingSystem';
 import type { EnemyDirector, HitZone } from './ai/EnemyDirector';
 import type { Enemy } from '../entities/enemies/Enemy';
+import type { Animal } from '../entities/animals/Animal';
+import type { AnimalDirector } from './AnimalDirector';
+import type { Cooking } from './Cooking';
+import type { ItemId } from '../entities/items/ItemDefs';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -20,6 +24,7 @@ export type InteractionTarget =
   | { type: 'item'; item: WorldItem; hit: RaycastHit }
   | { type: 'structure'; structure: Structure; hit: RaycastHit }
   | { type: 'enemy'; enemy: Enemy; zone: HitZone; hit: RaycastHit }
+  | { type: 'animal'; animal: Animal; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -32,6 +37,8 @@ export interface InteractionDeps {
   harvest: HarvestSystem;
   building: BuildingSystem;
   enemies: EnemyDirector;
+  animals: AnimalDirector;
+  cooking: Cooking;
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -40,7 +47,14 @@ export interface InteractionDeps {
   canSleep: () => boolean;
   /** Wird beim Schlafen im Unterstand aufgerufen. */
   onSleep: (shelter: Structure) => void;
+  /** Item in der Hand (Schnellzugriff). */
+  heldItem: () => ItemId | null;
+  /** Nimmt ein Stück des gehaltenen Items aus dem Inventar. */
+  takeHeld: () => void;
 }
+
+/** Was `E` an einem Lagerfeuer gerade bewirkt. */
+type FireAction = 'take' | 'cook' | 'toggle';
 
 /** Inhalt des Interaktions-Hinweises im HUD. */
 export interface Prompt {
@@ -115,6 +129,8 @@ export class InteractionSystem {
       if (item) return { type: 'item', item, hit };
       const enemyHit = this.deps.enemies.getHitTarget(hit.collider);
       if (enemyHit) return { type: 'enemy', enemy: enemyHit.enemy, zone: enemyHit.zone, hit };
+      const animal = this.deps.animals.getByCollider(hit.collider);
+      if (animal) return { type: 'animal', animal, hit };
       const structure = this.building.getByCollider(hit.collider);
       if (structure) return { type: 'structure', structure, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
@@ -188,7 +204,19 @@ export class InteractionSystem {
         if (target.hit.distance > Math.max(INTERACT_REACH, tool?.reach ?? 0)) return null;
         const s = target.structure;
         const label = s.def.name;
-        if (s.def.interaction === 'fire') return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label };
+        if (s.def.interaction === 'fire') {
+          const cooking = this.deps.cooking;
+          const n = cooking.cookingCount(s);
+          const status = n > 0 ? `${label} · ${n}× brät (${Math.round(cooking.progress(s) * 100)} %)` : label;
+          switch (this.fireAction(s)) {
+            case 'take':
+              return { key: 'E', action: `Gebratenes Fleisch nehmen (${cooking.readyCount(s)})`, label: status };
+            case 'cook':
+              return { key: 'E', action: 'Fleisch braten', label: status };
+            case 'toggle':
+              return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label: status };
+          }
+        }
         if (s.def.interaction === 'sleep') {
           return this.deps.canSleep()
             ? { key: 'E', action: 'Schlafen', label }
@@ -198,9 +226,20 @@ export class InteractionSystem {
       }
       case 'enemy':
         return null;
+      case 'animal':
+        if (!target.animal.isDead || target.hit.distance > INTERACT_REACH) return null;
+        return { key: 'E', action: 'Ausnehmen', label: target.animal.name };
       case 'water':
         return { key: 'E', action: 'Trinken', label: 'Wasser' };
     }
+  }
+
+  /** Fertiges abnehmen hat Vorrang, dann auflegen (rohes Fleisch in der Hand), sonst an/aus. */
+  private fireAction(s: Structure): FireAction {
+    const cooking = this.deps.cooking;
+    if (cooking.readyCount(s) > 0) return 'take';
+    if (this.deps.heldItem() === 'rawMeat' && cooking.canAdd(s)) return 'cook';
+    return 'toggle';
   }
 
   /** Führt die `E`-Aktion für das aktuelle Ziel aus. */
@@ -226,15 +265,24 @@ export class InteractionSystem {
         const point = new THREE.Vector3(item.mesh.position.x, item.mesh.position.y, item.mesh.position.z);
         // Erst entfernen, dann geben: ein voller Rucksack lässt den Rest wieder an derselben Stelle fallen.
         this.worldItems.remove(item);
-        this.items.give(item.itemId, item.count, point);
+        this.items.give(item.itemId, item.count, point, item.durability);
         break;
       }
       case 'structure': {
         const s = target.structure;
-        if (s.def.interaction === 'fire') this.building.toggleFire(s);
+        if (s.def.interaction === 'fire') {
+          const action = this.fireAction(s);
+          if (action === 'take') this.deps.cooking.take(s);
+          else if (action === 'cook') {
+            if (this.deps.cooking.add(s)) this.deps.takeHeld();
+          } else this.building.toggleFire(s);
+        }
         else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
         break;
       }
+      case 'animal':
+        this.deps.animals.butcher(target.animal);
+        break;
       case 'water':
         this.player.stats.drink(this.config.stats.drinkAmount);
         this.audio.play('drink');

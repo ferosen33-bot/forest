@@ -566,3 +566,25 @@ kbd {
 .enemy-health__name { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #e3c7b5; text-shadow: 0 1px 2px #000; }
 .enemy-health__bar { width: 120px; height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); overflow: hidden; }
 .enemy-health__fill { height: 100%; background: #b8322a; transform-origin: left center; transition: transform 0.15s; }
+
+/* Haltbarkeitsbalken im Slot */
+.slot__wear {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.slot__wear::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--condition, 1) * 100%);
+  border-radius: 2px;
+  background: #8fc46a;
+}
+.slot__wear.is-low::after { background: #d0623f; }
+.slot__wear[hidden] { display: none; }

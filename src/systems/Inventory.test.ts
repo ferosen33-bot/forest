@@ -59,3 +59,33 @@ describe('Inventory', () => {
     expect(calls).toBe(2);
   });
 });
+
+describe('Inventory – Haltbarkeit', () => {
+  it('stapelt Werkzeuge nie und gibt jedem Exemplar volle Haltbarkeit', () => {
+    const inv = new Inventory(6, 3);
+    inv.add('torch', 2);
+    expect(inv.get(0)).toEqual({ id: 'torch', count: 1, durability: 360 });
+    expect(inv.get(1)).toEqual({ id: 'torch', count: 1, durability: 360 });
+    inv.move(0, 1); // gleiche Items mit Haltbarkeit werden getauscht, nicht zusammengelegt
+    expect(inv.get(0)?.count).toBe(1);
+    expect(inv.get(1)?.count).toBe(1);
+  });
+
+  it('verschleißt und zerbricht', () => {
+    const inv = new Inventory(3, 1);
+    inv.add('spear', 1, 3);
+    expect(inv.condition(0)).toBeCloseTo(3 / 60);
+    expect(inv.wear(0, 2)).toBe(false);
+    expect(inv.wear(0, 2)).toBe(true);
+    expect(inv.get(0)).toBeNull();
+  });
+
+  it('serialisiert und lädt verlustfrei', () => {
+    const inv = new Inventory(4, 2);
+    inv.add('axe', 1, 100);
+    inv.add('stone', 5);
+    const copy = new Inventory(4, 2);
+    copy.load(JSON.parse(JSON.stringify(inv.serialize())), () => true);
+    expect(copy.slots).toEqual(inv.slots);
+  });
+});

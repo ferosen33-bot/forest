@@ -98,6 +98,18 @@ export const CONFIG = {
     respawnTime: 240,
   },
 
+  animals: {
+    /** Hirschrudel auf der Insel und Tiere pro Rudel. */
+    herds: 5,
+    perHerd: 3,
+    rabbits: 12,
+    /** Innerhalb dieses Radius denken/bewegen sich Tiere (m). */
+    activeRadius: 150,
+    /** Sekunden bis ein fehlendes Tier fernab des Spielers nachwächst. */
+    respawnTime: 150,
+    /** Wie lange ein erlegtes Tier liegen bleibt (s). */
+    corpseTime: 360,
+  },
   time: {
     /** Dauer eines kompletten Tages in Echtzeit-Sekunden. */
     dayLength: 20 * 60,

@@ -9,6 +9,7 @@ const DEATH_TEXT: Record<DamageSource, string> = {
   dehydration: 'Du bist verdurstet.',
   drowning: 'Du bist ertrunken.',
   enemy: 'Du wurdest getötet.',
+  sickness: 'Das rohe Fleisch war zu viel für deinen Magen.',
   world: 'Du bist gestorben.',
 };
 

@@ -29,6 +29,9 @@ const MATERIALS = {
   lightWood: mat(0x8a6a45),
   binding: mat(0x6b5a3a, { roughness: 1 }),
   cloth: mat(0x3a2f26, { roughness: 1 }),
+  rawMeat: mat(0xa8343a, { roughness: 0.55 }),
+  cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
+  bone: mat(0xe6dcc6, { roughness: 0.7 }),
 };
 
 /** Länge eines Holzstamms (m) – wird auch beim Zerlegen gefällter Bäume genutzt. */
@@ -103,6 +106,21 @@ function build(id: ItemId): THREE.Object3D {
       g.add(poll);
       break;
     }
+    case 'rawMeat':
+    case 'cookedMeat': {
+      // Fleischkeule: verbeulter Brocken mit herausragendem Knochen
+      const chunk = jitter(new THREE.IcosahedronGeometry(0.1, 1), 0.02, id === 'rawMeat' ? 71 : 73);
+      chunk.scale(1.3, 0.75, 1);
+      g.add(new THREE.Mesh(chunk, id === 'rawMeat' ? MATERIALS.rawMeat : MATERIALS.cookedMeat));
+      const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.14, 5), MATERIALS.bone);
+      bone.rotation.z = Math.PI / 2;
+      bone.position.x = 0.15;
+      g.add(bone);
+      const knob = new THREE.Mesh(new THREE.IcosahedronGeometry(0.03, 0), MATERIALS.bone);
+      knob.position.x = 0.22;
+      g.add(knob);
+      break;
+    }
     case 'stoneAxe': {
       const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.6, 6), MATERIALS.lightWood);
       g.add(handle);
@@ -166,6 +184,9 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.ball(0.11).setDensity(2500);
     case 'berries':
       return RAPIER.ColliderDesc.ball(0.07).setDensity(800);
+    case 'rawMeat':
+    case 'cookedMeat':
+      return RAPIER.ColliderDesc.ball(0.1).setDensity(1000);
     case 'axe':
     case 'stoneAxe':
       return RAPIER.ColliderDesc.cuboid(0.08, 0.32, 0.03).setDensity(900);

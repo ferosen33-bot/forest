@@ -97,6 +97,8 @@ export class ViewModel {
   private recoil = 0;
   private block = 0;
   private blocking = false;
+  private aim = 0;
+  private aiming = false;
   private swayX = 0;
   private swayY = 0;
   private lastYaw = 0;
@@ -166,6 +168,18 @@ export class ViewModel {
     this.blocking = on;
   }
 
+  /** Wurfhaltung: Speer über der Schulter zurückgezogen. */
+  setAiming(on: boolean): void {
+    this.aiming = on;
+  }
+
+  /** Abwurf: sofort aus der Zielhaltung nach vorne schnellen. */
+  playThrow(): void {
+    this.aiming = false;
+    this.aim = 0;
+    this.recoil = -1.5;
+  }
+
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
@@ -211,6 +225,15 @@ export class ViewModel {
       this.animPos.z += 0.06 * this.block;
       this.animRot.z += 1.25 * this.block;
       this.animRot.x += 0.2 * this.block;
+    }
+    this.aim = damp(this.aim, this.aiming ? 1 : 0, 10, dt);
+    if (this.aim > 0.001) {
+      // Ausholen: hoch über die Schulter, nach hinten gezogen, leicht zitternd.
+      const shake = Math.sin(this.time * 31) * 0.002 * this.aim;
+      this.animPos.x += 0.06 * this.aim;
+      this.animPos.y += 0.2 * this.aim + shake;
+      this.animPos.z += 0.22 * this.aim;
+      this.animRot.x -= 0.12 * this.aim;
     }
 
     // Sway: das Item hinkt der Blickbewegung leicht hinterher.

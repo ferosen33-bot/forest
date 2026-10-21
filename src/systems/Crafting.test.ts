@@ -29,7 +29,7 @@ describe('Crafting', () => {
     const inv = new Inventory(1, 0); // genau ein Slot
     inv.add('stick', 2);
     expect(new Crafting(inv).craftItem(recipe('torch'))).toBe(0);
-    expect(inv.get(0)).toEqual({ id: 'torch', count: 1 });
+    expect(inv.get(0)).toEqual({ id: 'torch', count: 1, durability: 360 });
   });
 
   it('jedes Rezept hat Kosten', () => {

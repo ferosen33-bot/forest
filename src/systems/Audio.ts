@@ -35,7 +35,11 @@ export type SoundId =
   | 'stepSand'
   | 'stepRock'
   | 'stepWood'
-  | 'stepWater';
+  | 'stepWater'
+  | 'hoof'
+  | 'deerAlarm'
+  | 'throw'
+  | 'sizzle';
 
 export interface PlayOptions {
   volume?: number;
@@ -276,6 +280,24 @@ export class Audio {
       case 'stepWater':
         this.noise(t, 0.22, 'bandpass', 1300 * pitch, 0.7, 0.45, 600);
         this.tone(t + 0.02, 'sine', 500 * pitch, 900, 0.06, 0.12);
+        break;
+      // Tiere
+      case 'hoof':
+        this.tone(t, 'sine', 120 * pitch, 70, 0.07, 0.4);
+        this.noise(t, 0.05, 'bandpass', 1100 * pitch, 1.2, 0.25);
+        break;
+      case 'deerAlarm':
+        // Schrecken des Rehwilds: kurzes, heiseres "Bellen", zweimal.
+        for (const dt of [0, 0.42]) {
+          this.tone(t + dt, 'sawtooth', 820 * pitch, 430, 0.22, 0.3, 1900);
+          this.noise(t + dt, 0.2, 'bandpass', 1300, 2, 0.25);
+        }
+        break;
+      case 'throw':
+        this.noise(t, 0.35, 'bandpass', 500, 1.2, 0.45, 1800);
+        break;
+      case 'sizzle':
+        this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
         break;
     }
   }

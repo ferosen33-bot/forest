@@ -3,15 +3,22 @@ import { getItem, type ItemId } from '../entities/items/ItemDefs';
 export interface ItemStack {
   id: ItemId;
   count: number;
+  /** Verbleibende Haltbarkeit (nur Items mit `durability`; solche Stapel haben immer count = 1). */
+  durability?: number;
 }
 
 export type Slot = ItemStack | null;
 
+/** Serialisierte Form für Spielstände. */
+export type InventoryData = (ItemStack | null)[];
+
+/** Items mit Haltbarkeit stapeln nie. */
+const stackable = (id: ItemId) => getItem(id).durability === undefined;
+
 /**
  * Slot-basiertes Inventar. Die ersten `hotbarSize` Slots bilden die Schnellzugriffsleiste.
  *
- * Reine Spiellogik ohne DOM/Three.js – dadurch einfach testbar und später
- * direkt serialisierbar (Savegames).
+ * Reine Spiellogik ohne DOM/Three.js – dadurch einfach testbar und direkt serialisierbar.
  */
 export class Inventory {
   readonly slots: Slot[];
@@ -54,7 +61,7 @@ export class Inventory {
     let free = 0;
     for (const s of this.slots) {
       if (s === null) free += max;
-      else if (s.id === id) free += max - s.count;
+      else if (s.id === id && stackable(id)) free += max - s.count;
     }
     return free;
   }
@@ -62,26 +69,34 @@ export class Inventory {
   /**
    * Fügt Items hinzu: zuerst auf bestehende Stapel, dann in freie Slots
    * (Werkzeuge bevorzugt in die Schnellzugriffsleiste, Rohstoffe in den Rucksack).
+   * @param durability Zustand für Items mit Haltbarkeit (Standard: neu).
    * @returns Anzahl, die nicht mehr hineinpasste.
    */
-  add(id: ItemId, amount: number): number {
+  add(id: ItemId, amount: number, durability?: number): number {
     const def = getItem(id);
     let rest = amount;
 
-    for (const s of this.slots) {
-      if (rest <= 0) break;
-      if (s?.id === id && s.count < def.maxStack) {
-        const n = Math.min(def.maxStack - s.count, rest);
-        s.count += n;
-        rest -= n;
+    if (stackable(id)) {
+      for (const s of this.slots) {
+        if (rest <= 0) break;
+        if (s?.id === id && s.count < def.maxStack) {
+          const n = Math.min(def.maxStack - s.count, rest);
+          s.count += n;
+          rest -= n;
+        }
       }
     }
 
-    for (const index of this.freeSlotOrder(def.category === 'resource' ? 'backpack' : 'hotbar')) {
+    for (const index of this.freeSlotOrder(def.category === 'tool' ? 'hotbar' : def.category === 'food' ? 'hotbar' : 'backpack')) {
       if (rest <= 0) break;
-      const n = Math.min(def.maxStack, rest);
-      this.slots[index] = { id, count: n };
-      rest -= n;
+      if (def.durability !== undefined) {
+        this.slots[index] = { id, count: 1, durability: durability ?? def.durability };
+        rest -= 1;
+      } else {
+        const n = Math.min(def.maxStack, rest);
+        this.slots[index] = { id, count: n };
+        rest -= n;
+      }
     }
 
     if (rest !== amount) this.changed();
@@ -115,12 +130,36 @@ export class Inventory {
     s.count -= n;
     if (s.count === 0) this.slots[index] = null;
     this.changed();
-    return { id: s.id, count: n };
+    return s.durability !== undefined ? { id: s.id, count: n, durability: s.durability } : { id: s.id, count: n };
   }
 
   /**
-   * Verschiebt den Inhalt von `from` nach `to`: gleiche Items werden zusammengelegt
-   * (Rest bleibt im Ursprung), unterschiedliche getauscht.
+   * Verschleißt das Item in einem Slot.
+   * @returns true, wenn es dabei zerbrochen bzw. abgebrannt ist (Slot ist danach leer).
+   */
+  wear(index: number, amount: number): boolean {
+    const s = this.slots[index];
+    if (!s || s.durability === undefined) return false;
+    s.durability = Math.max(0, s.durability - amount);
+    if (s.durability > 0) {
+      // Kein `changed()` für jede Zehntelsekunde Fackel – die Anzeige liest den Wert direkt.
+      return false;
+    }
+    this.slots[index] = null;
+    this.changed();
+    return true;
+  }
+
+  /** Haltbarkeit in [0, 1] (1 = neu), oder null, wenn das Item keine hat. */
+  condition(index: number): number | null {
+    const s = this.slots[index];
+    const max = s ? getItem(s.id).durability : undefined;
+    return s && max !== undefined && s.durability !== undefined ? s.durability / max : null;
+  }
+
+  /**
+   * Verschiebt den Inhalt von `from` nach `to`: gleiche, stapelbare Items werden
+   * zusammengelegt (Rest bleibt im Ursprung), alles andere getauscht.
    */
   move(from: number, to: number): void {
     if (from === to) return;
@@ -128,7 +167,7 @@ export class Inventory {
     const b = this.slots[to];
     if (!a) return;
 
-    if (b && b.id === a.id) {
+    if (b && b.id === a.id && stackable(a.id)) {
       const max = getItem(a.id).maxStack;
       const n = Math.min(max - b.count, a.count);
       b.count += n;
@@ -149,13 +188,15 @@ export class Inventory {
     const max = getItem(s.id).maxStack;
 
     // Erst auf passende Stapel im Zielbereich verteilen …
-    for (const i of this.range(target)) {
-      const t = this.slots[i];
-      if (t?.id === s.id && t.count < max) {
-        const n = Math.min(max - t.count, s.count);
-        t.count += n;
-        s.count -= n;
-        if (s.count === 0) break;
+    if (stackable(s.id)) {
+      for (const i of this.range(target)) {
+        const t = this.slots[i];
+        if (t?.id === s.id && t.count < max) {
+          const n = Math.min(max - t.count, s.count);
+          t.count += n;
+          s.count -= n;
+          if (s.count === 0) break;
+        }
       }
     }
     // … dann den Rest in einen freien Slot.
@@ -167,6 +208,20 @@ export class Inventory {
       }
     } else {
       this.slots[index] = null;
+    }
+    this.changed();
+  }
+
+  /** Für Spielstände: tiefe Kopie aller Slots. */
+  serialize(): InventoryData {
+    return this.slots.map((s) => (s ? { ...s } : null));
+  }
+
+  /** Lädt einen Spielstand; unbekannte Items werden verworfen. */
+  load(data: InventoryData, isKnown: (id: string) => boolean): void {
+    for (let i = 0; i < this.size; i++) {
+      const s = data[i];
+      this.slots[i] = s && isKnown(s.id) && s.count > 0 ? { ...s } : null;
     }
     this.changed();
   }

@@ -21,18 +21,25 @@ export class ItemService {
    * @param overflowAt Hier landet, was nicht mehr ins Inventar passt.
    * @returns Anzahl, die tatsächlich ins Inventar ging.
    */
-  give(item: ItemId, count: number, overflowAt: THREE.Vector3): number {
-    const rest = this.inventory.add(item, count);
+  give(item: ItemId, count: number, overflowAt: THREE.Vector3, durability?: number): number {
+    const rest = this.inventory.add(item, count, durability);
     const taken = count - rest;
     if (taken > 0) {
       this.events.emit('item:collected', { item, count: taken });
       this.audio.play('pickup');
     }
     if (rest > 0) {
-      this.worldItems.spawn(item, rest, overflowAt.clone().add(new THREE.Vector3(0, 0.3, 0)));
+      this.worldItems.spawn(item, rest, overflowAt.clone().add(new THREE.Vector3(0, 0.3, 0)), { durability });
       this.events.emit('item:inventoryFull', { item, dropped: rest });
     }
     return taken;
+  }
+
+  /** Legt Items direkt in die Welt (nicht ins Inventar). */
+  drop(item: ItemId, count: number, at: THREE.Vector3): void {
+    this.worldItems.spawn(item, count, at.clone(), {
+      velocity: new THREE.Vector3((Math.random() - 0.5) * 1.5, 2, (Math.random() - 0.5) * 1.5),
+    });
   }
 
   /** Wirft einen Stapel aus dem Inventar vor den Spieler. */
@@ -43,6 +50,7 @@ export class ItemService {
     const velocity = direction.clone().multiplyScalar(3.5).add(new THREE.Vector3(0, 1.5, 0));
     const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random(), Math.random() * 6, Math.PI / 2));
     this.worldItems.spawn(stack.id, stack.count, pos, {
+      durability: stack.durability,
       velocity,
       rotation,
       angularVelocity: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(4),

@@ -3,7 +3,17 @@
  * Neue Items (Seil, Fleisch, Speer …) werden ausschließlich hier eingetragen.
  */
 
-export type ItemId = 'log' | 'stick' | 'stone' | 'berries' | 'axe' | 'stoneAxe' | 'spear' | 'torch';
+export type ItemId =
+  | 'log'
+  | 'stick'
+  | 'stone'
+  | 'berries'
+  | 'rawMeat'
+  | 'cookedMeat'
+  | 'axe'
+  | 'stoneAxe'
+  | 'spear'
+  | 'torch';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -49,6 +59,13 @@ export interface ItemDef {
   description: string;
   category: ItemCategory;
   maxStack: number;
+  /**
+   * Haltbarkeit: Werkzeuge in Treffern, Fackeln in Brennsekunden.
+   * Items mit Haltbarkeit stapeln nie – jedes Exemplar hat seinen eigenen Zustand.
+   */
+  durability?: number;
+  /** Kann geworfen werden (rechte Maustaste zielen, linke werfen). */
+  throwable?: { speed: number; damageMultiplier: number };
   tool?: ToolStats;
   food?: FoodStats;
   light?: HeldLight;
@@ -76,6 +93,22 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'resource',
     maxStack: 12,
   },
+  rawMeat: {
+    id: 'rawMeat',
+    name: 'Rohes Fleisch',
+    description: 'Roh essbar, aber es schlägt auf den Magen. Besser am Lagerfeuer braten.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 6, thirst: -3, health: -6 },
+  },
+  cookedMeat: {
+    id: 'cookedMeat',
+    name: 'Gebratenes Fleisch',
+    description: 'Über dem Feuer gegart. Macht satt und stärkt.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 35, thirst: -2, health: 8 },
+  },
   berries: {
     id: 'berries',
     name: 'Beeren',
@@ -90,6 +123,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Aus dem Flugzeugwrack geborgen. Fällt Bäume und schlägt Steine ab.',
     category: 'tool',
     maxStack: 1,
+    durability: 220,
     tool: {
       treeDamage: 20,
       rockYield: 1,
@@ -107,6 +141,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Ein scharfkantiger Stein an einem Stock. Schwerer als die Notfallaxt, aber deutlich wirkungsvoller.',
     category: 'tool',
     maxStack: 1,
+    durability: 140,
     tool: {
       treeDamage: 32,
       rockYield: 2,
@@ -121,9 +156,11 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   spear: {
     id: 'spear',
     name: 'Speer',
-    description: 'Ein langer, angespitzter Stock. Hält Angreifer auf Abstand.',
+    description: 'Ein langer, angespitzter Stock. Hält Angreifer auf Abstand – und lässt sich werfen.',
     category: 'tool',
     maxStack: 1,
+    durability: 60,
+    throwable: { speed: 30, damageMultiplier: 1.6 },
     tool: {
       treeDamage: 4,
       rockYield: 0,
@@ -138,9 +175,10 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   torch: {
     id: 'torch',
     name: 'Fackel',
-    description: 'Spendet in der Hand Licht. Unverzichtbar in den dunklen Nächten.',
+    description: 'Spendet in der Hand Licht. Unverzichtbar in den dunklen Nächten. Brennt etwa sechs Minuten.',
     category: 'tool',
-    maxStack: 3,
+    maxStack: 1,
+    durability: 360,
     light: { color: 0xffa04a, intensity: 18, distance: 16 },
   },
 };

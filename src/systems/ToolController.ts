@@ -10,6 +10,8 @@ import type { HarvestSystem } from './HarvestSystem';
 import type { Audio } from './Audio';
 import type { BuildingSystem } from './building/BuildingSystem';
 import type { EnemyDirector } from './ai/EnemyDirector';
+import type { AnimalDirector } from './AnimalDirector';
+import type { Projectiles } from './Projectiles';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -26,6 +28,9 @@ export class ToolController {
 
   private swing: { tool: ToolStats; time: number; impactDone: boolean } | null = null;
   private eating: { def: ItemDef; time: number; done: boolean } | null = null;
+  /** Wurfwaffe angelegt (rechte Maustaste gehalten). */
+  aiming = false;
+  private throwCooldown = 0;
   private exhaustedHintCooldown = 0;
   private readonly fromDir = new THREE.Vector3();
   private readonly point = new THREE.Vector3();
@@ -42,6 +47,9 @@ export class ToolController {
     private readonly player: Player,
     private readonly audio: Audio,
     private readonly events: EventBus,
+    private readonly animals: AnimalDirector,
+    private readonly projectiles: Projectiles,
+    private readonly camera: THREE.Camera,
   ) {}
 
   get equipped(): ItemStack | null {
@@ -63,6 +71,7 @@ export class ToolController {
   /** @param active false, solange Menüs/Inventar offen sind (nur Animationen laufen weiter). */
   update(dt: number, active: boolean): void {
     this.exhaustedHintCooldown -= dt;
+    this.throwCooldown -= dt;
 
     if (active) {
       HOTBAR_KEYS.forEach((key, i) => {
@@ -78,17 +87,25 @@ export class ToolController {
     // Das ViewModel zeigt immer, was im gewählten Slot liegt (auch nach Inventar-Änderungen).
     const stack = this.equipped;
     this.viewModel.equip(stack?.id ?? null);
+    // Fackeln brennen ab, solange man sie in der Hand hält.
+    if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt);
 
     if (this.swing) this.updateSwing(dt);
     if (this.eating) this.updateEating(dt);
 
-    // Blocken: rechte Maustaste mit einer Waffe in der Hand.
+    // Rechte Maustaste: Wurfwaffen anlegen, sonst mit der Waffe blocken.
     const def = stack ? getItem(stack.id) : undefined;
-    const blocking =
-      active && !this.player.stats.isDead && !!def?.tool && this.input.isMouseDown(2) && !this.swing && !this.eating;
+    const rmb = active && !this.player.stats.isDead && !!def?.tool && this.input.isMouseDown(2) && !this.swing && !this.eating;
+    this.aiming = rmb && !!def?.throwable && !this.viewModel.busy;
+    const blocking = rmb && !def?.throwable;
     this.player.blocking = blocking;
     this.viewModel.setBlocking(blocking);
-    if (blocking) return;
+    this.viewModel.setAiming(this.aiming);
+    if (this.aiming) {
+      if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwEquipped(def!);
+      return;
+    }
+    if (blocking || rmb) return;
 
     if (!active || this.player.stats.isDead || !stack || this.swing || this.eating || this.viewModel.busy) return;
 
@@ -149,8 +166,44 @@ export class ToolController {
       case 'enemy':
         this.enemies.damage(target.enemy, tool.damage, target.zone, this.player.position, this.point, this.normal);
         break;
+      case 'animal':
+        if (target.animal.isDead) {
+          this.audio.play('swing');
+          return;
+        }
+        this.animals.damage(target.animal, tool.damage, this.player.position, this.point, this.normal);
+        break;
     }
     this.viewModel.playHit();
+    this.wearEquipped(1);
+  }
+
+  /** Wirft die Waffe in der Hand entlang der Blickrichtung. */
+  private throwEquipped(def: ItemDef): void {
+    const tool = def.tool!;
+    const t = def.throwable!;
+    if (!this.player.stats.useStamina(tool.staminaCost * 1.5)) {
+      if (this.exhaustedHintCooldown <= 0) {
+        this.events.emit('hud:message', { text: 'Zu erschöpft zum Werfen.' });
+        this.exhaustedHintCooldown = 2;
+      }
+      return;
+    }
+    const stack = this.inventory.takeFromSlot(this.selected, 1);
+    if (!stack) return;
+    const dir = this.camera.getWorldDirection(new THREE.Vector3());
+    const right = new THREE.Vector3().crossVectors(dir, this.camera.up).normalize();
+    // Abwurf über der rechten Schulter; Spielergeschwindigkeit wird mitgegeben.
+    const origin = this.camera.getWorldPosition(new THREE.Vector3()).addScaledVector(right, 0.18).addScaledVector(dir, 0.3);
+    origin.y += 0.05;
+    // Leicht angehoben: auf ~12 m trifft der Speer genau die Bildmitte.
+    const velocity = dir.multiplyScalar(t.speed).add(this.player.velocity);
+    velocity.y += 1.2;
+    this.projectiles.launch(stack.id, stack.durability, tool.damage * t.damageMultiplier, origin, velocity);
+    this.viewModel.playThrow();
+    this.events.emit('noise', { position: this.player.position, radius: 6 });
+    this.throwCooldown = 0.4;
+    this.aiming = false;
   }
 
   /** Sofort essen (Rechtsklick im Inventar, ohne Animation). */
@@ -167,10 +220,27 @@ export class ToolController {
     const food = def.food!;
     const stats = this.player.stats;
     stats.eat(food.hunger);
-    stats.thirst = Math.min(stats.max, stats.thirst + food.thirst);
-    stats.health = Math.min(stats.max, stats.health + food.health);
+    stats.thirst = Math.max(0, Math.min(stats.max, stats.thirst + food.thirst));
     this.audio.play('eat');
     this.events.emit('player:ate', { item: def.id });
+    if (food.health >= 0) {
+      stats.health = Math.min(stats.max, stats.health + food.health);
+    } else {
+      // Rohes Fleisch: Übelkeit statt Heilung.
+      stats.damage(-food.health, 'sickness');
+      this.events.emit('hud:message', { text: 'Dir wird übel …' });
+    }
+  }
+
+  /** Nutzt das Werkzeug in der Hand ab; meldet, wenn es zerbricht bzw. abbrennt. */
+  private wearEquipped(amount: number): void {
+    const stack = this.equipped;
+    if (!stack) return;
+    const name = getItem(stack.id).name;
+    if (this.inventory.wear(this.selected, amount)) {
+      this.audio.play(stack.id === 'torch' ? 'ignite' : 'treeCrack', 0.6);
+      this.events.emit('hud:message', { text: stack.id === 'torch' ? 'Die Fackel ist abgebrannt.' : `${name} ist zerbrochen.` });
+    }
   }
 
   private startEating(def: ItemDef): void {
