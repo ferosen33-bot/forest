@@ -75,21 +75,7 @@ export class InventoryUI {
     ] as const);
     this.buildRecipeCards();
 
-    for (let i = 0; i < inventory.size; i++) {
-      const slot = document.createElement('div');
-      slot.className = 'slot';
-      slot.dataset.index = String(i);
-      if (i < inventory.hotbarSize) {
-        const num = document.createElement('span');
-        num.className = 'slot__key';
-        num.textContent = String(i + 1);
-        slot.appendChild(num);
-        this.el.hotbarGrid.appendChild(slot);
-      } else {
-        this.el.grid.appendChild(slot);
-      }
-      this.slotEls.push(slot);
-    }
+    this.addSlotElements();
 
     inventory.onChange(() => {
       if (this._open) this.render();
@@ -102,6 +88,25 @@ export class InventoryUI {
 
   get open(): boolean {
     return this._open;
+  }
+
+  /** Legt Slot-Elemente für alle (auch neu hinzugekommene) Inventarplätze an. */
+  private addSlotElements(): void {
+    for (let i = this.slotEls.length; i < this.inventory.size; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.dataset.index = String(i);
+      if (i < this.inventory.hotbarSize) {
+        const num = document.createElement('span');
+        num.className = 'slot__key';
+        num.textContent = String(i + 1);
+        slot.appendChild(num);
+        this.el.hotbarGrid.appendChild(slot);
+      } else {
+        this.el.grid.appendChild(slot);
+      }
+      this.slotEls.push(slot);
+    }
   }
 
   show(): void {
@@ -151,6 +156,7 @@ export class InventoryUI {
   }
 
   private render(): void {
+    if (this.slotEls.length < this.inventory.size) this.addSlotElements();
     const selected = this.getSelected();
     this.slotEls.forEach((el, i) => {
       renderSlot(el, this.inventory.get(i), this.icons.items);

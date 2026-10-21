@@ -30,6 +30,9 @@ export interface Structure {
   shake: number;
   /** Nur Lagerkisten */
   storage?: Inventory;
+  /** Nur Schlingfallen: gespannt (true) oder zugeschnappt. */
+  armed?: boolean;
+  spring?: THREE.Object3D;
   /** Nur Tore */
   open?: boolean;
   doorAngle?: number;
@@ -51,6 +54,7 @@ export interface StructureSave {
   lit: boolean;
   open?: boolean;
   storage?: InventoryData;
+  armed?: boolean;
 }
 
 export interface Placement {
@@ -479,6 +483,10 @@ export class BuildingSystem {
     }
 
     if (def.storageSlots) structure.storage = new Inventory(def.storageSlots, 0);
+    if (def.interaction === 'snare') {
+      structure.spring = object.getObjectByName('spring');
+      this.setArmed(structure, true);
+    }
 
     if (def.interaction === 'door') {
       structure.open = false;
@@ -514,6 +522,7 @@ export class BuildingSystem {
       lit: s.lit,
       ...(s.open ? { open: true } : {}),
       ...(s.storage ? { storage: s.storage.serialize() } : {}),
+      ...(s.def.interaction === 'snare' ? { armed: s.armed === true } : {}),
     }));
   }
 
@@ -533,6 +542,7 @@ export class BuildingSystem {
         s.doorAngle = GATE_OPEN_ANGLE;
       }
       if (s.storage && Array.isArray(d.storage)) s.storage.load(d.storage, isItemId);
+      if (d.armed === false) this.setArmed(s, false);
       out.push(s);
     }
     return out;
@@ -556,6 +566,13 @@ export class BuildingSystem {
     s.doorCollider?.setSensor(open);
     if (!quiet) this.audio.play('door', { position: s.position.clone().setY(s.position.y + 1.2) });
     this.events.emit('structure:door', { id: s.def.id, position: s.position.clone(), rotation: s.rotation, open });
+  }
+
+  /** Schlingfalle spannen (Ast heruntergebogen) bzw. zuschnappen lassen (Ast schnellt hoch). */
+  setArmed(s: Structure, armed: boolean): void {
+    if (s.def.interaction !== 'snare') return;
+    s.armed = armed;
+    if (s.spring) s.spring.rotation.z = armed ? 1.0 : 0.05;
   }
 
   toggleDoor(s: Structure): void {

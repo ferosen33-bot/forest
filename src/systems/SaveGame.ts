@@ -29,6 +29,9 @@ export interface SaveData {
     selected: number;
     /** Seit Meilenstein 9 (fehlt in älteren Ständen). */
     wetness?: number;
+    /** Seit Meilenstein 16: großer Rucksack / Fellmantel. */
+    backpack?: boolean;
+    clothing?: boolean;
   };
   time: { day: number; hour: number };
   inventory: InventoryData;

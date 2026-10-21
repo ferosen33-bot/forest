@@ -179,8 +179,8 @@ export class EnemyDirector {
 
   private markStructure(id: Parameters<typeof getStructure>[0], pos: THREE.Vector3, rotation: number, delta: 1 | -1): void {
     const def = getStructure(id);
-    // Böden und Treppen sind begehbar – kein Hindernis für die Wegfindung.
-    if (def.support || def.snap === 'stairs') return;
+    // Böden, Treppen und Bodenfallen sind begehbar – kein Hindernis für die Wegfindung.
+    if (def.walkable) return;
     const he = def.halfExtents;
     this.nav.markBox(pos.x, pos.z, rotation, he.x, he.z, delta);
   }

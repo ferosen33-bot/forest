@@ -25,10 +25,20 @@ export class Inventory {
   private listeners = new Set<() => void>();
 
   constructor(
-    readonly size = 30,
+    size = 30,
     readonly hotbarSize = 6,
   ) {
     this.slots = Array.from({ length: size }, () => null);
+  }
+
+  get size(): number {
+    return this.slots.length;
+  }
+
+  /** Mehr Rucksackplätze (großer Rucksack). */
+  grow(extra: number): void {
+    for (let i = 0; i < extra; i++) this.slots.push(null);
+    this.changed();
   }
 
   /** Benachrichtigt bei jeder Änderung (UI-Aktualisierung). */

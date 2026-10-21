@@ -26,6 +26,10 @@ export interface AnimalDeps {
   spawnPoint: THREE.Vector3;
   /** Mittelpunkte der Schrat-Lager – dort gibt es kein Wild. */
   avoid: THREE.Vector3[];
+  /** Gespannte Schlingfallen. */
+  snares: () => { position: THREE.Vector3; armed?: boolean }[];
+  /** Eine Falle hat zugeschnappt. */
+  onSnared: (snare: { position: THREE.Vector3 }) => void;
 }
 
 export interface AnimalSave {
@@ -78,6 +82,7 @@ export class AnimalDirector {
   private readonly rng: () => number;
   private readonly stepCounts = new WeakMap<Animal, number>();
   private respawnTimer = 0;
+  private lureTimer = 0;
   private pathPlans = 0;
   private nextId = 1;
   private readonly tmp = new THREE.Vector3();
@@ -222,11 +227,13 @@ export class AnimalDirector {
   butcher(animal: Animal): void {
     if (!animal.isDead || !this.animals.includes(animal)) return;
     const meat = Math.max(1, Math.round(animal.stats.meat * animal.rig.scale));
+    const hides = animal.species === 'deer' ? 2 : 1;
     this.tmp.copy(animal.feet).add(new THREE.Vector3(0, 0.4, 0));
     this.d.particles.burst(this.tmp, { count: 14, color: 0x6a1010, direction: new THREE.Vector3(0, 1, 0), speed: 1.8, size: 0.03 });
     this.d.audio.play('fleshHit');
     this.remove(animal);
     this.d.items.give('rawMeat', meat, this.tmp);
+    this.d.items.give('hide', hides, this.tmp);
   }
 
   private scareAround(position: THREE.Vector3, radius: number): void {
@@ -278,12 +285,41 @@ export class AnimalDirector {
     this.renderers.deer.render(visible.deer);
     this.renderers.rabbit.render(visible.rabbit);
 
+    this.updateSnares(dt);
+
     // Bestände fernab des Spielers wieder auffüllen.
     this.respawnTimer += dt;
     if (this.respawnTimer > this.cfg.respawnTime) {
       this.respawnTimer = 0;
       if (this.count('deer') < this.cfg.herds * this.cfg.perHerd) this.spawnHerd(true);
       if (this.count('rabbit') < this.cfg.rabbits) this.spawnRabbit(true);
+    }
+  }
+
+  /** Schlingfallen: Hasen der Umgebung schnuppern gelegentlich heran; wer hineinläuft, ist gefangen. */
+  private updateSnares(dt: number): void {
+    const snares = this.d.snares().filter((s) => s.armed);
+    if (snares.length === 0) return;
+    this.lureTimer -= dt;
+    const lure = this.lureTimer <= 0;
+    if (lure) this.lureTimer = 6;
+    for (const a of this.animals) {
+      if (a.species !== 'rabbit' || a.isDead) continue;
+      for (const s of snares) {
+        if (!s.armed) continue;
+        const d = Math.hypot(a.feet.x - s.position.x, a.feet.z - s.position.z);
+        // Tiere gelten bei 1,2 m als „angekommen“ – das reicht für die Schlinge.
+        if (d < 1.3) {
+          a.takeDamage(Infinity, s.position);
+          this.byCollider.delete(a.collider.handle);
+          if (a.corpse) this.byCollider.set(a.corpse.handle, a);
+          s.armed = false;
+          this.d.onSnared(s);
+          break;
+        }
+        // Köder: etwa alle 6 s mit etwas Glück zur Falle hin (nur Hasen im Umkreis von 45 m).
+        if (lure && d < 45 && Math.random() < 0.35) a.lure(s.position);
+      }
     }
   }
 

@@ -29,6 +29,11 @@ export const RECIPES: Recipe[] = [
   ]),
   item('torch', [{ item: 'stick', count: 2 }]),
   item('bowl', [{ item: 'log', count: 1 }]),
+  item('backpack', [
+    { item: 'hide', count: 4 },
+    { item: 'stick', count: 2 },
+  ]),
+  item('furCoat', [{ item: 'hide', count: 5 }]),
   item('bow', [
     { item: 'log', count: 1 },
     { item: 'stick', count: 2 },
@@ -49,6 +54,7 @@ export const RECIPES: Recipe[] = [
   structure('shelter'),
   structure('chest'),
   structure('spikeTrap'),
+  structure('snare'),
 ];
 
 export const recipeName = (r: Recipe): string =>

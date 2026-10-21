@@ -274,6 +274,14 @@ export class Game {
       config: cfg,
       spawnPoint: this.world.spawnPoint,
       avoid: this.enemies.camps.map((c) => c.center),
+      snares: () => this.building.structures.filter((s) => s.def.interaction === 'snare'),
+      onSnared: (snare) => {
+        const s = this.building.structures.find((x) => x.position === snare.position);
+        if (s) this.building.setArmed(s, false);
+        if (snare.position.distanceTo(this.player.position) < 120) {
+          this.events.emit('hud:message', { text: 'Eine Schlingfalle hat zugeschnappt.' });
+        }
+      },
     });
     this.scene.add(this.animals.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
@@ -432,6 +440,8 @@ export class Game {
         respawn: [this.respawnPoint.x, this.respawnPoint.y, this.respawnPoint.z],
         selected: this.tools.selected,
         wetness: s.wetness,
+        backpack: this.hasBackpack,
+        clothing: s.clothing,
       },
       time: { day: this.dayNight.day, hour: this.dayNight.hour },
       inventory: this.inventory.serialize(),
@@ -450,6 +460,9 @@ export class Game {
 
   /** Stellt einen Spielstand in der frisch erzeugten Welt wieder her (nur beim Start). */
   private applySave(d: SaveData): void {
+    // Erst den Rucksack vergrößern, sonst würden die zusätzlichen Plätze beim Laden abgeschnitten.
+    if (d.player.backpack) this.upgradeBackpack();
+    this.player.stats.clothing = d.player.clothing === true;
     this.inventory.load(d.inventory, isItemId);
     this.world.vegetation.load(d.vegetation);
     this.harvest.load(d.harvest);
@@ -646,9 +659,41 @@ export class Game {
   }
 
   /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
+  /** Großer Rucksack: zwölf zusätzliche Plätze (einmalig). */
+  private hasBackpack = false;
+
+  private upgradeBackpack(): void {
+    if (this.hasBackpack) return;
+    this.hasBackpack = true;
+    this.inventory.grow(12);
+  }
+
   private useSlot(slot: number): void {
     const stack = this.inventory.get(slot);
     if (!stack) return;
+    const use = getItem(stack.id).use;
+    if (use === 'backpack') {
+      if (this.hasBackpack) {
+        this.events.emit('hud:message', { text: 'Du trägst schon einen großen Rucksack.' });
+        return;
+      }
+      this.inventory.takeFromSlot(slot, 1);
+      this.upgradeBackpack();
+      this.audio.play('craft');
+      this.events.emit('hud:message', { text: 'Umgepackt: zwölf Plätze mehr im Rucksack.' });
+      return;
+    }
+    if (use === 'clothing') {
+      if (this.player.stats.clothing) {
+        this.events.emit('hud:message', { text: 'Du trägst schon einen Fellmantel.' });
+        return;
+      }
+      this.inventory.takeFromSlot(slot, 1);
+      this.player.stats.clothing = true;
+      this.audio.play('craft');
+      this.events.emit('hud:message', { text: 'Fellmantel angezogen – Nässe macht dir jetzt viel weniger aus.' });
+      return;
+    }
     if (getItem(stack.id).food) {
       this.tools.consumeFromSlot(slot);
       return;

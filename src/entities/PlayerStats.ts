@@ -26,6 +26,8 @@ export class PlayerStats {
   wetness = 0;
   /** Nacht (kälter) – vom Spiel gesetzt. */
   night = false;
+  /** Fellmantel angezogen: Nässe kühlt deutlich weniger aus. */
+  clothing = false;
 
   private regenDelay = 0;
   private readonly cfg: GameConfig['stats'];
@@ -93,12 +95,12 @@ export class PlayerStats {
   /** Wie sehr man friert (0..1): Nässe zählt nur fern vom Feuer, nachts doppelt. */
   get cold(): number {
     if (this.warm) return 0;
-    return clamp(this.wetness * (this.night ? 1 : 0.6), 0, 1);
+    return clamp(this.wetness * (this.night ? 1 : 0.6) * (this.clothing ? 0.4 : 1), 0, 1);
   }
 
-  /** Unterkühlung: nachts klatschnass ohne Wärmequelle. */
+  /** Unterkühlung: nachts klatschnass ohne Wärmequelle (im Fellmantel nicht). */
   get freezing(): boolean {
-    return this.night && !this.warm && this.wetness > 0.7;
+    return this.night && this.cold > 0.7;
   }
 
   /** Verbraucht Ausdauer, falls genug vorhanden ist. */

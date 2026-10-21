@@ -53,6 +53,17 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 16 – Felle, Ausrüstung & Schlingfallen
+
+- **Felle:** Ausnehmen liefert zusätzlich Felle (Hirsch 2, Hase 1).
+- **Großer Rucksack** (4 Felle + 2 Stöcke): per Rechtsklick „umpacken“ → 12 zusätzliche Rucksackplätze (einmalig;
+  das Inventar wächst zur Laufzeit, das Fenster legt die neuen Plätze automatisch an).
+- **Fellmantel** (5 Felle): per Rechtsklick anziehen. Nässe kühlt nur noch zu 40 % aus – nachts nass ohne Feuer
+  droht keine Unterkühlung mehr, die Gesundheit regeneriert weiter. Rucksack und Mantel werden gespeichert.
+- **Schlingfalle** (3 Stöcke): Hasen im Umkreis von 45 m schnuppern gelegentlich heran; wer in die Schlinge läuft,
+  ist gefangen (der Ast schnellt hoch, Meldung in der Nähe). Den Hasen ausnehmen, die Falle mit `E` neu spannen.
+  Fallen sind für Spieler und Schrate kein Hindernis (Sensor-Collider, kein Eintrag im Wegnetz).
+
 ### Meilenstein 15 – Karte & Kompass
 
 - **Kompass** oben im HUD: Himmelsrichtungen und Gradstriche laufen mit der Blickrichtung mit (Norden = −Z), ein
@@ -434,3 +445,4 @@ src/
 14. ~~Bogen & Pfeile, Lagerkiste~~ ✓
 15. ~~Fernkampf der Späher (Steinwürfe)~~ ✓
 16. ~~Karte & Kompass~~ ✓
+17. ~~Felle, großer Rucksack, Fellmantel, Schlingfallen~~ ✓

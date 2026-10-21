@@ -120,6 +120,15 @@ export class Animal {
     return this.stats.name;
   }
 
+  /** Köder: ruhige Tiere laufen gemächlich dorthin (Schlingfalle). @returns true, wenn es folgt. */
+  lure(target: THREE.Vector3): boolean {
+    if (this.state !== 'graze' && this.state !== 'wander') return false;
+    this.target.set(target.x, 0, target.z);
+    this.state = 'wander';
+    this.path = null;
+    return true;
+  }
+
   /** Schreck: Flucht weg von `from`. */
   scare(from: THREE.Vector3): void {
     if (this.isDead) return;

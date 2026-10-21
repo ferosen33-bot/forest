@@ -5,7 +5,7 @@ import type { ItemCost } from '../../entities/items/ItemDefs';
 import { jitter } from '../../world/VegetationGeometry';
 import { mulberry32 } from '../../utils/random';
 
-export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs' | 'chest';
+export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs' | 'chest' | 'snare';
 
 export interface StructureDef {
   id: StructureId;
@@ -20,7 +20,9 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'sleep' | 'door' | 'storage';
+  interaction?: 'fire' | 'sleep' | 'door' | 'storage' | 'snare';
+  /** Kein Hindernis für die Wegfindung (Böden, Treppen, Fallen am Boden). */
+  walkable?: boolean;
   /** Lagerplätze (nur Kisten). */
   storageSlots?: number;
   /** Böden: Oberseite trägt andere Bauwerke und den Spieler (Ursprung = Oberkante der Dielen). */
@@ -325,6 +327,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     maxHealth: 160,
     snap: 'floor',
     support: true,
+    walkable: true,
     overWater: true,
     build() {
       const g = new THREE.Group();
@@ -392,6 +395,37 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     colliders: () => [RAPIER.ColliderDesc.cuboid(0.56, 0.32, 0.36).setTranslation(0, 0.32, 0)],
   },
 
+  snare: {
+    id: 'snare',
+    name: 'Schlingfalle',
+    description: 'Eine Schlinge an einem gebogenen Ast. Lockt Hasen aus der Umgebung an; E spannt sie nach einem Fang neu.',
+    cost: [{ item: 'stick', count: 3 }],
+    halfExtents: v(0.35, 0.25, 0.35),
+    maxStep: 0.6,
+    maxHealth: 30,
+    interaction: 'snare',
+    walkable: true,
+    build() {
+      const g = new THREE.Group();
+      g.add(stake(v(-0.25, -0.1, 0), v(0, 1, 0), 0.32, 0.025));
+      g.add(stake(v(0.25, -0.1, 0), v(0, 1, 0), 0.32, 0.025));
+      g.add(log(v(-0.27, 0.16, 0), v(0.27, 0.16, 0), 0.015, M.barkDark));
+      const frame = finish(g, 'Snare');
+      // Gebogener Ast mit Schlinge (eigenes Teil: schnellt beim Fang hoch)
+      const s = new THREE.Group();
+      s.add(log(v(0, 0, 0), v(0, 0.75, 0), 0.018, M.bark));
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.008, 4, 12), M.rope);
+      loop.position.set(0, 0.8, 0);
+      s.add(loop);
+      const spring = finish(s, 'SnareSpring');
+      spring.name = 'spring';
+      spring.position.set(0.5, 0, 0.12);
+      frame.add(spring);
+      return frame;
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.32, 0.2, 0.3).setTranslation(0, 0.2, 0).setSensor(true)],
+  },
+
   stairs: {
     id: 'stairs',
     name: 'Holztreppe',
@@ -404,6 +438,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     maxStep: 10,
     maxHealth: 90,
     snap: 'stairs',
+    walkable: true,
     // Ursprung = Mitte der oberen Kante auf Dielenhöhe; die Treppe führt nach +Z hinab.
     build() {
       const g = new THREE.Group();

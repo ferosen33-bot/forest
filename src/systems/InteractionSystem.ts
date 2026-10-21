@@ -223,6 +223,7 @@ export class InteractionSystem {
         }
         if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
         if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
+        if (s.def.interaction === 'snare') return s.armed ? { key: null, action: 'Gespannt', label } : { key: 'E', action: 'Neu spannen', label };
         if (s.def.interaction === 'sleep') {
           return this.deps.canSleep()
             ? { key: 'E', action: 'Schlafen', label }
@@ -287,6 +288,10 @@ export class InteractionSystem {
         else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
         else if (s.def.interaction === 'door') this.building.toggleDoor(s);
         else if (s.def.interaction === 'storage') this.deps.openStorage(s);
+        else if (s.def.interaction === 'snare') {
+          this.building.setArmed(s, true);
+          this.audio.play('place', 0.6);
+        }
         break;
       }
       case 'animal':

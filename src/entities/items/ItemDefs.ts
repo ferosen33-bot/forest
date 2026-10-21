@@ -17,7 +17,10 @@ export type ItemId =
   | 'bowl'
   | 'bowlWater'
   | 'bow'
-  | 'arrow';
+  | 'arrow'
+  | 'hide'
+  | 'backpack'
+  | 'furCoat';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -82,6 +85,8 @@ export interface ItemDef {
   durability?: number;
   /** Kann geworfen werden (rechte Maustaste zielen, linke werfen). */
   throwable?: { speed: number; damageMultiplier: number };
+  /** Rechtsklick im Inventar: dauerhaft anlegen bzw. benutzen (wird dabei verbraucht). */
+  use?: 'backpack' | 'clothing';
   /** Fernwaffe: Linksklick gedrückt halten zum Spannen, loslassen zum Schießen. */
   ranged?: RangedStats;
   tool?: ToolStats;
@@ -205,6 +210,29 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       reach: 3.4,
       animation: 'thrust',
     },
+  },
+  hide: {
+    id: 'hide',
+    name: 'Fell',
+    description: 'Beim Ausnehmen gewonnen. Daraus entstehen ein größerer Rucksack und warme Kleidung.',
+    category: 'resource',
+    maxStack: 10,
+  },
+  backpack: {
+    id: 'backpack',
+    name: 'Großer Rucksack',
+    description: 'Aus Fellen genäht. Rechtsklick: umpacken – zwölf zusätzliche Plätze.',
+    category: 'resource',
+    maxStack: 1,
+    use: 'backpack',
+  },
+  furCoat: {
+    id: 'furCoat',
+    name: 'Fellmantel',
+    description: 'Hält auch nass noch warm. Rechtsklick: anziehen – man friert deutlich weniger.',
+    category: 'resource',
+    maxStack: 1,
+    use: 'clothing',
   },
   bow: {
     id: 'bow',

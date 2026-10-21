@@ -19,6 +19,9 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   bowlWater: new THREE.Euler(0.65, 0, 0),
   bow: new THREE.Euler(0, 0.5, -0.6),
   arrow: new THREE.Euler(0, 0.2, -0.8),
+  hide: new THREE.Euler(0.9, 0.3, 0),
+  backpack: new THREE.Euler(0.2, 0.6, 0),
+  furCoat: new THREE.Euler(0.2, 0.5, 0),
 };
 
 export interface IconSets {

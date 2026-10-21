@@ -41,4 +41,16 @@ describe('PlayerStats – Nässe und Kälte', () => {
     }
     expect(wet.stamina).toBeLessThan(dry.stamina * 0.7);
   });
+
+  it('im Fellmantel droht nachts keine Unterkühlung mehr', () => {
+    const s = new PlayerStats(CONFIG, new EventBus());
+    s.wetness = 1;
+    s.night = true;
+    s.clothing = true;
+    expect(s.freezing).toBe(false);
+    expect(s.cold).toBeCloseTo(0.4);
+    const h = s.health;
+    for (let i = 0; i < 300; i++) s.update(0.1, idle);
+    expect(s.health).toBeGreaterThanOrEqual(h);
+  });
 });

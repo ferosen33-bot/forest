@@ -127,4 +127,16 @@ describe('Inventory – Haltbarkeit', () => {
     expect(chest.takeAll().map((s) => s.id).sort()).toEqual(['axe', 'stick']);
     expect(chest.slots.every((s) => s === null)).toBe(true);
   });
+
+  it('wächst mit dem großen Rucksack (neue Plätze im Rucksackbereich)', () => {
+    const inv = new Inventory(8, 2);
+    inv.add('stone', 12 * 8);
+    expect(inv.add('stick', 5)).toBe(5); // voll
+    inv.grow(4);
+    expect(inv.size).toBe(12);
+    expect(inv.add('stick', 5)).toBe(0);
+    const copy = new Inventory(12, 2);
+    copy.load(inv.serialize(), () => true);
+    expect(copy.count('stick')).toBe(5);
+  });
 });

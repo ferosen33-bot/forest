@@ -30,6 +30,8 @@ const MATERIALS = {
   binding: mat(0x6b5a3a, { roughness: 1 }),
   cloth: mat(0x3a2f26, { roughness: 1 }),
   feather: mat(0xd8d2c4, { side: THREE.DoubleSide }),
+  fur: mat(0x7a5a3c, { roughness: 1 }),
+  furDark: mat(0x5a412b, { roughness: 1 }),
   water: mat(0x3d6f86, { roughness: 0.1, metalness: 0.1, flatShading: false }),
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
@@ -191,6 +193,40 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'hide': {
+      // Zusammengelegtes Fell: unregelmäßige, flache Platte (Ursprung im Schwerpunkt)
+      const sheet = jitter(new THREE.BoxGeometry(0.42, 0.05, 0.3, 3, 1, 3), 0.025, 91);
+      g.add(new THREE.Mesh(sheet, MATERIALS.fur));
+      break;
+    }
+    case 'backpack': {
+      const body = new THREE.Mesh(jitter(new THREE.BoxGeometry(0.32, 0.42, 0.18, 2, 2, 2), 0.015, 93), MATERIALS.fur);
+      g.add(body);
+      const flap = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.12, 0.2), MATERIALS.furDark);
+      flap.position.y = 0.17;
+      g.add(flap);
+      for (const x of [-0.09, 0.09]) {
+        const strap = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.4, 0.02), MATERIALS.binding);
+        strap.position.set(x, 0, -0.1);
+        g.add(strap);
+      }
+      break;
+    }
+    case 'furCoat': {
+      const torso = new THREE.Mesh(jitter(new THREE.CylinderGeometry(0.16, 0.2, 0.5, 8, 2), 0.015, 95), MATERIALS.fur);
+      g.add(torso);
+      const collar = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.04, 5, 10), MATERIALS.furDark);
+      collar.rotation.x = Math.PI / 2;
+      collar.position.y = 0.25;
+      g.add(collar);
+      for (const s of [-1, 1]) {
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.36, 6), MATERIALS.fur);
+        sleeve.position.set(s * 0.22, 0.05, 0);
+        sleeve.rotation.z = s * 0.45;
+        g.add(sleeve);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -246,6 +282,12 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.045, 0.12).setDensity(500);
     case 'bow':
       return RAPIER.ColliderDesc.cuboid(0.1, 0.45, 0.03).setDensity(500);
+    case 'hide':
+      return RAPIER.ColliderDesc.cuboid(0.21, 0.03, 0.15).setDensity(400);
+    case 'backpack':
+      return RAPIER.ColliderDesc.cuboid(0.16, 0.22, 0.1).setDensity(300);
+    case 'furCoat':
+      return RAPIER.ColliderDesc.cylinder(0.25, 0.2).setDensity(250);
     case 'arrow':
       return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
   }
