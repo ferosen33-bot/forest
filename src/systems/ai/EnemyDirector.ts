@@ -82,6 +82,8 @@ export interface DirectorDeps {
   isPlayerFire: () => boolean;
   /** Die verlassene Stadt: Plünderer haben sich auf dem Marktplatz eingerichtet. */
   town?: { center: THREE.Vector3; radius: number; plaza: THREE.Vector3 } | null;
+  /** Das Lager der Überlebenden: kein Schratlager in der Nähe, sein Feuer schreckt sie ab. */
+  harbor?: { center: THREE.Vector3; radius: number } | null;
 }
 
 const MAX_ENEMIES = 24;
@@ -180,6 +182,7 @@ export class EnemyDirector {
       isNight: false,
       fireNear: (pos, radius) => {
         for (const s of d.building.structures) if (s.lit && s.position.distanceTo(pos) < radius) return s.position;
+        if (d.harbor && d.harbor.center.distanceTo(pos) < radius) return d.harbor.center;
         return null;
       },
       structureByCollider: (c) => d.building.getByCollider(c),
@@ -235,6 +238,7 @@ export class EnemyDirector {
       const c = new THREE.Vector3(x, h, z);
       if (c.distanceTo(this.d.spawnPoint) < this.cfg.campMinDistance) continue;
       if (town && Math.hypot(x - town.center.x, z - town.center.z) < town.radius + 80) continue;
+      if (this.d.harbor && Math.hypot(x - this.d.harbor.center.x, z - this.d.harbor.center.z) < this.d.harbor.radius + 120) continue;
       if (this.camps.some((o) => o.center.distanceTo(c) < 140)) continue;
       // Rund ums Lager muss genug begehbarer Platz sein.
       let free = 0;
@@ -611,7 +615,8 @@ export class EnemyDirector {
 
     // Sichtweite: tagsüber weit, nachts kurz – außer der Spieler trägt Licht oder steht am Feuer.
     let range = lerp(this.cfg.sightNight, this.cfg.sightDay, d.dayNight.daylight);
-    if (night && (d.isPlayerLit() || d.building.isNearLitFire(player.position, 6))) range = Math.max(range, this.cfg.sightLit);
+    const atHarbor = !!d.harbor && d.harbor.center.distanceTo(player.position) < 8;
+    if (night && (d.isPlayerLit() || atHarbor || d.building.isNearLitFire(player.position, 6))) range = Math.max(range, this.cfg.sightLit);
     const rain = d.rain();
     this.ctx.sightRange = range * player.visibility * (1 - 0.35 * rain);
 

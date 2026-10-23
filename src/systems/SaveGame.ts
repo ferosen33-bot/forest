@@ -3,6 +3,8 @@ import type { CaveSave } from './Caves';
 import type { SettlementSave } from './Settlement';
 import type { SkillsSave } from './Skills';
 import type { WorldEventSave } from './WorldEvents';
+import type { QuestsSave } from './Quests';
+import type { SurvivorsSave } from './Survivors';
 import type { VegetationSave } from '../world/Vegetation';
 import type { HarvestSave } from './HarvestSystem';
 import type { StructureSave } from './building/BuildingSystem';
@@ -64,6 +66,9 @@ export interface SaveData {
   skills?: SkillsSave;
   /** Seit Meilenstein 27: Versorgungsabwürfe und verlassene Lager. */
   worldEvents?: WorldEventSave[];
+  /** Seit Meilenstein 28: Aufträge und die Überlebenden in der Nordbucht. */
+  quests?: QuestsSave;
+  survivors?: SurvivorsSave;
 }
 
 /** Kurzinfo für das Startmenü. */

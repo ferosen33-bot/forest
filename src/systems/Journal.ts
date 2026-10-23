@@ -24,6 +24,9 @@ export type Trigger =
   | { on: 'event'; kind?: string }
   | { on: 'sleep' }
   | { on: 'camp' }
+  | { on: 'harbor' }
+  | { on: 'npc' }
+  | { on: 'quest' }
   | { on: 'day'; day: number };
 
 export interface Objective {
@@ -127,6 +130,16 @@ export const CHAPTERS: Chapter[] = [
       { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 11 },
     ],
   },
+  {
+    title: 'Die Nordbucht',
+    intro: 'Die Funkprotokolle sprechen vom Steg in der Nordbucht. Vielleicht hat dort jemand überlebt.',
+    objectives: [
+      { id: 'harbor', text: 'Die Überlebenden in der Nordbucht finden', trigger: { on: 'harbor' } },
+      { id: 'npcs', text: 'Mit allen Überlebenden sprechen', trigger: { on: 'npc' }, count: 3 },
+      { id: 'quests3', text: 'Drei Aufträge erledigen', trigger: { on: 'quest' }, count: 3 },
+      { id: 'questsAll', text: 'Alle Aufträge erledigen', trigger: { on: 'quest' }, count: 7 },
+    ],
+  },
 ];
 
 export interface JournalSave {
@@ -177,6 +190,9 @@ export class Journal {
     events.on('fish:caught', ({ count }) => this.advance((t) => t.on === 'fish', count));
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));
+    events.on('harbor:found', () => this.advance((t) => t.on === 'harbor'));
+    events.on('npc:met', () => this.advance((t) => t.on === 'npc'));
+    events.on('quest:completed', () => this.advance((t) => t.on === 'quest'));
   }
 
   /** Vom Spiel täglich aufgerufen (für "x Tage überleben"). */

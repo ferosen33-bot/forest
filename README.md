@@ -57,8 +57,40 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 > **Richtung:** Ein Open-World-Survival-Horror im Geist von *The Forest*, mit Plündern und Erkunden wie in *DayZ*,
 > Horden-Nächten wie in *7 Days to Die*, Rollenspiel durch Fertigkeiten – und später **Koop-Mehrspieler**
-> (alle gemeinsam gegen die Insel). Nächste Schritte: Furcht & nächtlicher Horror, die Fiebernacht (Horden alle
-> sieben Tage), Zufallsereignisse – und als Nächstes das Mehrspieler-Fundament.
+> (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
+> Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
+
+### Meilenstein 28 – Die Nordbucht: Überlebende & Aufträge
+
+- Im Norden der Insel steht ein **Leuchtturm** an einer Bucht, mit Steg, Bootshaus („NORDBUCHT“) und einem
+  zerschlagenen Boot. Am Fuß des Turms halten drei Menschen ein Feuer am Brennen. Tagsüber verrät sie der Rauch (70 m),
+  nachts der Lichtkegel, der über die Insel streicht (220 m). Danach steht der Leuchtturm auf der Karte.
+- Das Lagerfeuer wärmt, und die Schrate halten Abstand. Im Umkreis entsteht kein Schratlager, kein Zufallsereignis
+  und keine Höhle.
+- **Die Überlebenden:** Jonas Petersen (Tankwart), Dr. Imke Albers (die Inselärztin) und die kleine Mia. Sie wenden
+  den Kopf zu dir, wenn du näher kommst, und gestikulieren beim Reden. Mit `E` beginnt ein **Gespräch**:
+  - Die Zifferntasten `1`–`6` wählen eine Antwort.
+  - Fragen sind möglich wie „Wer bist du?“ und „Was ist hier passiert?“. Jede Figur erzählt ihren Teil der Geschichte.
+  - Aufträge kann man annehmen, nach dem Stand fragen und abgeben.
+  - `E` oder ein paar Schritte weg beenden das Gespräch.
+- **Sieben Aufträge** mit Belohnungen (Gegenstände und Erfahrung), die aufeinander aufbauen:
+  - **Jonas:**
+    - Vorräte bringen (4 Konserven, 2 Wasserflaschen).
+    - Danach den Marktplatz ausdünnen (4 Schrate) und zwei Standfackeln bauen.
+  - **Dr. Albers:**
+    - 5 Leuchtpilze aus den Höhlen bringen.
+    - Danach das Schichtbuch im Feuersteinstollen lesen. Ihre Belohnung ist eine Taschenlampe.
+  - **Mia:**
+    - Papas Taschenuhr holen: Sie liegt im Kleiderschrank des Hauses mit dem Brief an Tante Marta.
+    - Danach „Papa“: der Koloss mit dem roten Halstuch auf dem Marktplatz.
+- Laufende Aufträge stehen mit Fortschritt im Zielanzeiger und im Tagebuch, das ein neues Kapitel „Die Nordbucht“ hat.
+  Aufträge und Bekanntschaften bleiben im Spielstand.
+- **Technik:**
+  - `world/Harbor.ts` sucht den Platz (eben, nahe am Ufer, mit tiefem Wasser für den Steg, möglichst weit im Norden)
+    und baut alles mit dem Quader-Baukasten der Stadt.
+  - `systems/Quests.ts` ist reine, getestete Auftragslogik: Zustände, Fortschritt über Spielereignisse, Abgabe.
+  - `systems/Survivors.ts` enthält das Lager, die Figuren und den Gesprächsablauf.
+  - `ui/DialogueUI.ts` zeigt das Gespräch an.
 
 ### Meilenstein 27 – Die Insel lebt (Zufallsereignisse)
 
@@ -544,6 +576,7 @@ src/
 │   ├── CaveGenerator.ts    Höhlen: Grundriss, Abstandsfunktion, Surface Nets, Eingangssuche (getestet)
 │   ├── Town.ts             Stadtplan: Bauplatz, Straßen, Gebäude, Requisiten, Stadtfaktor (getestet)
 │   ├── TownMeshes.ts       Gebäude, Möbel, Autos → verschmolzene Meshes, Kollider, Behälter, Türen
+│   ├── Harbor.ts           Nordbucht: Platzsuche, Leuchtturm, Steg, Bootshaus, Lager der Überlebenden
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -597,6 +630,8 @@ src/
 │   ├── Horror.ts           Nächtliche Schrecken: Gestalten, Klopfen, Schritte, Flüstern
 │   ├── FeverNight.ts       Zeitplan der Fiebernacht (getestet)
 │   ├── WorldEvents.ts      Zufallsereignisse: Versorgungsabwurf, Schrat-Ritual, verlassenes Lager
+│   ├── Quests.ts           Aufträge: Zustände, Fortschritt, Abgabe (getestet)
+│   ├── Survivors.ts        Die Überlebenden: Figuren, Lagerfeuer, Leuchtfeuer, Gespräche
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -620,7 +655,8 @@ src/
 │   ├── SettingsUI.ts       Einstellungsformular (Ton, Steuerung, Grafik)
 │   ├── MapUI.ts            Inselkarte mit Schummerung, Nebel und Markierungen
 │   ├── Compass.ts          Kompassband im HUD
-│   ├── JournalUI.ts        Tagebuch-Fenster und Zielanzeiger
+│   ├── JournalUI.ts        Tagebuch-Fenster und Zielanzeiger (samt laufender Aufträge)
+│   ├── DialogueUI.ts       Gesprächsfenster mit nummerierten Antworten
 │   ├── slots.ts / dom.ts   Kleine DOM-Helfer
 └── utils/                  Mathe- und Zufallshelfer (deterministischer PRNG)
 ```
@@ -673,4 +709,9 @@ src/
 26. ~~Furcht & nächtlicher Horror~~ ✓
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
-29. Koop-Mehrspieler (Server, bis zu 50 Spieler)
+29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
+30. Das Fieber: Infektion, Heilmittel, Forschungsstation
+31. Wölfe & Winter: Rudel, Spuren im Schnee
+32. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
+33. Neue Schrecken: neue Gegner, ein Boss in der Mine
+34. Koop-Mehrspieler (Server, bis zu 50 Spieler)

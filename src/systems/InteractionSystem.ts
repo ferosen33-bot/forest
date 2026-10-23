@@ -21,6 +21,7 @@ import type { Caves, CaveTarget } from './Caves';
 import type { LootContainer, Settlement } from './Settlement';
 import { getNote } from './Notes';
 import type { EventTarget, WorldEvents } from './WorldEvents';
+import type { NpcDef, Survivors } from './Survivors';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -33,6 +34,7 @@ export type InteractionTarget =
   | { type: 'loot'; container: LootContainer; hit: RaycastHit }
   | { type: 'note'; id: string; hit: RaycastHit }
   | { type: 'event'; event: EventTarget; hit: RaycastHit }
+  | { type: 'npc'; npc: NpcDef; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -50,6 +52,7 @@ export interface InteractionDeps {
   caves: Caves;
   settlement: Settlement | null;
   worldEvents: WorldEvents;
+  survivors: Survivors | null;
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -72,6 +75,8 @@ export interface InteractionDeps {
   onReadNote: (id: string) => void;
   /** Wurde die Notiz schon gelesen? */
   isNoteRead: (id: string) => boolean;
+  /** Gespräch mit einem Überlebenden beginnen. */
+  onTalk: (npc: NpcDef) => void;
 }
 
 /** Was `E` an einem Lagerfeuer gerade bewirkt. */
@@ -156,6 +161,8 @@ export class InteractionSystem {
       if (structure) return { type: 'structure', structure, hit };
       const cave = this.deps.caves.getTarget(hit.collider);
       if (cave) return cave.type === 'note' ? { type: 'note', id: cave.id, hit } : { type: 'cave', cave, hit };
+      const npc = this.deps.survivors?.getNpc(hit.collider);
+      if (npc) return { type: 'npc', npc, hit };
       const event = this.deps.worldEvents.getTarget(hit.collider);
       if (event) return { type: 'event', event, hit };
       const note = this.deps.settlement?.getNote(hit.collider);
@@ -273,6 +280,9 @@ export class InteractionSystem {
         const d = this.deps.worldEvents.describe(target.event);
         return d ? { key: 'E', action: d.action, label: d.label } : null;
       }
+      case 'npc':
+        if (target.hit.distance > INTERACT_REACH) return null;
+        return { key: 'E', action: 'Sprechen', label: target.npc.name };
       case 'note': {
         if (target.hit.distance > INTERACT_REACH) return null;
         const title = getNote(target.id)?.title ?? 'Notiz';
@@ -384,6 +394,9 @@ export class InteractionSystem {
         break;
       case 'note':
         this.deps.onReadNote(target.id);
+        break;
+      case 'npc':
+        this.deps.onTalk(target.npc);
         break;
       case 'event':
         this.deps.worldEvents.interact(target.event);

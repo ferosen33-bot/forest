@@ -7,6 +7,7 @@ import { Grass } from './Grass';
 import type { Physics } from '../core/Physics';
 import type { GameConfig } from '../config';
 import { findTownSite, generateTown, TOWN_FLAT_BLEND, TOWN_FLAT_RADIUS, urbanAt, type TownLayout } from './Town';
+import { findHarborSite, generateHarbor, HARBOR_FLAT_BLEND, HARBOR_FLAT_RADIUS, harborGrass, type HarborLayout } from './Harbor';
 
 /**
  * Bündelt alle statischen Welt-Bestandteile: Höhenkarte, Terrain, Wasser, Vegetation.
@@ -21,6 +22,8 @@ export class World {
   readonly spawnPoint: THREE.Vector3;
   /** Die verlassene Kleinstadt (null, falls die Insel keinen Platz bietet). */
   readonly town: TownLayout | null;
+  /** Die Nordbucht mit Leuchtturm und dem Lager der Überlebenden. */
+  readonly harbor: HarborLayout | null;
 
   constructor(scene: THREE.Scene, physics: Physics, config: GameConfig) {
     const { world, seed } = config;
@@ -37,6 +40,10 @@ export class World {
     this.town = site ? generateTown(seed, site) : null;
     if (site) this.heightMap.flatten(site.x, site.z, TOWN_FLAT_RADIUS, TOWN_FLAT_BLEND, site.y);
     const town = this.town;
+    const harborSite = findHarborSite(this.heightMap, seed, town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 150 }] : []);
+    if (harborSite) this.heightMap.flatten(harborSite.x, harborSite.z, HARBOR_FLAT_RADIUS, HARBOR_FLAT_BLEND, harborSite.y);
+    this.harbor = harborSite ? generateHarbor(this.heightMap, harborSite) : null;
+    const harbor = this.harbor;
     const urban = town ? (x: number, z: number) => urbanAt(town, x, z) : undefined;
     physics.addTerrain(this.heightMap);
     const tHeight = performance.now() - t;
@@ -60,6 +67,7 @@ export class World {
       clearings: [
         { x: spawn.x, z: spawn.z, radius: 7 },
         ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),
+        ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 24 }] : []),
       ],
     });
     scene.add(this.vegetation.group);
@@ -72,7 +80,7 @@ export class World {
             seed,
             radius: g.grassRadius,
             spacing: g.grassSpacing,
-            density: urban ? (x, z) => 1 - (urban(x, z) ?? 0) : undefined,
+            density: (x, z) => (urban ? 1 - urban(x, z) : 1) * (harbor ? harborGrass(harbor, x, z) : 1),
           })
         : null;
     if (this.grass) scene.add(this.grass.mesh);

@@ -45,6 +45,10 @@ export type GameEvents = {
   'town:discovered': { name: string };
   /** Zufallsereignis begonnen bzw. geplündert. */
   'world:event': { kind: string; phase: 'start' | 'looted' };
+  /** Die Überlebenden in der Nordbucht wurden gefunden. */
+  'harbor:found': Record<string, never>;
+  'npc:met': { id: string };
+  'quest:completed': { id: string };
   /** Eine Fiebernacht wurde überlebt. */
   'fever:survived': { number: number };
   /** Eine Fertigkeit ist eine Stufe aufgestiegen. */

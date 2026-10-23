@@ -35,7 +35,8 @@ export type ItemId =
   | 'machete'
   | 'flashlight'
   | 'battery'
-  | 'jacket';
+  | 'jacket'
+  | 'watch';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -283,6 +284,13 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'resource',
     maxStack: 1,
     use: 'clothing',
+  },
+  watch: {
+    id: 'watch',
+    name: 'Taschenuhr',
+    description: 'Eine alte Taschenuhr mit Gravur: „Für Paul, in Liebe – Anne.“ Sie tickt noch.',
+    category: 'resource',
+    maxStack: 1,
   },
   fishingRod: {
     id: 'fishingRod',

@@ -57,11 +57,13 @@ export interface TownModel {
   colliders: ColliderSpec[];
   containers: ContainerSpec[];
   doors: DoorSpec[];
+  /** Welche Notiz in welchem Wohnhaus liegt (Gebäude-Index → Notiz-Id). */
+  houseNotes: Map<number, string>;
 }
 
-type Bucket = 'in' | 'out';
+export type Bucket = 'in' | 'out';
 
-interface BoxOpts {
+export interface BoxOpts {
   color: number;
   bucket?: Bucket;
   rx?: number;
@@ -70,6 +72,8 @@ interface BoxOpts {
   collide?: boolean;
   nav?: boolean;
   container?: LootKind;
+  /** Nur Kollision, keine Geometrie (z. B. Quader in einem runden Turm). */
+  invisible?: boolean;
 }
 
 interface Opening {
@@ -83,7 +87,8 @@ interface Opening {
 const FLOOR = 0.15;
 const WALL = 0.2;
 
-class Builder {
+/** Baukasten aus Quadern mit Vertexfarben (auch für Hafen und Leuchtturm). */
+export class Builder {
   readonly colliders: ColliderSpec[] = [];
   readonly containers: ContainerSpec[] = [];
   readonly doors: DoorSpec[] = [];
@@ -120,7 +125,7 @@ class Builder {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx ?? 0, o.ry ?? 0, o.rz ?? 0));
     this.local.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     this.world.multiplyMatrices(this.base, this.local);
-    this.add(new THREE.BoxGeometry(w, h, d), o.bucket ?? 'in', o.color);
+    if (!o.invisible) this.add(new THREE.BoxGeometry(w, h, d), o.bucket ?? 'in', o.color);
     if (!o.collide && !o.container) return;
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
@@ -251,7 +256,7 @@ function gable(width: number, height: number): THREE.BufferGeometry {
 }
 
 /** Schild mit Aufschrift (eigene Textur, nicht verschmolzen). */
-function sign(text: string, width: number, color = '#d9cfb4', bg = '#2f3b46'): THREE.Mesh {
+export function sign(text: string, width: number, color = '#d9cfb4', bg = '#2f3b46'): THREE.Mesh {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 128;
@@ -339,7 +344,8 @@ function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean, note?:
   const back = -d / 2 + WALL;
   b.box(2.0, 0.45, 1.0, w / 2 - WALL - 1.1, FLOOR + 0.23, back + 0.6, { color: C.fabric, collide: true });
   b.box(0.5, 0.12, 0.8, w / 2 - WALL - 0.35, FLOOR + 0.52, back + 0.6, { color: C.pillow });
-  if (rng() < 0.85) b.box(1.2, 2.0, 0.6, -w / 2 + WALL + 0.75, FLOOR + 1.0, back + 0.32, { color: C.wood, container: 'wardrobe' });
+  // (Im Haus mit dem Brief an Marta steht immer einer – dort liegt Pauls Taschenuhr.)
+  if (rng() < 0.85 || note === 'brief') b.box(1.2, 2.0, 0.6, -w / 2 + WALL + 0.75, FLOOR + 1.0, back + 0.32, { color: C.wood, container: 'wardrobe' });
 
   // Vernagelte Fenster (außen) – die Bewohner haben sich verbarrikadiert.
   if (rng() < 0.5) {
@@ -528,5 +534,5 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
   };
   const group = b.finish({ in: material(false), out: material(true) });
   group.add(signs);
-  return { group, colliders: b.colliders, containers: b.containers, doors: b.doors };
+  return { group, colliders: b.colliders, containers: b.containers, doors: b.doors, houseNotes };
 }

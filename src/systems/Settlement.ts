@@ -64,11 +64,14 @@ export class Settlement {
   private readonly byCollider = new Map<number, LootContainer>();
   private readonly notes = new Map<number, string>();
   private readonly townColliders = new Set<number>();
+  /** Gebäude-Index → Notiz-Id der Wohnhäuser (Mias Elternhaus ist das mit dem Brief an Marta). */
+  private readonly houseNotes: Map<number, string>;
 
   constructor(private readonly d: SettlementDeps) {
     const t0 = performance.now();
     const model = buildTown(d.town, d.seed);
     this.group = model.group;
+    this.houseNotes = model.houseNotes;
     for (const c of model.containers) this.containers.push({ spec: c, label: LOOT_LABELS[c.kind], searched: false });
 
     const body = d.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -127,6 +130,8 @@ export class Settlement {
     const building = this.d.town.buildings[c.spec.building];
     if (kind === 'toolbox' && building?.kind === 'gas') out.push(['machete', 1]);
     if (kind === 'toolbox' && building?.kind === 'shop') out.push(['flashlight', 1], ['battery', 2]);
+    // Mias Elternhaus: Papas Taschenuhr liegt im Kleiderschrank.
+    if (kind === 'wardrobe' && this.houseNotes.get(c.spec.building) === 'brief') out.push(['watch', 1]);
     const { rolls, table } = LOOT[kind];
     const n = rolls[0] + Math.floor(rng() * (rolls[1] - rolls[0] + 1));
     const total = table.reduce((s, e) => s + e[1], 0);

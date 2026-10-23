@@ -14,6 +14,8 @@ export class JournalUI {
     private readonly root: HTMLElement,
     private readonly tracker: HTMLElement,
     private readonly journal: Journal,
+    /** Laufende Aufträge als Zeilen (Titel, Aufgabe mit Fortschritt). */
+    private readonly quests: () => { title: string; task: string }[] = () => [],
   ) {}
 
   get open(): boolean {
@@ -35,7 +37,9 @@ export class JournalUI {
   update(): void {
     const items = this.journal.openObjectives(3);
     const chapter = CHAPTERS[this.journal.currentChapter];
-    const key = (chapter?.title ?? '') + items.map((o) => `${o.id}:${this.journal.count(o)}`).join('|');
+    const quests = this.quests();
+    const key =
+      (chapter?.title ?? '') + items.map((o) => `${o.id}:${this.journal.count(o)}`).join('|') + quests.map((q) => q.task).join('|');
     if (key !== this.lastTracker) {
       this.lastTracker = key;
       this.tracker.replaceChildren();
@@ -49,6 +53,18 @@ export class JournalUI {
           row.className = 'objectives__item';
           const n = o.count ?? 1;
           row.textContent = n > 1 ? `${o.text} (${this.journal.count(o)}/${n})` : o.text;
+          this.tracker.append(row);
+        }
+      }
+      if (quests.length > 0) {
+        const title = document.createElement('div');
+        title.className = 'objectives__title';
+        title.textContent = 'Aufträge';
+        this.tracker.append(title);
+        for (const q of quests.slice(0, 2)) {
+          const row = document.createElement('div');
+          row.className = 'objectives__item';
+          row.textContent = q.task;
           this.tracker.append(row);
         }
       }
@@ -86,6 +102,22 @@ export class JournalUI {
       }
       page.append(section);
     });
+    // Laufende Aufträge der Überlebenden
+    const quests = this.quests();
+    if (quests.length > 0) {
+      const section = document.createElement('section');
+      section.className = 'journal__chapter';
+      const h = document.createElement('h3');
+      h.textContent = 'Aufträge';
+      const list = document.createElement('ul');
+      for (const q of quests) {
+        const li = document.createElement('li');
+        li.textContent = `○ ${q.title}: ${q.task}`;
+        list.append(li);
+      }
+      section.append(h, list);
+      page.append(section);
+    }
     // Gefundene Notizen zum Nachlesen
     if (this.journal.notes.size > 0) {
       const section = document.createElement('section');

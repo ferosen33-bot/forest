@@ -37,6 +37,7 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   flashlight: new THREE.Euler(0.2, 0.3, -0.7),
   battery: new THREE.Euler(0.3, 0.3, -0.5),
   jacket: new THREE.Euler(0.2, 0.5, 0),
+  watch: new THREE.Euler(1.2, 0, 0.2),
 };
 
 export interface IconSets {

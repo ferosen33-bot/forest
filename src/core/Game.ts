@@ -49,6 +49,9 @@ import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemId } from '../entities/items/ItemDefs';
 import { WorldEvents } from '../systems/WorldEvents';
+import { Survivors, type NpcDef } from '../systems/Survivors';
+import { Quests } from '../systems/Quests';
+import { DialogueUI } from '../ui/DialogueUI';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -111,6 +114,10 @@ export class Game {
   readonly fear = new Fear();
   horror!: Horror;
   worldEvents!: WorldEvents;
+  /** Die Überlebenden in der Nordbucht (fehlt, wenn die Insel keinen Platz dafür hat). */
+  survivors: Survivors | null = null;
+  quests!: Quests;
+  private dialogueUI!: DialogueUI;
   private heartbeatTimer = 0;
   private fearVignette: HTMLDivElement | null = null;
   private lastFilter = '';
@@ -304,6 +311,7 @@ export class Game {
             return { center: t.center, radius: t.radius, plaza: new THREE.Vector3(p.x, t.center.y, p.z) };
           })()
         : null,
+      harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
     });
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
@@ -350,7 +358,10 @@ export class Game {
       spawnPoint: this.world.spawnPoint,
       avoid: this.enemies.camps.map((c) => c.center),
       // Keine Höhle in der Stadt (großzügig: Eingang samt Felshügel).
-      avoidAreas: this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 50 }] : [],
+      avoidAreas: [
+        ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 50 }] : []),
+        ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 60 }] : []),
+      ],
       markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
     });
     this.scene.add(this.caves.group);
@@ -423,6 +434,7 @@ export class Game {
         ...this.enemies.camps.map((c) => ({ x: c.center.x, z: c.center.z, radius: 70 })),
         ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 30 }] : []),
         ...this.caves.caves.map((c) => ({ x: c.site.position.x, z: c.site.position.z, radius: 25 })),
+        ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 80 }] : []),
       ],
       showNote: (title, text) => {
         this.noteUI.showText(title, text);
@@ -430,6 +442,22 @@ export class Game {
       },
     });
     this.scene.add(this.worldEvents.group);
+    this.quests = new Quests(this.events);
+    if (this.world.harbor) {
+      this.survivors = new Survivors({
+        physics: this.physics,
+        layout: this.world.harbor,
+        quests: this.quests,
+        inventory: this.inventory,
+        items: this.items,
+        skills: this.skills,
+        lights: this.lights,
+        audio: this.audio,
+        events: this.events,
+        markObstacle: (x, z, yaw, hx, hz) => this.enemies.nav.markBox(x, z, yaw, hx, hz, 1),
+      });
+      this.scene.add(this.survivors.group);
+    }
     this.interaction = new InteractionSystem({
       physics: this.physics,
       camera: this.camera,
@@ -445,10 +473,12 @@ export class Game {
       caves: this.caves,
       settlement: this.settlement,
       worldEvents: this.worldEvents,
+      survivors: this.survivors,
       items: this.items,
       audio: this.audio,
       events: this.events,
       config: cfg,
+      onTalk: (npc) => this.talkTo(npc),
       onCave: (target) => this.startCaveTransition(target),
       onReadNote: (id) => this.readNote(id),
       isNoteRead: (id) => this.journal.notes.has(id),
@@ -525,6 +555,7 @@ export class Game {
       this.crafting,
     );
     this.noteUI = new NoteUI(document.getElementById('note')!);
+    this.dialogueUI = new DialogueUI(document.getElementById('dialogue')!);
     this.skillsUI = new SkillsUI(document.getElementById('skills')!, this.skills);
     this.events.on('skill:levelUp', ({ id, level }) => {
       const s = getSkill(id);
@@ -532,7 +563,13 @@ export class Game {
       this.events.emit('hud:message', { text: `${s.name} – Stufe ${level}: ${s.effect(level)}` });
       if (this.skillsUI.open) this.skillsUI.render();
     });
-    this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal);
+    this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal, () =>
+      this.quests.running.map((q) => {
+        const p = this.quests.progress(q.id, this.inventory);
+        const ready = this.quests.state(q.id, this.inventory) === 'ready';
+        return { title: q.title, task: ready ? `${q.task} – zurückkehren` : p.need > 1 ? `${q.task} (${p.have}/${p.need})` : q.task };
+      }),
+    );
     this.events.on('journal:completed', ({ text, chapterDone }) => {
       this.audio.play('craft', 0.7);
       this.events.emit('hud:message', { text: `✔ Ziel erreicht: ${text}` });
@@ -624,6 +661,8 @@ export class Game {
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
       skills: this.skills.serialize(),
       worldEvents: this.worldEvents.serialize(),
+      quests: this.quests.serialize(),
+      ...(this.survivors ? { survivors: this.survivors.serialize() } : {}),
     };
   }
 
@@ -648,6 +687,8 @@ export class Game {
     if (d.town) this.settlement?.load(d.town);
     if (d.skills) this.skills.load(d.skills);
     if (d.worldEvents) this.worldEvents.load(d.worldEvents);
+    if (d.quests) this.quests.load(d.quests);
+    if (d.survivors) this.survivors?.load(d.survivors);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
     if (cave) {
@@ -763,6 +804,7 @@ export class Game {
     this.mapUI.hide();
     this.journalUI.hide();
     this.noteUI.hide();
+    this.dialogueUI.hide();
     this.skillsUI.hide();
     this.saveNow();
     this.menu.showPaused(this.lastSaved);
@@ -1003,6 +1045,32 @@ export class Game {
     if (first) this.events.emit('hud:message', { text: 'Ins Tagebuch übernommen (J).' });
   }
 
+  /** Gespräch mit einem Überlebenden beginnen (Antworten über die Zifferntasten). */
+  private talkTo(npc: NpcDef): void {
+    if (!this.survivors) return;
+    this.noteUI.hide();
+    this.mapUI.hide();
+    this.journalUI.hide();
+    this.dialogueUI.show(this.survivors.talk(npc.id));
+    this.noteAt.copy(this.player.position);
+  }
+
+  /** Zifferntasten wählen eine Antwort; `E` oder Weggehen beendet das Gespräch. */
+  private updateDialogue(playing: boolean): void {
+    const ui = this.dialogueUI;
+    if (!ui.open || !this.survivors) return;
+    if (!playing || this.player.position.distanceTo(this.noteAt) > 4) {
+      ui.hide();
+      return;
+    }
+    const keys = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'] as const;
+    const i = keys.findIndex((k) => this.input.wasPressed(k));
+    if (i < 0) return;
+    const survivors = this.survivors;
+    const npc = ui.npc!;
+    if (ui.choose(i, () => survivors.options(npc))) survivors.gesture(npc.id);
+  }
+
   /** Höhle betreten oder verlassen: abblenden, in der Dunkelheit umsetzen, aufblenden. */
   private startCaveTransition(target: CaveTarget): void {
     if (this.caveTransition || this.sleepTimer > 0) return;
@@ -1234,12 +1302,15 @@ export class Game {
     const building = this.building.isActive;
     this.interaction.update(this.tools.equippedTool);
     if (playing && !building && this.input.wasPressed('interact')) {
-      // Eine offene Notiz legt `E` zuerst weg.
+      // Eine offene Notiz legt `E` zuerst weg, ebenso ein laufendes Gespräch.
       if (this.noteUI.open) this.noteUI.hide();
+      else if (this.dialogueUI.open) this.dialogueUI.hide();
       else this.interaction.interact();
     }
+    this.updateDialogue(playing);
     if (this.noteUI.open && (player.position.distanceTo(this.noteAt) > 3.5 || this.mode !== 'playing')) this.noteUI.hide();
-    this.tools.update(dt, playing && !building);
+    // Im Gespräch wählen die Zifferntasten Antworten statt Werkzeuge (und es wird nicht zugeschlagen).
+    this.tools.update(dt, playing && !building && !this.dialogueUI.open);
     this.harvest.update(dt);
     this.building.update(dt, player.position);
     this.enemies.update(dt, alpha);
@@ -1250,7 +1321,8 @@ export class Game {
     this.worldItems.update();
     this.particles.update(dt);
     this.embers.update(dt);
-    player.stats.warm = this.building.isNearLitFire(player.position);
+    player.stats.warm = this.building.isNearLitFire(player.position) || !!this.survivors?.isNearFire(player.position);
+    this.survivors?.update(dt, player.position, this.caves.current ? 0 : 1 - this.dayNight.daylight);
     this.updateSkills(dt, playing);
     this.updateFever(dt);
     this.worldEvents.update({
@@ -1366,6 +1438,7 @@ export class Game {
       camps: [...this.discoveredCamps].map((i) => this.enemies.camps[i].center),
       caves: this.caves.caves.filter((c) => c.discovered).map((c) => ({ x: c.site.position.x, z: c.site.position.z })),
       events: this.worldEvents.markers(),
+      harbor: this.survivors?.marker() ?? null,
     });
     const explored = document.querySelector('[data-ref="mapExplored"]');
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;

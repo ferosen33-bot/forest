@@ -415,6 +415,18 @@ function build(id: ItemId): THREE.Object3D {
       g.add(lamp);
       break;
     }
+    case 'watch': {
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14), MATERIALS.tin);
+      body.rotation.x = Math.PI / 2;
+      g.add(body);
+      const face = new THREE.Mesh(new THREE.CircleGeometry(0.029, 14), MATERIALS.pillbox);
+      face.position.z = 0.0065;
+      g.add(face);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.003, 4, 8), MATERIALS.tin);
+      ring.position.y = 0.045;
+      g.add(ring);
+      break;
+    }
     case 'battery': {
       const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 8), MATERIALS.batteryBody);
       g.add(cell);
@@ -526,6 +538,8 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.025, 0.014).setDensity(2000);
     case 'jacket':
       return RAPIER.ColliderDesc.cylinder(0.25, 0.2).setDensity(250);
+    case 'watch':
+      return RAPIER.ColliderDesc.cylinder(0.008, 0.036).setDensity(3000);
     case 'rawFish':
     case 'cookedFish':
       return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);

@@ -16,6 +16,8 @@ export interface MapMarkers {
   caves?: { x: number; z: number }[];
   /** Zufallsereignisse (Abwurf, Ritual, verlassenes Lager). */
   events?: { x: number; z: number; kind: 'drop' | 'ritual' | 'camp' }[];
+  /** Leuchtturm der Überlebenden (sobald gefunden). */
+  harbor?: { x: number; z: number } | null;
 }
 
 const RES = 512;
@@ -277,6 +279,28 @@ export class MapUI {
         ctx.fill();
         ctx.stroke();
       }
+    }
+    // Leuchtturm: rot-weißer Turm mit gelbem Licht
+    if (m.harbor) {
+      const [x, y] = this.px(m.harbor.x, m.harbor.z);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#1a1612';
+      ctx.fillStyle = '#f6f1e4';
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y - 6);
+      ctx.lineTo(x + 3, y - 6);
+      ctx.lineTo(x + 5, y + 7);
+      ctx.lineTo(x - 5, y + 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#b8352a';
+      ctx.fillRect(x - 4, y, 8, 3);
+      ctx.fillStyle = '#ffd25a';
+      ctx.beginPath();
+      ctx.arc(x, y - 9, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
     // Aufwachpunkt: Zelt-Symbol
     if (m.respawn) {
