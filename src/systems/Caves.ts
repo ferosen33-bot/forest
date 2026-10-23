@@ -25,6 +25,7 @@ import type { Particles } from './Particles';
 import type { LightPool, LightRequest } from './LightPool';
 import type { Audio } from './Audio';
 import { CaveNav } from './ai/CaveNav';
+import { CAVE_NOTES } from './Notes';
 import type { CaveSpawn } from './ai/EnemyDirector';
 
 export const CAVE_COUNT = 3;
@@ -89,6 +90,7 @@ export interface Cave {
 export type CaveTarget =
   | { type: 'entrance'; cave: Cave }
   | { type: 'exit'; cave: Cave }
+  | { type: 'note'; cave: Cave; id: string }
   | { type: 'crate' | 'mushroom' | 'flint'; cave: Cave; feature: Feature };
 
 export interface CaveSave {
@@ -134,6 +136,7 @@ const M = {
   dripstone: mat(0x8a8278, { roughness: 0.6 }),
   flint: mat(0x25272e, { roughness: 0.2, metalness: 0.25 }),
   dark: new THREE.MeshBasicMaterial({ color: 0x030303 }),
+  paper: new THREE.MeshStandardMaterial({ color: 0xd9d1bc, roughness: 1 }),
   interior: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true }),
 };
 const BOULDER = jitter(new THREE.IcosahedronGeometry(1, 1), 0.18, 41);
@@ -456,6 +459,29 @@ export class Caves {
     });
     dripMesh.name = 'Dripstones';
     g.add(dripMesh);
+
+    // Eine Notiz liegt neben der ersten Vorratskiste der Höhle.
+    const noteId = CAVE_NOTES[cave.index];
+    const noteCrate = cave.features.find((f) => f.def.kind === 'crate');
+    if (noteId && noteCrate) {
+      // Neben der Kiste auf dem dortigen Boden (der Höhlenboden ist uneben).
+      const local = noteCrate.def.position.clone().add(new THREE.Vector3(0.85, 0, 0.2).applyAxisAngle(this.up, noteCrate.def.rotation));
+      const sdf = createCaveSdf(this.d.seed, cave.index, cave.layout);
+      local.y = probe(sdf, local.x, local.y + 1, local.z, -1) ?? local.y;
+      const p = this.world(cave, local);
+      const paper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.006, 0.3), M.paper);
+      paper.position.copy(p).setY(p.y + 0.02);
+      paper.rotation.y = noteCrate.def.rotation + 0.4;
+      g.add(paper);
+      const c = this.d.physics.world.createCollider(
+        RAPIER.ColliderDesc.cuboid(0.18, 0.05, 0.22)
+          .setTranslation(p.x, p.y + 0.06, p.z)
+          .setSensor(true)
+          .setCollisionGroups(interactionGroups(CollisionGroup.STATIC)),
+        body,
+      );
+      this.targets.set(c.handle, { type: 'note', cave, id: noteId });
+    }
 
     for (const f of cave.features) {
       const kind = f.def.kind;

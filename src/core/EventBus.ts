@@ -42,6 +42,8 @@ export type GameEvents = {
   /** Stadt: Behälter durchsucht, Ort entdeckt. */
   'loot:searched': { kind: string; items: ItemId[] };
   'town:discovered': { name: string };
+  /** Eine Notiz wurde gelesen (`first`: zum ersten Mal). */
+  'note:read': { id: string; first: boolean };
   /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */
   'fish:caught': { count: number; trap: boolean };
   /** Tagebuch: ein Ziel wurde erreicht. */

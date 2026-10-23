@@ -62,6 +62,7 @@ export class Settlement {
   readonly containers: LootContainer[] = [];
   discovered = false;
   private readonly byCollider = new Map<number, LootContainer>();
+  private readonly notes = new Map<number, string>();
   private readonly townColliders = new Set<number>();
 
   constructor(private readonly d: SettlementDeps) {
@@ -77,9 +78,14 @@ export class Settlement {
           .setTranslation(s.position.x, s.position.y, s.position.z)
           .setRotation(s.quaternion)
           .setFriction(0.8)
+          .setSensor(s.note !== undefined)
           .setCollisionGroups(interactionGroups(CollisionGroup.STATIC)),
         body,
       );
+      if (s.note) {
+        this.notes.set(collider.handle, s.note);
+        continue;
+      }
       this.townColliders.add(collider.handle);
       if (s.container !== undefined) this.byCollider.set(collider.handle, this.containers[s.container]);
       if (s.nav) d.markObstacle(s.position.x, s.position.z, s.yaw, s.half.x, s.half.z);
@@ -92,6 +98,11 @@ export class Settlement {
 
   get town(): TownLayout {
     return this.d.town;
+  }
+
+  /** Notiz unter dem Fadenkreuz (Id) oder undefined. */
+  getNote(collider: RAPIER.Collider): string | undefined {
+    return this.notes.get(collider.handle);
   }
 
   getContainer(collider: RAPIER.Collider): LootContainer | undefined {

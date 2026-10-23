@@ -19,6 +19,7 @@ import { isCookable, type Cooking } from './Cooking';
 import type { ItemId } from '../entities/items/ItemDefs';
 import type { Caves, CaveTarget } from './Caves';
 import type { LootContainer, Settlement } from './Settlement';
+import { getNote } from './Notes';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -29,6 +30,7 @@ export type InteractionTarget =
   | { type: 'animal'; animal: Animal; hit: RaycastHit }
   | { type: 'cave'; cave: CaveTarget; hit: RaycastHit }
   | { type: 'loot'; container: LootContainer; hit: RaycastHit }
+  | { type: 'note'; id: string; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -63,6 +65,10 @@ export interface InteractionDeps {
   transformHeld: (to: ItemId) => void;
   /** Höhle betreten (Eingang) bzw. verlassen (Ausgang) – mit Überblendung. */
   onCave: (target: CaveTarget) => void;
+  /** Notiz lesen (öffnet die Leseansicht). */
+  onReadNote: (id: string) => void;
+  /** Wurde die Notiz schon gelesen? */
+  isNoteRead: (id: string) => boolean;
 }
 
 /** Was `E` an einem Lagerfeuer gerade bewirkt. */
@@ -146,7 +152,9 @@ export class InteractionSystem {
       const structure = this.building.getByCollider(hit.collider);
       if (structure) return { type: 'structure', structure, hit };
       const cave = this.deps.caves.getTarget(hit.collider);
-      if (cave) return { type: 'cave', cave, hit };
+      if (cave) return cave.type === 'note' ? { type: 'note', id: cave.id, hit } : { type: 'cave', cave, hit };
+      const note = this.deps.settlement?.getNote(hit.collider);
+      if (note) return { type: 'note', id: note, hit };
       const container = this.deps.settlement?.getContainer(hit.collider);
       if (container) return { type: 'loot', container, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
@@ -256,6 +264,11 @@ export class InteractionSystem {
       }
       case 'enemy':
         return null;
+      case 'note': {
+        if (target.hit.distance > INTERACT_REACH) return null;
+        const title = getNote(target.id)?.title ?? 'Notiz';
+        return { key: 'E', action: this.deps.isNoteRead(target.id) ? 'Noch einmal lesen' : 'Lesen', label: title };
+      }
       case 'loot': {
         if (target.hit.distance > INTERACT_REACH) return null;
         const c = target.container;
@@ -359,6 +372,9 @@ export class InteractionSystem {
         break;
       case 'loot':
         this.deps.settlement?.search(target.container);
+        break;
+      case 'note':
+        this.deps.onReadNote(target.id);
         break;
       case 'cave': {
         const c = target.cave;

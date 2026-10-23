@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { injectSeason } from './SeasonShader';
 import { buildingRng, type TownBuilding, type TownLayout, type TownProp } from './Town';
 import type { RandomFn } from '../utils/random';
+import { TOWN_NOTES } from '../systems/Notes';
 
 /**
  * Baut die Stadt aus ihrem Plan: Geometrie (je Material EIN verschmolzenes Mesh mit Vertexfarben →
@@ -40,6 +41,8 @@ export interface ColliderSpec {
   /** Hindernis für die Wegfindung. */
   nav: boolean;
   container?: number;
+  /** Lesbare Notiz (Sensor, nur zum Anvisieren). */
+  note?: string;
 }
 
 export interface DoorSpec {
@@ -130,6 +133,21 @@ class Builder {
       spec.container = id;
     }
     this.colliders.push(spec);
+  }
+
+  /**
+   * Notiz: ein Blatt Papier flach auf einer Fläche (Oberkante `y`) oder als Aushang an einer Wand
+   * (`wall`: senkrecht, Vorderseite +Z). Ein Sensor darüber macht es anvisierbar.
+   */
+  note(id: string, x: number, y: number, z: number, ry: number, wall = false): void {
+    if (wall) this.box(0.42, 0.58, 0.01, x, y, z, { color: 0xe6dfcb, ry });
+    else this.box(0.22, 0.006, 0.3, x, y + 0.003, z, { color: 0xe6dfcb, ry });
+    const position = new THREE.Vector3(x, wall ? y : y + 0.03, z).applyMatrix4(this.base);
+    const quaternion = new THREE.Quaternion();
+    this.base.decompose(new THREE.Vector3(), quaternion, new THREE.Vector3());
+    quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)));
+    const half = wall ? new THREE.Vector3(0.24, 0.32, 0.06) : new THREE.Vector3(0.16, 0.04, 0.2);
+    this.colliders.push({ half, position, quaternion, yaw: 0, nav: false, note: id });
   }
 
   /** Beliebige Geometrie (ohne Kollision), z. B. Dreiecksgiebel oder Räder. */
@@ -259,7 +277,7 @@ function sign(text: string, width: number, color = '#d9cfb4', bg = '#2f3b46'): T
 // Gebäude
 // ---------------------------------------------------------------------------
 
-function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean): void {
+function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean, note?: string): void {
   const { w, d } = t;
   const H = 2.7;
   const color = ruin ? C.char : t.color;
@@ -312,6 +330,7 @@ function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean): void 
   const tx = w / 4 - 0.2;
   const tz = d / 4 - 0.2;
   b.box(1.4, 0.06, 0.85, tx, FLOOR + 0.74, tz, { color: C.wood, collide: true, nav: false });
+  if (note) b.note(note, tx + 0.2, FLOOR + 0.77, tz - 0.1, rng() * 0.6 - 0.3);
   for (const [lx, lz] of [[-0.6, -0.35], [0.6, -0.35], [-0.6, 0.35], [0.6, 0.35]]) b.box(0.06, 0.72, 0.06, tx + lx, FLOOR + 0.36, tz + lz, { color: C.darkWood });
   for (const s of [-1, 1]) {
     b.box(0.45, 0.06, 0.45, tx + s * 0.95, FLOOR + 0.45, tz, { color: C.darkWood, ry: rng() * 0.6 });
@@ -346,6 +365,7 @@ function shop(b: Builder, t: TownBuilding, g: THREE.Group, place: (o: THREE.Obje
     for (const x of [-3, 2.6]) b.box(4.2, 1.6, 0.6, x, FLOOR + 0.8, z, { color: C.metal, container: 'shelf', nav: true });
   }
   b.box(2.2, 1.0, 0.7, 3.6, FLOOR + 0.5, 3.0, { color: C.wood, container: 'register', nav: true });
+  b.note(TOWN_NOTES.shop[0], 3.0, FLOOR + 1.0, 3.0, 0.25);
   b.box(0.6, 0.4, 0.4, -w / 2 + 0.8, FLOOR + 0.2, -d / 2 + 0.6, { color: C.rust, container: 'toolbox' });
   const s = sign('MARKT', 4);
   place(s, 0, FLOOR + H - 0.2, d / 2 + 0.22);
@@ -364,6 +384,7 @@ function gasStation(b: Builder, t: TownBuilding, g: THREE.Group, place: (o: THRE
   b.box(w + 0.3, 0.22, d + 0.3, 0, FLOOR + H + 0.1, 0, { color: C.concrete, bucket: 'out', collide: true });
   b.box(3.0, 1.5, 0.5, -1.5, FLOOR + 0.75, -d / 2 + 0.6, { color: C.metal, container: 'shelf', nav: true });
   b.box(1.6, 1.0, 0.6, 2.2, FLOOR + 0.5, 0.6, { color: C.wood, container: 'register', nav: true });
+  b.note(TOWN_NOTES.gas[0], 2.4, FLOOR + 1.0, 0.55, -0.3);
   b.box(0.6, 0.4, 0.4, w / 2 - 0.6, FLOOR + 0.2, -d / 2 + 0.5, { color: 0xa13a2a, container: 'toolbox' });
   // Tankdach über den Zapfsäulen (zur Straße hin)
   const cz = d / 2 + 4.6;
@@ -395,6 +416,11 @@ function townHall(b: Builder, t: TownBuilding, g: THREE.Group, place: (o: THREE.
   b.box(2.4, 1.9, 0.45, 0, FLOOR + 0.95, -d / 2 + 0.45, { color: C.metal, container: 'shelf', nav: true });
   b.box(0.7, 0.35, 0.4, 3.2, FLOOR + 0.93, -1.7, { color: 0x3a3d3a });
   b.box(0.08, 0.5, 0.02, 3.45, FLOOR + 1.3, -1.7, { color: C.metal });
+  // Aushang innen neben der Tür, Funkprotokolle auf den Schreibtischen.
+  const [aushang, funk1, funk2] = TOWN_NOTES.hall;
+  b.note(aushang, -1.6, FLOOR + 1.5, d / 2 - WALL - 0.01, Math.PI, true);
+  b.note(funk1, 2.7, FLOOR + 0.76, -1.3, 0.2);
+  b.note(funk2, -3.0, FLOOR + 0.76, -1.4, -0.15);
   // Funkmast neben dem Haus – von weitem zu sehen.
   const mx = w / 2 + 1.6;
   const mz = -d / 2 + 1.6;
@@ -480,10 +506,14 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
     o.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(b.base));
   };
   streets(b, t);
+  // Drei Briefe und Hefte, verteilt über den Ort (erstes, mittleres und letztes Wohnhaus).
+  const houses = t.buildings.filter((x) => x.kind === 'house');
+  const houseNotes = new Map<number, string>();
+  [0, Math.floor(houses.length / 2), houses.length - 1].forEach((i, n) => houses[i] && houseNotes.set(houses[i].index, TOWN_NOTES.houses[n]));
   for (const bd of t.buildings) {
     b.at(bd.x, bd.z, bd.rotation, bd.index);
     const rng = buildingRng(seed, bd);
-    if (bd.kind === 'house' || bd.kind === 'ruin') house(b, bd, rng, bd.kind === 'ruin');
+    if (bd.kind === 'house' || bd.kind === 'ruin') house(b, bd, rng, bd.kind === 'ruin', houseNotes.get(bd.index));
     else if (bd.kind === 'shop') shop(b, bd, signs, place);
     else if (bd.kind === 'gas') gasStation(b, bd, signs, place);
     else townHall(b, bd, signs, place);

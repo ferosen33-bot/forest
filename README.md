@@ -54,6 +54,19 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 23 – Was geschah
+
+- **Elf Notizen** erzählen, was aus Altwasser wurde: Aushang und zwei Funkprotokolle im Gemeindehaus, ein
+  Einkaufszettel an der Supermarktkasse, ein Zettel des Tankwarts, ein Brief, ein Kinderheft und eine ärztliche
+  Notiz in drei Wohnhäusern, dazu je eine Seite neben der ersten Vorratskiste jeder Höhle – darunter das
+  Schichtbuch des Feuersteinstollens. (Ohne zu viel zu verraten: Es begann im neuen Stollen, und wer das Fieber
+  bekam, ging nachts in den Wald – oder in die Tiefe. Die letzte Fahrt legte am Steg in der Nordbucht ab.)
+- `E` liest eine Notiz in einer eigenen Ansicht (Papier; Funkprotokolle in Schreibmaschinenschrift, das Kinderheft
+  auf liniertem Papier). `E` legt sie wieder weg, ebenso ein paar Schritte. Beim ersten Lesen wandert sie ins
+  **Tagebuch** (Abschnitt „Gefundene Notizen“) und bleibt im Spielstand.
+- Neues Kapitel **„Was geschah“** (beide Funkprotokolle, die Notiz des Arztes, das Schichtbuch, alle elf Notizen);
+  im Stadt-Kapitel zählt „Notizen der Bewohner lesen“.
+
 ### Meilenstein 22 – Die verlassene Stadt
 
 - **Altwasser**, eine verlassene Kleinstadt im Inselinneren: Hauptstraße und zwei Querstraßen mit Mittellinien,
@@ -511,6 +524,7 @@ src/
 │   ├── Fishing.ts          Angeln (Wurf, Biss, Schnur) und Fischreusen (getestet)
 │   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Bewohner-Plätze, Zustand
 │   ├── Settlement.ts       Stadt zur Laufzeit: Kollision, Beutetabellen, Durchsuchen, Entdeckung
+│   ├── Notes.ts            Die Notizen der Geschichte und ihre Fundorte (getestet)
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -582,4 +596,5 @@ src/
 21. ~~Höhlen (Dunkelheit, Feuerstein, Vorratskisten)~~ ✓
 22. ~~Höhlenbewohner~~ ✓
 23. ~~Die verlassene Stadt~~ ✓
-24. Was geschah: Notizen, Briefe und Funkprotokolle
+24. ~~Was geschah: Notizen, Briefe und Funkprotokolle~~ ✓
+25. Der Steg in der Nordbucht: Boot instand setzen und fliehen

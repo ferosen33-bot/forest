@@ -170,7 +170,7 @@ export class ToolController {
     // Horizontale Schlagrichtung aus der Blickrichtung des Spielers.
     this.fromDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
 
-    if (!target || target.type === 'water' || target.type === 'item' || target.type === 'bush' || target.type === 'ground' || target.type === 'loot') {
+    if (!target || target.type === 'water' || target.type === 'item' || target.type === 'bush' || target.type === 'ground' || target.type === 'loot' || target.type === 'note') {
       this.audio.play('swing');
       return;
     }

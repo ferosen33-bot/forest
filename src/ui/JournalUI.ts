@@ -1,4 +1,5 @@
 import { CHAPTERS, type Journal } from '../systems/Journal';
+import { getNote, NOTES } from '../systems/Notes';
 
 /**
  * Tagebuch (Taste J): alle Kapitel mit ihren Zielen, erledigte abgehakt, offene mit Fortschritt.
@@ -85,6 +86,27 @@ export class JournalUI {
       }
       page.append(section);
     });
+    // Gefundene Notizen zum Nachlesen
+    if (this.journal.notes.size > 0) {
+      const section = document.createElement('section');
+      section.className = 'journal__chapter';
+      const h = document.createElement('h3');
+      h.textContent = `Gefundene Notizen (${this.journal.notes.size} von ${NOTES.length})`;
+      section.append(h);
+      for (const id of this.journal.notes) {
+        const note = getNote(id);
+        if (!note) continue;
+        const box = document.createElement('div');
+        box.className = 'journal__note';
+        const t = document.createElement('h4');
+        t.textContent = note.title;
+        const p = document.createElement('p');
+        p.textContent = note.text;
+        box.append(t, p);
+        section.append(box);
+      }
+      page.append(section);
+    }
     if (current >= CHAPTERS.length) {
       const end = document.createElement('p');
       end.className = 'journal__intro';

@@ -343,6 +343,36 @@ html, body {
 .journal__chapter ul { margin: 0; padding-left: 4px; list-style: none; font-size: 15px; line-height: 1.6; }
 .journal__chapter li.is-done { opacity: 0.55; }
 
+#note {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.note__paper {
+  width: min(460px, calc(100vw - 32px));
+  max-height: 80vh;
+  overflow: auto;
+  padding: 22px 26px 12px;
+  background: #e6dcc4;
+  color: #2a241a;
+  border-radius: 2px;
+  transform: rotate(-1.2deg);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), inset 0 0 40px rgba(120, 95, 55, 0.35);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.note__title { margin: 0 0 10px; font-size: 18px; font-weight: normal; letter-spacing: 0.04em; }
+.note__text { white-space: pre-line; font-size: 15px; line-height: 1.55; }
+.note__paper.is-radio { background: #dcdad2; transform: rotate(0.6deg); }
+.note__paper.is-radio .note__text { font-family: 'Courier New', ui-monospace, monospace; font-size: 13.5px; }
+.note__paper.is-child { background: #eef0e6; background-image: repeating-linear-gradient(transparent 0 23px, rgba(70, 110, 160, 0.25) 23px 24px); }
+.note__paper.is-child .note__text { font-family: 'Comic Sans MS', 'Segoe Print', cursive; color: #3a3d44; line-height: 24px; }
+.journal__note { margin: 8px 0 12px; padding: 8px 10px; background: rgba(255, 255, 255, 0.25); border-left: 3px solid rgba(80, 60, 30, 0.4); }
+.journal__note h4 { margin: 0 0 4px; font-size: 15px; }
+.journal__note p { margin: 0; white-space: pre-line; font-size: 13.5px; line-height: 1.45; }
+
 .clock {
   position: absolute;
   top: 16px;

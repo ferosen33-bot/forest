@@ -19,6 +19,7 @@ export type Trigger =
   | { on: 'crate' }
   | { on: 'town' }
   | { on: 'loot' }
+  | { on: 'note'; id?: string }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'day'; day: number };
@@ -107,12 +108,26 @@ export const CHAPTERS: Chapter[] = [
       { id: 'canned', text: 'Eine Konserve essen', trigger: { on: 'eat', item: 'cannedFood' } },
       { id: 'machete', text: 'Eine Machete finden', trigger: { on: 'collect', item: 'machete' } },
       { id: 'flashlight', text: 'Eine Taschenlampe finden', trigger: { on: 'collect', item: 'flashlight' } },
+      { id: 'notes3', text: 'Notizen der Bewohner lesen', trigger: { on: 'note' }, count: 3 },
+    ],
+  },
+  {
+    title: 'Was geschah',
+    intro: 'Briefe, Aushänge, ein Funkgerät. Die Bewohner haben Spuren hinterlassen – und eine Warnung.',
+    objectives: [
+      { id: 'radio1', text: 'Das erste Funkprotokoll lesen', trigger: { on: 'note', id: 'funk1' } },
+      { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
+      { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
+      { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 11 },
     ],
   },
 ];
 
 export interface JournalSave {
   progress: [string, number][];
+  /** Seit Meilenstein 23: gelesene Notizen. */
+  notes?: string[];
 }
 
 /**
@@ -121,6 +136,8 @@ export interface JournalSave {
  */
 export class Journal {
   private readonly progress = new Map<string, number>();
+  /** Gelesene Notizen (Ids, in Fundreihenfolge). */
+  readonly notes = new Set<string>();
   private readonly byTrigger: Objective[] = CHAPTERS.flatMap((c) => c.objectives);
 
   constructor(private readonly events: EventBus) {
@@ -143,6 +160,11 @@ export class Journal {
     events.on('cave:crate', () => this.advance((t) => t.on === 'crate'));
     events.on('town:discovered', () => this.advance((t) => t.on === 'town'));
     events.on('loot:searched', () => this.advance((t) => t.on === 'loot'));
+    events.on('note:read', ({ id, first }) => {
+      if (!first) return;
+      this.notes.add(id);
+      this.advance((t) => t.on === 'note' && (!t.id || t.id === id));
+    });
     events.on('fish:caught', ({ count }) => this.advance((t) => t.on === 'fish', count));
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));
@@ -184,13 +206,15 @@ export class Journal {
   }
 
   serialize(): JournalSave {
-    return { progress: [...this.progress] };
+    return { progress: [...this.progress], notes: [...this.notes] };
   }
 
   load(d: JournalSave): void {
     this.progress.clear();
     const known = new Set(this.byTrigger.map((o) => o.id));
     for (const [id, n] of d.progress ?? []) if (known.has(id) && Number.isFinite(n)) this.progress.set(id, n);
+    this.notes.clear();
+    for (const id of d.notes ?? []) if (typeof id === 'string') this.notes.add(id);
   }
 
   private advance(match: (t: Trigger) => boolean, amount = 1): void {

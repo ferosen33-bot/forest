@@ -41,6 +41,7 @@ import { MapUI } from '../ui/MapUI';
 import { Compass } from '../ui/Compass';
 import { CHAPTERS, Journal } from '../systems/Journal';
 import { JournalUI } from '../ui/JournalUI';
+import { NoteUI } from '../ui/NoteUI';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -147,6 +148,9 @@ export class Game {
   private compass!: Compass;
   journal!: Journal;
   private journalUI!: JournalUI;
+  private noteUI!: NoteUI;
+  /** Wo die offene Notiz gelesen wurde (weggehen legt sie weg). */
+  private readonly noteAt = new THREE.Vector3();
   /** Indizes der Lager, die der Spieler schon gesehen hat (Karte). */
   private readonly discoveredCamps = new Set<number>();
   private exploreTimer = 0;
@@ -395,6 +399,8 @@ export class Game {
       events: this.events,
       config: cfg,
       onCave: (target) => this.startCaveTransition(target),
+      onReadNote: (id) => this.readNote(id),
+      isNoteRead: (id) => this.journal.notes.has(id),
       canSleep: () => this.dayNight.isSleepTime,
       onSleep: (shelter) => this.sleep(shelter),
       heldItem: () => this.tools.equipped?.id ?? null,
@@ -459,6 +465,7 @@ export class Game {
       () => this.tools.selected,
       this.crafting,
     );
+    this.noteUI = new NoteUI(document.getElementById('note')!);
     this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal);
     this.events.on('journal:completed', ({ text, chapterDone }) => {
       this.audio.play('craft', 0.7);
@@ -685,6 +692,7 @@ export class Game {
     this.mode = 'paused';
     this.mapUI.hide();
     this.journalUI.hide();
+    this.noteUI.hide();
     this.saveNow();
     this.menu.showPaused(this.lastSaved);
   }
@@ -774,6 +782,18 @@ export class Game {
       this.events.emit('player:slept', {});
       this.saveNow();
     }
+  }
+
+  /** Notiz lesen: Leseansicht öffnen, beim ersten Mal ins Tagebuch übernehmen. */
+  private readNote(id: string): void {
+    const first = !this.journal.notes.has(id);
+    this.noteUI.show(id);
+    this.noteAt.copy(this.player.position);
+    this.audio.play('pickup', 0.5);
+    this.mapUI.hide();
+    this.journalUI.hide();
+    this.events.emit('note:read', { id, first });
+    if (first) this.events.emit('hud:message', { text: 'Ins Tagebuch übernommen (J).' });
   }
 
   /** Höhle betreten oder verlassen: abblenden, in der Dunkelheit umsetzen, aufblenden. */
@@ -927,6 +947,7 @@ export class Game {
     }
     if (this.mode === 'playing' && this.input.wasPressed('journal')) {
       this.mapUI.hide();
+      this.noteUI.hide();
       this.journalUI.toggle();
     }
     const toggleInventory = this.input.wasPressed('inventory') || this.input.wasPressed('craft');
@@ -996,7 +1017,12 @@ export class Game {
     if (playing && this.building.isActive) this.updateBuildMode();
     const building = this.building.isActive;
     this.interaction.update(this.tools.equippedTool);
-    if (playing && !building && this.input.wasPressed('interact')) this.interaction.interact();
+    if (playing && !building && this.input.wasPressed('interact')) {
+      // Eine offene Notiz legt `E` zuerst weg.
+      if (this.noteUI.open) this.noteUI.hide();
+      else this.interaction.interact();
+    }
+    if (this.noteUI.open && (player.position.distanceTo(this.noteAt) > 3.5 || this.mode !== 'playing')) this.noteUI.hide();
     this.tools.update(dt, playing && !building);
     this.harvest.update(dt);
     this.building.update(dt, player.position);
