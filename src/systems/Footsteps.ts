@@ -36,6 +36,8 @@ export class Footsteps {
   private swimTimer = 0;
   private readonly down = new THREE.Vector3(0, -1, 0);
   private readonly origin = new THREE.Vector3();
+  /** In einer Höhle klingt jeder Schritt nach Fels. */
+  cave = false;
 
   constructor(
     private readonly audio: Audio,
@@ -76,6 +78,7 @@ export class Footsteps {
   }
 
   private surfaceUnder(p: THREE.Vector3, submersion: number): Surface {
+    if (this.cave) return 'rock';
     // Steht der Spieler auf einem Bauwerk? Kurzer Strahl nach unten.
     this.origin.set(p.x, p.y + 0.3, p.z);
     const hit = this.physics.raycast(this.origin, this.down, 0.6, undefined, true);

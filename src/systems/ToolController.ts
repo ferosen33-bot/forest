@@ -13,6 +13,7 @@ import type { EnemyDirector } from './ai/EnemyDirector';
 import type { AnimalDirector } from './AnimalDirector';
 import type { Projectiles } from './Projectiles';
 import type { ItemService } from './ItemService';
+import type { Caves } from './Caves';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -59,6 +60,7 @@ export class ToolController {
     private readonly projectiles: Projectiles,
     private readonly camera: THREE.Camera,
     private readonly items: ItemService,
+    private readonly caves: Caves,
   ) {}
 
   get equipped(): ItemStack | null {
@@ -195,6 +197,14 @@ export class ToolController {
         }
         this.animals.damage(target.animal, tool.damage, this.player.position, this.point, this.normal);
         break;
+      case 'cave':
+        if (target.cave.type === 'flint') this.caves.hitFlint(target.cave.feature, tool, this.point, this.normal);
+        else if (target.cave.type === 'crate') this.audio.play('chop');
+        else {
+          this.audio.play('swing');
+          return;
+        }
+        break;
     }
     this.viewModel.playHit();
     this.wearEquipped(1);
@@ -308,7 +318,8 @@ export class ToolController {
     const stats = this.player.stats;
     stats.eat(food.hunger);
     stats.thirst = Math.max(0, Math.min(stats.max, stats.thirst + food.thirst));
-    this.audio.play(food.hunger === 0 && food.thirst > 0 ? 'drink' : 'eat');
+    this.audio.play(food.medicine ? 'craft' : food.hunger === 0 && food.thirst > 0 ? 'drink' : 'eat');
+    if (food.medicine) this.events.emit('hud:message', { text: 'Wunden versorgt.' });
     this.events.emit('player:ate', { item: def.id });
     if (food.health >= 0) {
       stats.health = Math.min(stats.max, stats.health + food.health);

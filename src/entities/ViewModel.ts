@@ -31,6 +31,10 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   log: { position: new THREE.Vector3(0.05, -0.45, -0.75), rotation: new THREE.Euler(0, 0, Math.PI / 2 - 0.1), grip: new THREE.Vector3(0, 0, 0), scale: 0.8 },
   // Rute schräg nach vorne oben, etwas zur Mitte geneigt.
   fishingRod: { position: new THREE.Vector3(0.32, -0.38, -0.5), rotation: new THREE.Euler(-1.0, 0, 0.22), grip: new THREE.Vector3(0, -0.56, 0), scale: 0.7 },
+  flintAxe: { position: new THREE.Vector3(0.32, -0.38, -0.52), rotation: new THREE.Euler(-0.9, 2.3, 0.25, 'XYZ'), grip: new THREE.Vector3(0, -0.2, 0), scale: 0.9 },
+  flint: { position: new THREE.Vector3(0.26, -0.27, -0.45), rotation: new THREE.Euler(0.2, 0.5, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1.1 },
+  mushroom: { position: new THREE.Vector3(0.24, -0.26, -0.42), rotation: new THREE.Euler(0.25, 0.4, 0), grip: new THREE.Vector3(0, -0.04, 0), scale: 1.3 },
+  medkit: { position: new THREE.Vector3(0.22, -0.27, -0.44), rotation: new THREE.Euler(0.35, 0.5, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
 };

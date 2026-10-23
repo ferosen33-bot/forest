@@ -23,6 +23,10 @@ export const RECIPES: Recipe[] = [
     { item: 'stick', count: 1 },
     { item: 'stone', count: 2 },
   ]),
+  item('flintAxe', [
+    { item: 'stick', count: 2 },
+    { item: 'flint', count: 3 },
+  ]),
   item('spear', [
     { item: 'stick', count: 2 },
     { item: 'stone', count: 1 },

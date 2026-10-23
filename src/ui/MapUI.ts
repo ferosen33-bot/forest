@@ -11,6 +11,8 @@ export interface MapMarkers {
   structures: { x: number; z: number; kind: 'fire' | 'shelter' | 'wall' | 'other' }[];
   /** Entdeckte Schrat-Lager. */
   camps: { x: number; z: number }[];
+  /** Entdeckte Höhleneingänge. */
+  caves?: { x: number; z: number }[];
 }
 
 const RES = 512;
@@ -182,6 +184,23 @@ export class MapUI {
       ctx.moveTo(x + 4, y - 4);
       ctx.lineTo(x - 4, y + 4);
       ctx.stroke();
+    }
+    // Höhleneingänge: dunkler Bogen auf hellem Fels
+    for (const c of m.caves ?? []) {
+      const [x, y] = this.px(c.x, c.z);
+      ctx.fillStyle = '#cfc8ba';
+      ctx.strokeStyle = '#2b2418';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y + 3, 8, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1a1612';
+      ctx.beginPath();
+      ctx.arc(x, y + 3, 4, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
     }
     // Aufwachpunkt: Zelt-Symbol
     if (m.respawn) {

@@ -37,6 +37,8 @@ export interface ClimateFrame {
   /** Kalendertag (ab 1) und Uhrzeit – bestimmen die Jahreszeit. */
   day: number;
   hour: number;
+  /** In einer Höhle: kein Niederschlag, gleichmäßig kühl statt eisig. */
+  underground?: boolean;
 }
 
 /** Sekunden ungeschützter Starkregen, bis ein Lagerfeuer erlischt. */
@@ -96,8 +98,10 @@ export class Climate {
     if (this.shelterTimer <= 0) {
       this.shelterTimer = 0.25;
       // Ab Hüfthöhe prüfen: unter dem Pultdach hockt man oft niedriger als die Kamera stehen würde.
-      this.sheltered = this.roofAbove(this.tmp.copy(player.position).setY(player.position.y + 0.7));
+      this.sheltered = f.underground || this.roofAbove(this.tmp.copy(player.position).setY(player.position.y + 0.7));
     }
+    // Höhlen haben ihr eigenes, ausgeglichenes Klima.
+    if (f.underground) stats.chill = this.season.chill * 0.35;
 
     // Nässe: Regen und Schwimmen machen nass, Feuer und trockene Luft trocknen.
     const cfg = this.d.config.stats;
@@ -124,7 +128,7 @@ export class Climate {
     this.d.world.grass?.setWind(w.wind);
 
     const brightness = clamp(f.daylight * 0.85 + 0.15 + w.flash, 0, 1.5);
-    this.rain.update(f.elapsed, f.camera, player.headUnderwater ? 0 : w.rain, w.wind, brightness, this.season.snowfall);
+    this.rain.update(f.elapsed, f.camera, player.headUnderwater || f.underground ? 0 : w.rain, w.wind, brightness, this.season.snowfall);
   }
 
   /** Jahreszeit: Laub, Schnee, Gras, Kälte und Beeren. */

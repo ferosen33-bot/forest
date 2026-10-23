@@ -17,6 +17,8 @@ export interface AmbienceState {
   wind: number;
   /** Unter einem Dach (Regen klingt dumpfer, prasselt auf Holz). */
   sheltered: boolean;
+  /** In einer Höhle: Stille, tiefes Brummen und tropfendes Wasser statt Wind und Tieren. */
+  cave?: boolean;
 }
 
 /** Endlos laufende Rausch-Schleife mit Filter und Lautstärke (Wind, Brandung, Unterwasser). */
@@ -42,6 +44,7 @@ export class Ambience {
   private birdTimer = 2;
   private cricketTimer = 0;
   private owlTimer = 20;
+  private dripTimer = 1;
   private readonly crickets: THREE.Vector3[] = [];
 
   /** Zuletzt gemessene Umgebung (für Debug-Anzeige und Mischung). */
@@ -66,7 +69,8 @@ export class Ambience {
       this.sampleEnvironment(s.listener);
     }
     const e = this.env;
-    const under = s.underwater ? 1 : 0;
+    // In der Höhle ist alles von draußen verstummt (wie unter Wasser, nur ohne Rauschen).
+    const under = s.underwater || s.cave ? 1 : 0;
 
     // Wind: böig, stärker in der Höhe und im Offenen, im dichten Wald gedämpft.
     const gust = 0.55 + 0.25 * Math.sin(this.time * 0.21) + 0.2 * Math.sin(this.time * 0.57 + 1.3);
@@ -85,9 +89,10 @@ export class Ambience {
     const surf = e.water * (0.35 + 0.65 * e.ocean) * (0.4 + 0.6 * swell);
     this.set(this.surf!, (1 - under) * 0.22 * surf, 380 + 500 * e.ocean * swell, t);
 
-    this.set(this.rumble!, 0.35 * under, 160, t);
+    this.set(this.rumble!, s.cave ? 0.05 : 0.35 * under, s.cave ? 90 : 160, t);
 
-    if (!s.underwater) this.updateCreatures(dt, s);
+    if (s.cave) this.updateDrips(dt, s.listener);
+    else if (!s.underwater) this.updateCreatures(dt, s);
   }
 
   private set(bed: Bed, gain: number, freq: number, t: number): void {
@@ -176,6 +181,17 @@ export class Ambience {
   }
 
   /** Zufällige Position im Ring [rMin, rMax] um `center`, Höhe relativ zum Boden. */
+  /** Tropfen fallen irgendwo in der Nähe von der Höhlendecke. */
+  private updateDrips(dt: number, listener: THREE.Vector3): void {
+    this.dripTimer -= dt;
+    if (this.dripTimer > 0) return;
+    this.dripTimer = 0.4 + Math.random() * 2.2;
+    const a = Math.random() * Math.PI * 2;
+    const r = 2 + Math.random() * 10;
+    const position = { x: listener.x + Math.cos(a) * r, y: listener.y - 1 + Math.random() * 3, z: listener.z + Math.sin(a) * r };
+    this.audio.play('drip', { volume: 0.3 + Math.random() * 0.5, position });
+  }
+
   private around(center: THREE.Vector3, rMin: number, rMax: number, hMin: number, hMax: number): THREE.Vector3 {
     const a = Math.random() * Math.PI * 2;
     const r = rMin + Math.random() * (rMax - rMin);

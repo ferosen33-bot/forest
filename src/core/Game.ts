@@ -30,6 +30,7 @@ import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
 import { Climate } from '../systems/Climate';
 import { Fishing, FishTraps } from '../systems/Fishing';
+import { Caves, type CaveTarget } from '../systems/Caves';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
 import { QUALITY, SettingsStore, type Settings } from '../systems/Settings';
 import { SettingsUI } from '../ui/SettingsUI';
@@ -113,6 +114,9 @@ export class Game {
   climate!: Climate;
   fishing!: Fishing;
   fishTraps!: FishTraps;
+  caves!: Caves;
+  /** Laufender Übergang in eine Höhle bzw. hinaus (Abblenden, Teleport in der Mitte). */
+  private caveTransition: { timer: number; target: CaveTarget; applied: boolean } | null = null;
   ambience!: Ambience;
   footsteps!: Footsteps;
   hud!: HUD;
@@ -262,6 +266,7 @@ export class Game {
       spawnPoint: this.world.spawnPoint,
       isPlayerLit: () => !!(this.tools.equipped && getItem(this.tools.equipped.id).light),
       rain: () => this.climate.weather.rain,
+      playerHidden: () => !!this.caves?.current,
     });
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
@@ -293,6 +298,23 @@ export class Game {
     });
     this.scene.add(this.animals.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
+    this.menu.setLoading('Höhlen werden vermessen …');
+    await nextFrame();
+    this.caves = new Caves({
+      physics: this.physics,
+      heightMap: this.world.heightMap,
+      vegetation: this.world.vegetation,
+      items: this.items,
+      particles: this.particles,
+      lights: this.lights,
+      audio: this.audio,
+      events: this.events,
+      seed: cfg.seed,
+      spawnPoint: this.world.spawnPoint,
+      avoid: this.enemies.camps.map((c) => c.center),
+      markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
+    });
+    this.scene.add(this.caves.group);
     this.climate = new Climate({
       physics: this.physics,
       player: this.player,
@@ -335,10 +357,12 @@ export class Game {
       enemies: this.enemies,
       animals: this.animals,
       cooking: this.cooking,
+      caves: this.caves,
       items: this.items,
       audio: this.audio,
       events: this.events,
       config: cfg,
+      onCave: (target) => this.startCaveTransition(target),
       canSleep: () => this.dayNight.isSleepTime,
       onSleep: (shelter) => this.sleep(shelter),
       heldItem: () => this.tools.equipped?.id ?? null,
@@ -363,6 +387,7 @@ export class Game {
       this.projectiles,
       this.camera,
       this.items,
+      this.caves,
     );
     this.fishing = new Fishing({
       heightMap: this.world.heightMap,
@@ -376,6 +401,10 @@ export class Game {
     });
     this.scene.add(this.fishing.group);
     this.fishTraps = new FishTraps(this.building, this.events);
+
+    // Tagebuch und Erkundung gehören zum Spielstand – sie müssen vor dem Laden existieren.
+    this.journal = new Journal(this.events);
+    this.exploration = new Exploration(cfg.world.size);
 
     // Spielstand fortsetzen – oder neu beginnen mit der Axt aus dem Flugzeugwrack.
     this.saves = new SaveStore(worldKey(cfg.seed, cfg.world.size, cfg.world.cellSize));
@@ -398,7 +427,6 @@ export class Game {
       () => this.tools.selected,
       this.crafting,
     );
-    this.journal = new Journal(this.events);
     this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal);
     this.events.on('journal:completed', ({ text, chapterDone }) => {
       this.audio.play('craft', 0.7);
@@ -408,7 +436,6 @@ export class Game {
         this.events.emit('hud:message', { text: next ? `Neues Kapitel im Tagebuch (J): ${next.title}` : 'Alle Ziele im Tagebuch erreicht!' });
       }
     });
-    this.exploration = new Exploration(cfg.world.size);
     this.mapUI = new MapUI(document.getElementById('map')!, this.world.heightMap, this.world.vegetation, this.exploration);
     this.compass = new Compass(this.hud.compassCanvas);
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
@@ -472,6 +499,7 @@ export class Game {
         wetness: s.wetness,
         backpack: this.hasBackpack,
         clothing: s.clothing,
+        ...(this.caves.current ? { cave: this.caves.current.index } : {}),
       },
       time: { day: this.dayNight.day, hour: this.dayNight.hour },
       inventory: this.inventory.serialize(),
@@ -486,6 +514,7 @@ export class Game {
       explored: this.exploration.serialize(),
       camps: [...this.discoveredCamps],
       journal: this.journal.serialize(),
+      caves: this.caves.serialize(),
     };
   }
 
@@ -505,7 +534,16 @@ export class Game {
 
     const p = d.player;
     const s = this.player.stats;
-    this.player.spawn(new THREE.Vector3(...p.p), p.yaw);
+    // In einer Höhle gespeichert: Innenraum (samt Kollision) muss vor dem Aufsetzen stehen.
+    if (d.caves) this.caves.load(d.caves);
+    const savedAt = new THREE.Vector3(...p.p);
+    const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
+    if (cave) {
+      this.caves.build(cave);
+      this.caves.current = cave;
+    }
+    this.applyUnderground();
+    this.player.spawn(savedAt, p.yaw);
     this.player.pitch = p.pitch;
     const clampStat = (v: number) => Math.max(0, Math.min(s.max, Number.isFinite(v) ? v : s.max));
     // Wer tot gespeichert hat (sollte nicht vorkommen), wacht mit etwas Leben auf.
@@ -563,6 +601,10 @@ export class Game {
 
     this.menu.onPlay = (wantsFullscreen) => {
       if (this.mode === 'dead') {
+        // Aufgewacht wird immer an der Oberfläche.
+        this.caves.current = null;
+        this.caveTransition = null;
+        this.applyUnderground();
         this.player.respawn(this.respawnPoint);
         this.enemies.onPlayerRespawn(this.respawnPoint);
       }
@@ -650,6 +692,11 @@ export class Game {
       return;
     }
     if (recipe.kind === 'structure') {
+      if (this.caves.current) {
+        this.audio.play('denied');
+        this.events.emit('hud:message', { text: 'In der Höhle lässt sich nichts errichten.' });
+        return;
+      }
       this.closeInventory();
       this.building.begin(recipe.result);
       return;
@@ -690,6 +737,44 @@ export class Game {
       this.events.emit('player:slept', {});
       this.saveNow();
     }
+  }
+
+  /** Höhle betreten oder verlassen: abblenden, in der Dunkelheit umsetzen, aufblenden. */
+  private startCaveTransition(target: CaveTarget): void {
+    if (this.caveTransition || this.sleepTimer > 0) return;
+    this.caveTransition = { timer: 2.3, target, applied: false };
+    this.building.cancel();
+    this.hud.faded = true;
+    this.audio.play('stepRock', 0.6);
+  }
+
+  private updateCaveTransition(dt: number): void {
+    const t = this.caveTransition;
+    if (!t) return;
+    t.timer -= dt;
+    // Erst umsetzen, wenn der Bildschirm ganz schwarz ist.
+    if (!t.applied && t.timer < 1.0) {
+      t.applied = true;
+      const to = t.target.type === 'entrance' ? this.caves.enter(t.target.cave) : this.caves.leave();
+      if (to) {
+        this.player.spawn(to.position, to.yaw);
+        this.player.pitch = 0;
+      }
+      this.applyUnderground();
+      this.hud.faded = false;
+      if (this.caves.current && t.target.type === 'entrance') {
+        this.events.emit('hud:message', { text: `${this.caves.current.name} – ohne Licht siehst du hier kaum die Hand vor Augen.` });
+      }
+    }
+    if (t.timer <= 0) this.caveTransition = null;
+  }
+
+  /** Licht, Oberwelt und Schritte an den Aufenthaltsort (Höhle/Oberfläche) anpassen. */
+  private applyUnderground(): void {
+    const inCave = !!this.caves.current;
+    this.dayNight.underground = inCave ? 1 : 0;
+    this.world.setSurfaceVisible(!inCave);
+    this.footsteps.cave = inCave;
   }
 
   /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
@@ -790,7 +875,8 @@ export class Game {
     // Während die Schnur draußen ist, zeigt der Hinweis die Angel; sonst hat das anvisierte Ziel Vorrang.
     const fishingPrompt = this.fishing.busy ? this.fishing.prompt : null;
     const prompt = this.mode === 'playing' && !building ? (fishingPrompt ?? this.interaction.prompt ?? this.fishing.prompt) : null;
-    const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `);
+    const where = this.caves.current ? ` · ${this.caves.current.name}` : '';
+    const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `) + where;
     this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
     this.updateNavigation(dt);
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());
@@ -801,8 +887,9 @@ export class Game {
     const step = this.config.physics.timestep;
     const player = this.player;
     this.updateSleep(dt);
+    this.updateCaveTransition(dt);
     this.updateAutosave(dt);
-    const playing = this.mode === 'playing' && this.sleepTimer <= 0;
+    const playing = this.mode === 'playing' && this.sleepTimer <= 0 && !this.caveTransition;
     const water = this.world.heightMap.waterLevel;
 
     player.handleInput(playing);
@@ -848,6 +935,7 @@ export class Game {
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);
+    this.caves.update(this.dayNight.daylight);
     this.worldItems.update();
     this.particles.update(dt);
     this.embers.update(dt);
@@ -883,13 +971,15 @@ export class Game {
       rain: this.climate.weather.rain,
       wind: this.climate.weather.wind,
       sheltered: this.climate.sheltered,
+      cave: !!this.caves.current,
     });
     this.footsteps.updatePlayer(dt, player);
   }
 
   /** Angel in der Hand (Linksklick wirft aus bzw. schlägt an) und Fischreusen. */
   private updateFishing(dt: number, active: boolean): void {
-    const holding = this.tools.equipped?.id === 'fishingRod' && !this.player.stats.isDead;
+    // In der Höhle gibt es kein Wasser zum Angeln.
+    const holding = this.tools.equipped?.id === 'fishingRod' && !this.player.stats.isDead && !this.caves.current;
     this.camera.getWorldDirection(this.tmpDir);
     this.fishing.update({
       dt,
@@ -910,11 +1000,14 @@ export class Game {
   private updateNavigation(dt: number): void {
     this.journal.setDay(this.dayNight.day);
     this.journalUI.update();
-    const p = this.player.position;
+    const inCave = this.caves.current;
+    // In der Höhle zeigen Karte und Kompass den Eingang als Standort.
+    const p = inCave ? inCave.site.position : this.player.position;
     this.exploreTimer -= dt;
-    if (this.exploreTimer <= 0) {
+    if (this.exploreTimer <= 0 && !inCave) {
       this.exploreTimer = 0.5;
       this.exploration.reveal(p.x, p.z, 70);
+      this.caves.updateDiscovery(p);
       this.enemies.camps.forEach((c, i) => {
         if (!this.discoveredCamps.has(i) && c.center.distanceTo(p) < 60) {
           this.discoveredCamps.add(i);
@@ -942,6 +1035,7 @@ export class Game {
       respawn: showHome ? { x: r.x, z: r.z } : null,
       structures: this.building.structures.map((s) => ({ x: s.position.x, z: s.position.z, kind: kinds[s.def.id] ?? 'other' })),
       camps: [...this.discoveredCamps].map((i) => this.enemies.camps[i].center),
+      caves: this.caves.caves.filter((c) => c.discovered).map((c) => ({ x: c.site.position.x, z: c.site.position.z })),
     });
     const explored = document.querySelector('[data-ref="mapExplored"]');
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
@@ -965,6 +1059,7 @@ export class Game {
       holdingBowl: held === 'bowl',
       day: this.dayNight.day,
       hour: this.dayNight.hour,
+      underground: !!this.caves.current,
     });
     if (climate.bowlFill >= 1 && held === 'bowl') {
       climate.bowlFill = 0;

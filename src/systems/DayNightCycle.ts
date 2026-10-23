@@ -27,6 +27,10 @@ const SUN_DAY = new THREE.Color(0xfff1da);
 const SUN_DUSK = new THREE.Color(0xff8e45);
 const MOON = new THREE.Color(0x8da6dc);
 const UNDERWATER = new THREE.Color(0x0b3a46);
+/** Höhle: fast schwarz, kaum Restlicht (Fackel nötig). */
+const CAVE_FOG = new THREE.Color(0x040506);
+const CAVE_SKY = new THREE.Color(0x2a313b);
+const CAVE_GROUND = new THREE.Color(0x0c0b0a);
 /** Grauer Himmel bei geschlossener Wolkendecke (Tag bzw. Nacht). */
 const OVERCAST_DAY = new THREE.Color(0x6f7880);
 const OVERCAST_NIGHT = new THREE.Color(0x0a0d12);
@@ -69,6 +73,8 @@ export class DayNightCycle {
   timeScale = 1;
   /** true, wenn in ein lineares HDR-Target gerendert wird (Post-Processing aktiv). */
   linearOutput = false;
+  /** 1 = in einer Höhle: Sonne/Mond aus, kaum Umgebungslicht, dichter dunkler Nebel. */
+  underground = 0;
 
   private readonly sunDir = new THREE.Vector3();
   private readonly moonDir = new THREE.Vector3();
@@ -197,6 +203,15 @@ export class DayNightCycle {
       density = 0.085;
       this.fog.color.lerp(UNDERWATER, 0.85);
     }
+    const cave = this.underground;
+    if (cave > 0) {
+      this.light.intensity *= 1 - cave;
+      this.hemi.intensity = lerp(this.hemi.intensity, 0.4, cave);
+      this.hemi.color.lerp(CAVE_SKY, cave);
+      this.hemi.groundColor.lerp(CAVE_GROUND, cave);
+      this.fog.color.lerp(CAVE_FOG, cave);
+      density = lerp(density, 0.06, cave);
+    }
     this.fog.density = density;
 
     // Himmel
@@ -278,6 +293,7 @@ export class DayNightCycle {
     const e = this.sunDir.y;
     const fog = THREE.MathUtils.clamp((this.fog.density - 0.0085) / 0.014, 0, 1);
     const clear = 1 - smoothstep(0.35, 0.9, this.weather.clouds);
+    if (this.underground > 0) return 0;
     if (e > -0.02) return 0.6 * smoothstep(-0.02, 0.1, e) * (1 - 0.55 * smoothstep(0.3, 0.9, e)) * (1 + 0.9 * fog) * clear;
     return 0.1 * smoothstep(0.05, 0.3, -e) * clear;
   }

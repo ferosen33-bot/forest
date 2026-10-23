@@ -54,6 +54,34 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 20 – Höhlen
+
+- **Drei Höhlen** (Tropfsteinhöhle, Pilzgrotte, Feuersteinstollen) mit Eingängen an Berghängen: ein Felshügel mit
+  dunkler Öffnung, die Bäume davor sind gerodet. Wer in die Nähe kommt, entdeckt den Eingang (Kartensymbol);
+  `E` betritt die Höhle mit Ab- und Aufblende, innen führt `E` an der hellen Öffnung wieder hinaus.
+- **Prozedurale Innenräume** (`world/CaveGenerator.ts`, rein und getestet): 4–6 Kammern (gestauchte Ellipsoide mit
+  ebenem Boden) und geschwungene Gänge (Kapseln) als weich vereinigte Abstandsfunktion, mit 3D-Rauschen zu Fels
+  verformt – an Wänden und Decke schroff, am Boden nur leicht uneben. Die Felshülle entsteht per **Surface Nets**
+  (ein Punkt je Gitterzelle, ein Viereck je Kante mit Vorzeichenwechsel, 0,7-m-Raster): geschlossen, ohne
+  Tabellen, ~15 000 Dreiecke in rund 0,1–0,2 s; daraus auch die Trimesh-Kollision. Gebaut wird erst beim ersten
+  Betreten. Die Tests prüfen per Flutfüllung, dass jede Kammer und jede Ausstattung zu Fuß erreichbar ist.
+- **Wo die Höhlen liegen:** Die Innenräume schweben unsichtbar hoch über der Insel (je Höhle eine eigene Etage):
+  außerhalb des Physik-Höhenfelds, nie im Wasser. In der Höhle werden Gelände, Wasser, Vegetation und Gras nicht
+  gezeichnet; Karte und Kompass zeigen den Eingang als Standort.
+- **Dunkelheit:** Sonne und Mond aus, kaum Umgebungslicht, dichter schwarzer Nebel – ohne Fackel sieht man nur den
+  Lichtschein des Eingangs (folgt dem Tageslicht draußen) und türkis **leuchtende Pilze**. Kein Regen, Kälte stark
+  gedämpft, statt Wind und Vögeln ein tiefes Brummen und tropfendes Wasser; Schritte klingen nach Fels.
+- **Schrate verlieren die Spur**, solange der Spieler in einer Höhle ist (keine Jagdtrupps, keine Geräusche).
+- **Beute:** Feuersteinadern (mit der Axt abschlagen, je drei Stück) → **Feuersteinaxt** (2 Stöcke + 3 Feuerstein,
+  fällt fast doppelt so schnell wie die Steinaxt). **Leuchtpilze** zum Essen. **Alte Vorratskisten** mit
+  Verbandszeug (+45 Gesundheit) und zwei festen Fundstücken je Kiste. Dazu Tropfsteine und Knochen.
+- Spielstand: entdeckte/besuchte Höhlen, geöffnete Kisten, gepflückte Pilze, abgebauter Feuerstein und ob man in
+  einer Höhle gespeichert hat. In der Höhle lässt sich nichts bauen; wer dort stirbt, wacht draußen auf.
+- Neues Tagebuch-Kapitel **„Unter der Erde“** (Höhle betreten, Feuerstein, Feuersteinaxt, Leuchtpilze, Kisten,
+  alle drei Höhlen).
+- **Fehlerkorrektur:** Spielstände mit Karten- oder Tagebuchdaten (seit Meilenstein 15) ließen sich nicht laden –
+  Tagebuch und Erkundung wurden erst nach dem Laden erzeugt.
+
 ### Meilenstein 19 – Angeln, Fischreusen & Standfackeln
 
 - **Angelrute** (2 Stöcke + 1 Fell): Linksklick wirft den Schwimmer dorthin, wo der Blick das Wasser trifft
@@ -89,7 +117,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ### Meilenstein 17 – Tagebuch & Ziele
 
-- **Vier Kapitel mit 21 Zielen** als roter Faden: *Gestrandet* (Stöcke, Steine, trinken, essen, Lagerfeuer) →
+- **Vier Kapitel mit 21 Zielen** (inzwischen fünf Kapitel) als roter Faden: *Gestrandet* (Stöcke, Steine, trinken, essen, Lagerfeuer) →
   *Ein Dach über dem Kopf* (Bäume fällen, Steinaxt, Unterstand, schlafen, Wände) → *Jäger und Sammler* (Speer, Tier
   erlegen, Fleisch braten, Bogen, Hirsche) → *Die Schrate* (Lager entdecken, Schrate besiegen, lautloser Kill,
   Fellmantel, Koloss, zehn Tage überleben).
@@ -389,6 +417,7 @@ src/
 │   └── EventBus.ts         Typisierte Events zur Entkopplung der Systeme
 ├── world/
 │   ├── HeightMap.ts        Prozedurale Höhenkarte (rein, ohne Three.js → testbar)
+│   ├── CaveGenerator.ts    Höhlen: Grundriss, Abstandsfunktion, Surface Nets, Eingangssuche (getestet)
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -434,6 +463,7 @@ src/
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer (Fleisch, Fisch)
 │   ├── Fishing.ts          Angeln (Wurf, Biss, Schnur) und Fischreusen (getestet)
+│   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Zustand
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -501,4 +531,5 @@ src/
 18. ~~Tagebuch & Ziele~~ ✓
 19. ~~Jahreszeiten~~ ✓
 20. ~~Angeln, Fischreusen & Standfackeln~~ ✓
-21. Höhlen (Dunkelheit, Fackel, eigene Beute)
+21. ~~Höhlen (Dunkelheit, Feuerstein, Vorratskisten)~~ ✓
+22. Höhlenbewohner (eigene Gegner unter Tage)

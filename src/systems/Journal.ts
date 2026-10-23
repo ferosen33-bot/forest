@@ -15,6 +15,8 @@ export type Trigger =
   | { on: 'hunt'; species?: 'deer' | 'rabbit' }
   | { on: 'cook' }
   | { on: 'fish' }
+  | { on: 'cave' }
+  | { on: 'crate' }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'day'; day: number };
@@ -33,7 +35,7 @@ export interface Chapter {
   objectives: Objective[];
 }
 
-/** Der rote Faden: vom Absturz bis zum Sieg über einen Koloss. */
+/** Der rote Faden: vom Absturz über den Sieg über einen Koloss bis in die Höhlen. */
 export const CHAPTERS: Chapter[] = [
   {
     title: 'Gestrandet',
@@ -81,6 +83,18 @@ export const CHAPTERS: Chapter[] = [
       { id: 'day10', text: 'Zehn Tage überleben', trigger: { on: 'day', day: 10 } },
     ],
   },
+  {
+    title: 'Unter der Erde',
+    intro: 'In den Hängen öffnen sich dunkle Löcher. Wer dort war, hat Spuren hinterlassen – und Vorräte.',
+    objectives: [
+      { id: 'cave', text: 'Eine Höhle betreten', trigger: { on: 'cave' } },
+      { id: 'flint', text: 'Feuerstein abschlagen', trigger: { on: 'collect', item: 'flint' }, count: 5 },
+      { id: 'flintAxe', text: 'Eine Feuersteinaxt herstellen', trigger: { on: 'craft', item: 'flintAxe' } },
+      { id: 'mushroom', text: 'Leuchtpilze essen', trigger: { on: 'eat', item: 'mushroom' } },
+      { id: 'crates', text: 'Alte Vorratskisten öffnen', trigger: { on: 'crate' }, count: 3 },
+      { id: 'caves', text: 'Alle drei Höhlen erkunden', trigger: { on: 'cave' }, count: 3 },
+    ],
+  },
 ];
 
 export interface JournalSave {
@@ -109,6 +123,10 @@ export class Journal {
     });
     events.on('animal:killed', ({ species }) => this.advance((t) => t.on === 'hunt' && (!t.species || t.species === species)));
     events.on('food:cooked', ({ count }) => this.advance((t) => t.on === 'cook', count));
+    events.on('cave:entered', ({ first }) => {
+      if (first) this.advance((t) => t.on === 'cave');
+    });
+    events.on('cave:crate', () => this.advance((t) => t.on === 'crate'));
     events.on('fish:caught', ({ count }) => this.advance((t) => t.on === 'fish', count));
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));

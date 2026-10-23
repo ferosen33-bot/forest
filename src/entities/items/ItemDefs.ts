@@ -23,7 +23,11 @@ export type ItemId =
   | 'furCoat'
   | 'fishingRod'
   | 'rawFish'
-  | 'cookedFish';
+  | 'cookedFish'
+  | 'flint'
+  | 'flintAxe'
+  | 'mushroom'
+  | 'medkit';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -63,6 +67,8 @@ export interface FoodStats {
   health: number;
   /** Bleibt nach dem Verzehr übrig (z. B. leere Schale). */
   leftover?: ItemId;
+  /** Arznei statt Essen (eigener Klang und Hinweis). */
+  medicine?: boolean;
 }
 
 export interface RangedStats {
@@ -150,6 +156,47 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'food',
     maxStack: 10,
     food: { hunger: 24, thirst: 2, health: 5 },
+  },
+  flint: {
+    id: 'flint',
+    name: 'Feuerstein',
+    description: 'Dunkler, glasharter Stein aus den Höhlen. Splittert zu messerscharfen Kanten.',
+    category: 'resource',
+    maxStack: 20,
+  },
+  flintAxe: {
+    id: 'flintAxe',
+    name: 'Feuersteinaxt',
+    description: 'Eine Klinge aus geschlagenem Feuerstein. Fällt Bäume fast doppelt so schnell und spaltet Fels mühelos.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 220,
+    tool: {
+      treeDamage: 44,
+      rockYield: 3,
+      damage: 36,
+      swingTime: 0.68,
+      impactAt: 0.43,
+      staminaCost: 7,
+      reach: 2.8,
+      animation: 'swing',
+    },
+  },
+  mushroom: {
+    id: 'mushroom',
+    name: 'Leuchtpilz',
+    description: 'Wächst nur in der Dunkelheit der Höhlen und schimmert türkis. Essbar, auch roh.',
+    category: 'food',
+    maxStack: 20,
+    food: { hunger: 6, thirst: 2, health: 2 },
+  },
+  medkit: {
+    id: 'medkit',
+    name: 'Verbandszeug',
+    description: 'Mullbinden und Salbe aus einer alten Vorratskiste. Linksklick in der Hand oder Rechtsklick: Wunden versorgen.',
+    category: 'food',
+    maxStack: 5,
+    food: { hunger: 0, thirst: 0, health: 45, medicine: true },
   },
   fishingRod: {
     id: 'fishingRod',

@@ -1,4 +1,5 @@
 import type { InventoryData } from './Inventory';
+import type { CaveSave } from './Caves';
 import type { VegetationSave } from '../world/Vegetation';
 import type { HarvestSave } from './HarvestSystem';
 import type { StructureSave } from './building/BuildingSystem';
@@ -33,6 +34,8 @@ export interface SaveData {
     /** Seit Meilenstein 16: großer Rucksack / Fellmantel. */
     backpack?: boolean;
     clothing?: boolean;
+    /** Seit Meilenstein 20: in dieser Höhle gespeichert. */
+    cave?: number;
   };
   time: { day: number; hour: number };
   inventory: InventoryData;
@@ -50,6 +53,8 @@ export interface SaveData {
   camps?: number[];
   /** Seit Meilenstein 17: Fortschritt im Tagebuch. */
   journal?: JournalSave;
+  /** Seit Meilenstein 20: entdeckte Höhlen, geöffnete Kisten, abgebauter Feuerstein. */
+  caves?: CaveSave;
 }
 
 /** Kurzinfo für das Startmenü. */

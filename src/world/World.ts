@@ -92,6 +92,14 @@ export class World {
     return best;
   }
 
+  /** In Höhlen wird die Oberwelt nicht gezeichnet (sie wäre ohnehin von Fels verdeckt). */
+  setSurfaceVisible(visible: boolean): void {
+    this.terrain.group.visible = visible;
+    this.water.mesh.visible = visible;
+    this.vegetation.group.visible = visible;
+    if (this.grass) this.grass.mesh.visible = visible;
+  }
+
   update(dt: number, elapsed: number, focus: THREE.Vector3): void {
     this.water.update(elapsed);
     this.water.follow(focus.x, focus.z);

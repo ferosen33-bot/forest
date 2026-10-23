@@ -40,7 +40,34 @@ const MATERIALS = {
   fishBack: mat(0x4a5d63, { roughness: 0.45 }),
   cookedFish: mat(0x9b6a3c, { roughness: 0.7 }),
   line: mat(0xd8d6cc, { roughness: 0.6 }),
+  flint: mat(0x2a2c33, { roughness: 0.22, metalness: 0.25 }),
+  flintEdge: mat(0x5a5f6b, { roughness: 0.3, metalness: 0.2 }),
+  mushroomCap: mat(0x2fc8b4, { roughness: 0.5, emissive: 0x138a7c, emissiveIntensity: 1.2 }),
+  mushroomStem: mat(0xd6e8e0, { roughness: 0.8, emissive: 0x2a5a52, emissiveIntensity: 0.5 }),
+  linen: mat(0xe8e2d0, { roughness: 1 }),
+  redCross: mat(0xb02a24, { roughness: 0.8 }),
 };
+
+/** Splitter aus Feuerstein (für Item, Axtklinge und Felsadern). */
+export const FLINT_GEOMETRY = jitter(new THREE.OctahedronGeometry(1, 0), 0.25, 17);
+
+/** Leuchtpilz-Bündel (auch in den Höhlen verwendet). */
+export function createMushroomCluster(rng: () => number, count: number): THREE.Group {
+  const g = new THREE.Group();
+  for (let i = 0; i < count; i++) {
+    const h = 0.05 + rng() * 0.08;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, h, 5), MATERIALS.mushroomStem);
+    const a = rng() * Math.PI * 2;
+    const r = i === 0 ? 0 : 0.03 + rng() * 0.05;
+    stem.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+    g.add(stem);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.03 + rng() * 0.025, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), MATERIALS.mushroomCap);
+    cap.scale.y = 0.6;
+    cap.position.set(stem.position.x, h, stem.position.z);
+    g.add(cap);
+  }
+  return g;
+}
 
 /** Länge der Angelrute (m); die Spitze trägt ein Hilfsobjekt "tip" für die Schnur. */
 const ROD_LENGTH = 1.4;
@@ -276,6 +303,46 @@ function build(id: ItemId): THREE.Object3D {
       g.add(tail);
       break;
     }
+    case 'flint': {
+      const shard = new THREE.Mesh(FLINT_GEOMETRY, MATERIALS.flint);
+      shard.scale.set(0.07, 0.1, 0.05);
+      g.add(shard);
+      break;
+    }
+    case 'flintAxe': {
+      // Wie die Steinaxt, aber mit langer, flacher Feuersteinklinge.
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.62, 6), MATERIALS.stick);
+      g.add(handle);
+      const blade = new THREE.Mesh(FLINT_GEOMETRY, MATERIALS.flint);
+      blade.scale.set(0.13, 0.07, 0.025);
+      blade.position.set(0.09, 0.24, 0);
+      g.add(blade);
+      const edge = new THREE.Mesh(FLINT_GEOMETRY, MATERIALS.flintEdge);
+      edge.scale.set(0.04, 0.06, 0.02);
+      edge.position.set(0.2, 0.24, 0);
+      g.add(edge);
+      const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.09, 6), MATERIALS.binding);
+      wrap.position.y = 0.24;
+      g.add(wrap);
+      break;
+    }
+    case 'mushroom': {
+      let seed = 5;
+      const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const cluster = createMushroomCluster(rng, 3);
+      cluster.position.y = -0.05;
+      g.add(cluster);
+      break;
+    }
+    case 'medkit': {
+      const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 10), MATERIALS.linen);
+      roll.rotation.z = Math.PI / 2;
+      g.add(roll);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.02, 10), MATERIALS.redCross);
+      band.rotation.z = Math.PI / 2;
+      g.add(band);
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -341,6 +408,14 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
     case 'fishingRod':
       return RAPIER.ColliderDesc.cylinder(ROD_LENGTH / 2, 0.025).setDensity(500);
+    case 'flint':
+      return RAPIER.ColliderDesc.ball(0.08).setDensity(2600);
+    case 'flintAxe':
+      return RAPIER.ColliderDesc.cuboid(0.1, 0.32, 0.03).setDensity(900);
+    case 'mushroom':
+      return RAPIER.ColliderDesc.ball(0.07).setDensity(600);
+    case 'medkit':
+      return RAPIER.ColliderDesc.cylinder(0.05, 0.05).setDensity(400);
     case 'rawFish':
     case 'cookedFish':
       return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);

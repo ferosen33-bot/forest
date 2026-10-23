@@ -61,6 +61,8 @@ export interface DirectorDeps {
   isPlayerLit: () => boolean;
   /** Regenstärke 0..1: schränkt Sicht und Gehör der Schrate ein. */
   rain: () => number;
+  /** Spieler ist in einer Höhle (für Schrate draußen unauffindbar). */
+  playerHidden: () => boolean;
 }
 
 const MAX_ENEMIES = 24;
@@ -121,8 +123,9 @@ export class EnemyDirector {
       get collider() {
         return player.collisionShape;
       },
+      // In einer Höhle ist der Spieler für die Schrate draußen verschwunden.
       get isDead() {
-        return player.stats.isDead;
+        return player.stats.isDead || d.playerHidden();
       },
       get stealthy() {
         return player.crouching && !player.sprinting;
@@ -355,7 +358,7 @@ export class EnemyDirector {
 
     // Schritte des Spielers sind hörbar.
     this.noiseTimer -= dt;
-    if (this.noiseTimer <= 0) {
+    if (this.noiseTimer <= 0 && !d.playerHidden()) {
       this.noiseTimer = 0.3;
       // Prasselnder Regen übertönt Schritte.
       const r = player.noiseRadius * (1 - 0.4 * rain);
@@ -414,7 +417,7 @@ export class EnemyDirector {
 
   /** Nachts schickt das nächstgelegene Lager regelmäßig eine Jagdgruppe zum Spieler. */
   private updateHunts(dt: number, night: boolean): void {
-    if (!night || this.d.player.stats.isDead) {
+    if (!night || this.d.player.stats.isDead || this.d.playerHidden()) {
       this.huntTimer = Math.max(this.huntTimer, 30);
       return;
     }

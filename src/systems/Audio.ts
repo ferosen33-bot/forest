@@ -47,7 +47,8 @@ export type SoundId =
   | 'bowDraw'
   | 'cast'
   | 'splash'
-  | 'reel';
+  | 'reel'
+  | 'drip';
 
 export interface PlayOptions {
   volume?: number;
@@ -352,6 +353,11 @@ export class Audio {
       // Einholen: schnelles Klicken der Rolle.
       case 'reel':
         for (let i = 0; i < 10; i++) this.noise(t + i * 0.045, 0.018, 'highpass', 3200, 1, 0.22);
+        break;
+      // Wassertropfen in der Höhle: heller, fallender "Plink" mit kurzem Nachhall.
+      case 'drip':
+        this.tone(t, 'sine', 1900 * pitch, 900, 0.07, 0.3);
+        this.tone(t + 0.09, 'sine', 1500 * pitch, 800, 0.12, 0.08);
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

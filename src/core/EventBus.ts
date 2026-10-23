@@ -36,6 +36,9 @@ export type GameEvents = {
   'player:slept': Record<string, never>;
   'camp:discovered': { index: number };
   'food:cooked': { count: number };
+  /** Höhle betreten (`first`: zum ersten Mal), Vorratskiste geöffnet. */
+  'cave:entered': { index: number; first: boolean };
+  'cave:crate': { index: number };
   /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */
   'fish:caught': { count: number; trap: boolean };
   /** Tagebuch: ein Ziel wurde erreicht. */

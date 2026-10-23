@@ -17,6 +17,7 @@ import type { Animal } from '../entities/animals/Animal';
 import type { AnimalDirector } from './AnimalDirector';
 import { isCookable, type Cooking } from './Cooking';
 import type { ItemId } from '../entities/items/ItemDefs';
+import type { Caves, CaveTarget } from './Caves';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -25,6 +26,7 @@ export type InteractionTarget =
   | { type: 'structure'; structure: Structure; hit: RaycastHit }
   | { type: 'enemy'; enemy: Enemy; zone: HitZone; hit: RaycastHit }
   | { type: 'animal'; animal: Animal; hit: RaycastHit }
+  | { type: 'cave'; cave: CaveTarget; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -39,6 +41,7 @@ export interface InteractionDeps {
   enemies: EnemyDirector;
   animals: AnimalDirector;
   cooking: Cooking;
+  caves: Caves;
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -55,6 +58,8 @@ export interface InteractionDeps {
   openStorage: (s: Structure) => void;
   /** Wandelt das gehaltene Item um (leere Schale → gefüllte). */
   transformHeld: (to: ItemId) => void;
+  /** Höhle betreten (Eingang) bzw. verlassen (Ausgang) – mit Überblendung. */
+  onCave: (target: CaveTarget) => void;
 }
 
 /** Was `E` an einem Lagerfeuer gerade bewirkt. */
@@ -137,6 +142,8 @@ export class InteractionSystem {
       if (animal) return { type: 'animal', animal, hit };
       const structure = this.building.getByCollider(hit.collider);
       if (structure) return { type: 'structure', structure, hit };
+      const cave = this.deps.caves.getTarget(hit.collider);
+      if (cave) return { type: 'cave', cave, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
       if (inst) {
         switch (inst.kind) {
@@ -244,6 +251,28 @@ export class InteractionSystem {
       }
       case 'enemy':
         return null;
+      case 'cave': {
+        const c = target.cave;
+        if (c.type === 'flint') {
+          if (target.hit.distance > (tool?.reach ?? INTERACT_REACH)) return null;
+          const label = 'Feuersteinader';
+          if (this.deps.caves.isDepleted(c.feature)) return { key: null, action: 'Erschöpft', label };
+          if (tool && tool.rockYield === 0) return { key: null, action: 'Ungeeignetes Werkzeug', label };
+          return tool ? { key: 'LMB', action: 'Feuerstein abschlagen', label } : { key: null, action: 'Axt benötigt', label };
+        }
+        if (target.hit.distance > INTERACT_REACH) return null;
+        switch (c.type) {
+          case 'entrance':
+            return { key: 'E', action: 'Höhle betreten', label: c.cave.discovered ? c.cave.name : 'Höhleneingang' };
+          case 'exit':
+            return { key: 'E', action: 'Höhle verlassen', label: 'Tageslicht' };
+          case 'crate':
+            return c.feature.done ? { key: null, action: 'Leer', label: 'Alte Vorratskiste' } : { key: 'E', action: 'Öffnen', label: 'Alte Vorratskiste' };
+          case 'mushroom':
+            return c.feature.done ? null : { key: 'E', action: 'Pflücken', label: 'Leuchtpilze' };
+        }
+        return null;
+      }
       case 'animal':
         if (!target.animal.isDead || target.hit.distance > INTERACT_REACH) return null;
         return { key: 'E', action: 'Ausnehmen', label: target.animal.name };
@@ -316,6 +345,13 @@ export class InteractionSystem {
       case 'animal':
         this.deps.animals.butcher(target.animal);
         break;
+      case 'cave': {
+        const c = target.cave;
+        if (c.type === 'entrance' || c.type === 'exit') this.deps.onCave(c);
+        else if (c.type === 'crate') this.deps.caves.openCrate(c.cave, c.feature);
+        else if (c.type === 'mushroom') this.deps.caves.pickMushrooms(c.feature);
+        break;
+      }
       case 'water':
         if (this.deps.heldItem() === 'bowl') {
           this.deps.transformHeld('bowlWater');
