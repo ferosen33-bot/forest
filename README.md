@@ -33,8 +33,8 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `Shift`             | Rennen (kostet Ausdauer)              |
 | `Leertaste`         | Springen / im Wasser auftauchen       |
 | `Strg` / `C`        | Ducken / im Wasser tauchen            |
-| `E`                 | Aufheben, Pflücken, Trinken, Ausnehmen, Fleisch braten/abnehmen |
-| Linksklick          | Mit Werkzeug schlagen / Nahrung essen / Speer werfen (beim Zielen) |
+| `E`                 | Aufheben, Pflücken, Trinken, Ausnehmen, Fleisch/Fisch braten, Reuse leeren, Feuer an/aus |
+| Linksklick          | Mit Werkzeug schlagen / Nahrung essen / Speer werfen (beim Zielen) / Angel auswerfen, anschlagen |
 | `1`–`6` / Mausrad   | Schnellzugriff wählen                 |
 | `Tab` / `I`         | Inventar öffnen/schließen             |
 | `B`                 | Herstellen & Bauen (Inventar)         |
@@ -53,6 +53,24 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+### Meilenstein 19 – Angeln, Fischreusen & Standfackeln
+
+- **Angelrute** (2 Stöcke + 1 Fell): Linksklick wirft den Schwimmer dorthin, wo der Blick das Wasser trifft
+  (3–16 m, mindestens 30 cm tief). Nach einer Weile – in tiefem Wasser und bei Regen schneller – zuckt er
+  ein paar Mal (noch nicht anschlagen!) und taucht dann unter: Jetzt bleibt gut eine Sekunde zum Klicken.
+  Zu früh geklickt holt man leer ein, zu spät ist der Fisch weg. Die Schnur hängt sichtbar zwischen
+  Rutenspitze und Schwimmer durch; sie setzt dank Umrechnung zwischen den beiden Kamera-Sichtfeldern genau an der
+  gezeichneten Spitze an. Jeder Wurf kostet die Rute etwas Haltbarkeit (40 Würfe).
+- **Fisch:** roh nur im Notfall essbar, am Lagerfeuer gebraten eine gute Mahlzeit. Der Bratspieß nimmt jetzt
+  Fleisch und Fisch gemischt (alte Spielstände bleiben gültig). Angeln ist die verlässliche Nahrung im Winter.
+- **Fischreuse** (6 Stöcke) wird im flachen Wasser (25–130 cm) gebaut, der Korb ragt dabei etwas aus dem
+  Wasser. Sie fängt alle ~100 s mit gut 50 % Chance einen Fisch (im Winter seltener, höchstens drei) und füllt
+  sich über Nacht. Gefangene Fische liegen sichtbar im Korb; `E` nimmt sie heraus, beim Abriss treiben sie heraus.
+- **Standfackel** (4 Stöcke + 2 Steine): leuchtet dauerhaft, bis man sie mit `E` löscht oder Regen sie ausmacht,
+  und hält Schrate nachts auf Abstand wie ein Lagerfeuer – wärmt aber nicht. Intern beschreibt ein `flame`-Eintrag
+  am Bauwerk Flammengröße, Licht und Wärme; Lagerfeuer und Standfackel teilen sich dieselbe Logik.
+- Neues Tagebuch-Ziel im Kapitel „Jäger und Sammler“: einen Fisch fangen.
 
 ### Meilenstein 18 – Jahreszeiten
 
@@ -414,7 +432,8 @@ src/
 │   ├── PostFX.ts           Lichtstrahlen, Bloom, Vignette, Tone Mapping
 │   ├── AnimalDirector.ts   Wild: Verteilung, Rudel-Warnung, Treffer, Ausnehmen, Nachwachsen
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
-│   ├── Cooking.ts          Bratspieß am Lagerfeuer
+│   ├── Cooking.ts          Bratspieß am Lagerfeuer (Fleisch, Fisch)
+│   ├── Fishing.ts          Angeln (Wurf, Biss, Schnur) und Fischreusen (getestet)
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -481,3 +500,5 @@ src/
 17. ~~Felle, großer Rucksack, Fellmantel, Schlingfallen~~ ✓
 18. ~~Tagebuch & Ziele~~ ✓
 19. ~~Jahreszeiten~~ ✓
+20. ~~Angeln, Fischreusen & Standfackeln~~ ✓
+21. Höhlen (Dunkelheit, Fackel, eigene Beute)

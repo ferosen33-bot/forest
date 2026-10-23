@@ -15,7 +15,7 @@ import type { EnemyDirector, HitZone } from './ai/EnemyDirector';
 import type { Enemy } from '../entities/enemies/Enemy';
 import type { Animal } from '../entities/animals/Animal';
 import type { AnimalDirector } from './AnimalDirector';
-import type { Cooking } from './Cooking';
+import { isCookable, type Cooking } from './Cooking';
 import type { ItemId } from '../entities/items/ItemDefs';
 
 /** Was der Spieler gerade anvisiert. */
@@ -215,13 +215,22 @@ export class InteractionSystem {
           const n = cooking.cookingCount(s);
           const status = n > 0 ? `${label} · ${n}× brät (${Math.round(cooking.progress(s) * 100)} %)` : label;
           switch (this.fireAction(s)) {
-            case 'take':
-              return { key: 'E', action: `Gebratenes Fleisch nehmen (${cooking.readyCount(s)})`, label: status };
+            case 'take': {
+              const n = cooking.readyCount(s);
+              const what = n > 1 ? 'Gebratenes nehmen' : `${getItem(cooking.readyItem(s) ?? 'cookedMeat').name} nehmen`;
+              return { key: 'E', action: `${what} (${n})`, label: status };
+            }
             case 'cook':
-              return { key: 'E', action: 'Fleisch braten', label: status };
+              return { key: 'E', action: this.deps.heldItem() === 'rawFish' ? 'Fisch braten' : 'Fleisch braten', label: status };
             case 'toggle':
               return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label: status };
           }
+        }
+        if (s.def.interaction === 'light') return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label };
+        if (s.def.interaction === 'trap') {
+          return s.catch
+            ? { key: 'E', action: `Fische herausnehmen (${s.catch})`, label }
+            : { key: null, action: 'Noch leer – fängt mit der Zeit', label };
         }
         if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
         if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
@@ -248,7 +257,7 @@ export class InteractionSystem {
   private fireAction(s: Structure): FireAction {
     const cooking = this.deps.cooking;
     if (cooking.readyCount(s) > 0) return 'take';
-    if (this.deps.heldItem() === 'rawMeat' && cooking.canAdd(s)) return 'cook';
+    if (isCookable(this.deps.heldItem()) && cooking.canAdd(s)) return 'cook';
     return 'toggle';
   }
 
@@ -284,8 +293,16 @@ export class InteractionSystem {
           const action = this.fireAction(s);
           if (action === 'take') this.deps.cooking.take(s);
           else if (action === 'cook') {
-            if (this.deps.cooking.add(s)) this.deps.takeHeld();
+            if (this.deps.cooking.add(s, this.deps.heldItem()!)) this.deps.takeHeld();
           } else this.building.toggleFire(s);
+        }
+        else if (s.def.interaction === 'light') this.building.toggleFire(s);
+        else if (s.def.interaction === 'trap' && s.catch) {
+          const n = s.catch;
+          s.catch = 0;
+          this.items.give('rawFish', n, s.position.clone().setY(this.heightMap.waterLevel + 0.3));
+          this.audio.play('stepWater', 0.8);
+          this.events.emit('fish:caught', { count: n, trap: true });
         }
         else if (s.def.interaction === 'sleep') this.deps.onSleep(s);
         else if (s.def.interaction === 'door') this.building.toggleDoor(s);

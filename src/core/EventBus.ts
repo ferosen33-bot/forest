@@ -36,6 +36,8 @@ export type GameEvents = {
   'player:slept': Record<string, never>;
   'camp:discovered': { index: number };
   'food:cooked': { count: number };
+  /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */
+  'fish:caught': { count: number; trap: boolean };
   /** Tagebuch: ein Ziel wurde erreicht. */
   'journal:completed': { id: string; text: string; chapterDone: boolean };
   /** Kurze Statusmeldung im HUD. */

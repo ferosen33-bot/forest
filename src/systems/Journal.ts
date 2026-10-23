@@ -14,6 +14,7 @@ export type Trigger =
   | { on: 'sneakKill' }
   | { on: 'hunt'; species?: 'deer' | 'rabbit' }
   | { on: 'cook' }
+  | { on: 'fish' }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'day'; day: number };
@@ -63,6 +64,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'spear', text: 'Einen Speer herstellen', trigger: { on: 'craft', item: 'spear' } },
       { id: 'hunt', text: 'Ein Tier erlegen', trigger: { on: 'hunt' } },
       { id: 'cook', text: 'Fleisch am Feuer braten', trigger: { on: 'cook' } },
+      { id: 'fish', text: 'Einen Fisch fangen', trigger: { on: 'fish' } },
       { id: 'bow', text: 'Einen Bogen herstellen', trigger: { on: 'craft', item: 'bow' } },
       { id: 'deer', text: 'Hirsche erlegen', trigger: { on: 'hunt', species: 'deer' }, count: 2 },
     ],
@@ -107,6 +109,7 @@ export class Journal {
     });
     events.on('animal:killed', ({ species }) => this.advance((t) => t.on === 'hunt' && (!t.species || t.species === species)));
     events.on('food:cooked', ({ count }) => this.advance((t) => t.on === 'cook', count));
+    events.on('fish:caught', ({ count }) => this.advance((t) => t.on === 'fish', count));
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));
   }

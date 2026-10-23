@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { EventBus } from '../core/EventBus';
 import { createItemMesh } from '../entities/items/ItemMeshes';
+import { isItemId, type ItemId } from '../entities/items/ItemDefs';
 import type { BuildingSystem, Structure } from './building/BuildingSystem';
 import type { ItemService } from './ItemService';
 import type { Audio } from './Audio';
@@ -10,12 +11,20 @@ export const SPIT_SLOTS = 3;
 /** Garzeit eines Stücks über offenem Feuer (s). */
 export const COOK_TIME = 12;
 
-const RAW = new THREE.Color(0xa8343a);
-const DONE = new THREE.Color(0x6b3a1e);
+/** Was sich braten lässt: Ergebnis und Farbverlauf von roh nach gar. */
+const COOKABLE: Partial<Record<ItemId, { result: ItemId; raw: THREE.Color; done: THREE.Color; name: string }>> = {
+  rawMeat: { result: 'cookedMeat', raw: new THREE.Color(0xa8343a), done: new THREE.Color(0x6b3a1e), name: 'Das Fleisch' },
+  rawFish: { result: 'cookedFish', raw: new THREE.Color(0x7f9298), done: new THREE.Color(0x9b6a3c), name: 'Der Fisch' },
+};
 
-export type CookingSave = { structure: number; pieces: number[] }[];
+/** Lässt sich `id` am Spieß braten? */
+export const isCookable = (id: ItemId | null): id is ItemId => id !== null && COOKABLE[id] !== undefined;
+
+/** `items` fehlt in alten Spielständen (dort lag nur Fleisch am Spieß). */
+export type CookingSave = { structure: number; pieces: number[]; items?: string[] }[];
 
 interface Piece {
+  item: ItemId;
   progress: number;
   mesh: THREE.Object3D;
   material: THREE.MeshStandardMaterial;
@@ -55,9 +64,9 @@ function createSpitModel(): THREE.Group {
 }
 
 /**
- * Kochen am Lagerfeuer: Mit rohem Fleisch in der Hand legt `E` ein Stück auf den Spieß
- * (bis zu drei). Solange das Feuer brennt, gart es; fertige Stücke nimmt man mit `E` ab.
- * Das Fleisch verfärbt sich dabei sichtbar von roh zu gebraten.
+ * Kochen am Lagerfeuer: Mit rohem Fleisch oder Fisch in der Hand legt `E` ein Stück auf den
+ * Spieß (bis zu drei). Solange das Feuer brennt, gart es; fertige Stücke nimmt man mit `E` ab.
+ * Das Essen verfärbt sich dabei sichtbar von roh zu gebraten.
  */
 export class Cooking {
   readonly group = new THREE.Group();
@@ -95,8 +104,10 @@ export class Cooking {
     return best;
   }
 
-  /** Legt ein Stück rohes Fleisch auf. */
-  add(s: Structure, progress = 0, quiet = false): boolean {
+  /** Legt ein rohes Stück (Fleisch, Fisch) auf. */
+  add(s: Structure, item: ItemId = 'rawMeat', progress = 0, quiet = false): boolean {
+    const cook = COOKABLE[item];
+    if (!cook) return false;
     let spit = this.spits.get(s);
     if (!spit) {
       const object = createSpitModel();
@@ -108,35 +119,44 @@ export class Cooking {
     }
     const slot = spit.pieces.indexOf(null);
     if (slot < 0) return false;
-    const mesh = createItemMesh('rawMeat');
-    const material = new THREE.MeshStandardMaterial({ color: RAW.clone(), roughness: 0.6, flatShading: true });
-    // Nur den Fleischbrocken umfärben, der Knochen bleibt.
+    const mesh = createItemMesh(item);
+    const material = new THREE.MeshStandardMaterial({ color: cook.raw.clone(), roughness: 0.6, flatShading: true });
+    // Nur den Hauptkörper umfärben (Knochen, Flossen bleiben).
     (mesh.children[0] as THREE.Mesh).material = material;
     mesh.position.set((slot - 1) * 0.36, 0.7, 0);
     mesh.rotation.set(0, 0, Math.PI / 2);
     spit.object.add(mesh);
-    material.color.copy(RAW).lerp(DONE, progress);
-    spit.pieces[slot] = { progress, mesh, material };
+    material.color.copy(cook.raw).lerp(cook.done, progress);
+    spit.pieces[slot] = { item, progress, mesh, material };
     if (!quiet) this.audio.play('sizzle', { volume: 0.8, position: this.tmp.copy(s.position).setY(s.position.y + 0.7) });
     return true;
+  }
+
+  /** Name des ersten fertigen Stücks ("Gebratener Fisch") für den Hinweis. */
+  readyItem(s: Structure): ItemId | null {
+    const p = this.spits.get(s)?.pieces.find((x) => x && x.progress >= 1);
+    return p ? COOKABLE[p.item]!.result : null;
   }
 
   /** Nimmt alle fertigen Stücke ab. @returns Anzahl. */
   take(s: Structure): number {
     const spit = this.spits.get(s);
     if (!spit) return 0;
-    let n = 0;
+    const done = new Map<ItemId, number>();
     spit.pieces.forEach((p, i) => {
       if (!p || p.progress < 1) return;
       spit.object.remove(p.mesh);
       p.material.dispose();
       spit.pieces[i] = null;
-      n++;
+      const result = COOKABLE[p.item]!.result;
+      done.set(result, (done.get(result) ?? 0) + 1);
     });
-    if (n > 0) {
-      this.items.give('cookedMeat', n, this.tmp.copy(s.position).setY(s.position.y + 0.7));
-      this.events.emit('food:cooked', { count: n });
+    let n = 0;
+    for (const [item, count] of done) {
+      this.items.give(item, count, this.tmp.copy(s.position).setY(s.position.y + 0.7));
+      n += count;
     }
+    if (n > 0) this.events.emit('food:cooked', { count: n });
     if (spit.pieces.every((p) => p === null)) this.removeSpit(spit);
     return n;
   }
@@ -146,11 +166,8 @@ export class Cooking {
       const s = spit.structure;
       // Feuer abgerissen/zerstört: Fleisch fällt zu Boden.
       if (!this.building.structures.includes(s)) {
-        const raw = spit.pieces.filter((p) => p && p.progress < 1).length;
-        const done = spit.pieces.filter((p) => p && p.progress >= 1).length;
         const at = this.tmp.copy(s.position).setY(s.position.y + 0.6);
-        if (raw) this.items.drop('rawMeat', raw, at);
-        if (done) this.items.drop('cookedMeat', done, at);
+        for (const p of spit.pieces) if (p) this.items.drop(p.progress >= 1 ? COOKABLE[p.item]!.result : p.item, 1, at);
         this.removeSpit(spit);
         continue;
       }
@@ -159,11 +176,12 @@ export class Cooking {
       for (const p of spit.pieces) {
         if (!p || p.progress >= 1) continue;
         cooking = true;
+        const cook = COOKABLE[p.item]!;
         p.progress = Math.min(1, p.progress + dt / COOK_TIME);
-        p.material.color.copy(RAW).lerp(DONE, p.progress);
+        p.material.color.copy(cook.raw).lerp(cook.done, p.progress);
         // Langsam drehen, damit es rundum gart.
         p.mesh.rotation.x += dt * 0.8;
-        if (p.progress >= 1) this.events.emit('hud:message', { text: 'Das Fleisch ist gar.' });
+        if (p.progress >= 1) this.events.emit('hud:message', { text: `${cook.name} ist gar.` });
       }
       spit.sizzle -= dt;
       if (cooking && spit.sizzle <= 0) {
@@ -181,17 +199,25 @@ export class Cooking {
 
   /** Spielstand: Garfortschritt je Stück, Feuer über ihren Index in `building.structures`. */
   serialize(): CookingSave {
-    return [...this.spits.values()].map((s) => ({
-      structure: this.building.structures.indexOf(s.structure),
-      pieces: s.pieces.filter((p): p is Piece => p !== null).map((p) => p.progress),
-    }));
+    return [...this.spits.values()].map((s) => {
+      const pieces = s.pieces.filter((p): p is Piece => p !== null);
+      return {
+        structure: this.building.structures.indexOf(s.structure),
+        pieces: pieces.map((p) => p.progress),
+        items: pieces.map((p) => p.item),
+      };
+    });
   }
 
   load(data: CookingSave, structures: readonly Structure[]): void {
     for (const spit of data) {
       const s = structures[spit.structure];
       if (!s || s.def.interaction !== 'fire') continue;
-      for (const progress of spit.pieces.slice(0, SPIT_SLOTS)) this.add(s, Math.max(0, Math.min(1, progress)), true);
+      spit.pieces.slice(0, SPIT_SLOTS).forEach((progress, i) => {
+        const raw = spit.items?.[i];
+        const item = raw && isItemId(raw) && COOKABLE[raw] ? raw : 'rawMeat';
+        this.add(s, item, Math.max(0, Math.min(1, progress)), true);
+      });
     }
   }
 }

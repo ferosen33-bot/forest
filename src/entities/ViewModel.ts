@@ -29,6 +29,10 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   bow: { position: new THREE.Vector3(0.1, -0.16, -0.62), rotation: new THREE.Euler(0, Math.PI / 2 - 0.25, 0.22, 'YXZ'), grip: new THREE.Vector3(0.18, 0, 0), scale: 0.62 },
   arrow: { position: new THREE.Vector3(0.26, -0.3, -0.48), rotation: new THREE.Euler(-1.3, 0.1, 0), grip: new THREE.Vector3(0, -0.15, 0), scale: 1 },
   log: { position: new THREE.Vector3(0.05, -0.45, -0.75), rotation: new THREE.Euler(0, 0, Math.PI / 2 - 0.1), grip: new THREE.Vector3(0, 0, 0), scale: 0.8 },
+  // Rute schräg nach vorne oben, etwas zur Mitte geneigt.
+  fishingRod: { position: new THREE.Vector3(0.32, -0.38, -0.5), rotation: new THREE.Euler(-1.0, 0, 0.22), grip: new THREE.Vector3(0, -0.56, 0), scale: 0.7 },
+  rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
+  cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
 };
 
 /** Schlag-Keyframes (horizontaler Hieb von rechts nach links): Positions- und Rotationsversatz. */
@@ -55,6 +59,14 @@ const EAT_KEYS: typeof SWING_KEYS = [
   { t: 0.45, pos: [-0.22, 0.2, 0.25], rot: [0.6, 0, 0.3] },
   { t: 0.6, pos: [-0.22, 0.17, 0.25], rot: [0.6, 0, 0.3] },
   { t: 1, pos: [0, 0, 0], rot: [0, 0, 0] },
+];
+
+/** Auswerfen: Rute über die Schulter zurück, dann nach vorne schnellen. */
+const CAST_KEYS: typeof SWING_KEYS = [
+  { t: 0, pos: [0, 0, 0], rot: [0, 0, 0] },
+  { t: 0.38, pos: [0.02, 0.1, 0.12], rot: [0.95, 0, -0.1] },
+  { t: 0.55, pos: [-0.02, 0.02, -0.1], rot: [-0.55, 0, 0.05] },
+  { t: 1, pos: [0, 0, 0], rot: [-0.25, 0, 0] },
 ];
 
 function sampleKeys(keys: typeof SWING_KEYS, u: number, pos: THREE.Vector3, rot: THREE.Vector3): void {
@@ -106,6 +118,12 @@ export class ViewModel {
   private aiming = false;
   /** Spannung des Bogens 0..1 */
   private draw = 0;
+  /** Angel: Schnur draußen (Rute gesenkt) und Zug am Haken (Rute biegt und zittert). */
+  private rodOut = 0;
+  private rodPull = 0;
+  private rodOutTarget = false;
+  private rodPullTarget = 0;
+  private readonly tipPos = new THREE.Vector3();
   /** Eingelegter Pfeil (sichtbar, solange gespannt wird). */
   private readonly nocked = createItemMesh('arrow').clone();
   private swayX = 0;
@@ -164,6 +182,32 @@ export class ViewModel {
 
   get flameFlicker(): number {
     return this.flame.flicker;
+  }
+
+  playCast(duration: number): void {
+    this.action = { keys: CAST_KEYS, time: 0, duration };
+  }
+
+  /** Angelzustand: `out` = Köder im Wasser, `pull` 0..1 = Fisch zieht. */
+  setRod(out: boolean, pull: number): void {
+    this.rodOutTarget = out;
+    this.rodPullTarget = pull;
+  }
+
+  /**
+   * Spitze der Angelrute als Weltpunkt, passend zur Spielkamera (für die Schnur in der Welt).
+   * Das ViewModel hat ein eigenes Sichtfeld – der Punkt wird daher über den Bildschirm
+   * auf die Spielkamera übertragen, damit die Schnur exakt an der sichtbaren Spitze ansetzt.
+   */
+  getRodTip(out: THREE.Vector3, main: THREE.PerspectiveCamera): THREE.Vector3 | null {
+    const tip = this.currentId === 'fishingRod' && this.raise > 0.5 ? this.model?.getObjectByName('tip') : undefined;
+    if (!tip) return null;
+    this.scene.updateMatrixWorld();
+    tip.getWorldPosition(this.tipPos);
+    this.camera.worldToLocal(this.tipPos);
+    const k = Math.tan(THREE.MathUtils.degToRad(main.fov) / 2) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+    out.set(this.tipPos.x * k, this.tipPos.y * k, this.tipPos.z);
+    return main.localToWorld(out);
   }
 
   playEat(duration: number): void {
@@ -252,6 +296,14 @@ export class ViewModel {
       this.animPos.z += 0.04 * this.draw;
     }
     this.nocked.visible = bowHeld && this.draw > 0.02 && this.raise > 0.9;
+    // Angel: mit Köder im Wasser etwas gesenkt; beißt ein Fisch, ruckt die Rute nach vorne.
+    this.rodOut = damp(this.rodOut, this.rodOutTarget ? 1 : 0, 6, dt);
+    this.rodPull = damp(this.rodPull, this.rodPullTarget, 12, dt);
+    if (this.currentId === 'fishingRod') {
+      const jerk = Math.sin(this.time * 38) * 0.03 * this.rodPull;
+      this.animRot.x -= 0.22 * this.rodOut + 0.35 * this.rodPull + jerk;
+      this.animPos.y -= 0.03 * this.rodOut;
+    }
     if (this.nocked.visible) this.nocked.position.set(-0.01, 0, -0.08 + 0.14 * this.draw);
     this.aim = damp(this.aim, this.aiming ? 1 : 0, 10, dt);
     if (this.aim > 0.001) {

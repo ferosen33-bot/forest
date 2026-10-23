@@ -320,7 +320,7 @@ export class ToolController {
   }
 
   /** Nutzt das Werkzeug in der Hand ab; meldet, wenn es zerbricht bzw. abbrennt. */
-  private wearEquipped(amount: number): void {
+  wearEquipped(amount: number): void {
     const stack = this.equipped;
     if (!stack) return;
     const name = getItem(stack.id).name;

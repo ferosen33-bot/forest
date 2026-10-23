@@ -5,7 +5,31 @@ import type { ItemCost } from '../../entities/items/ItemDefs';
 import { jitter } from '../../world/VegetationGeometry';
 import { mulberry32 } from '../../utils/random';
 
-export type StructureId = 'campfire' | 'wall' | 'shelter' | 'spikeTrap' | 'floor' | 'gate' | 'stairs' | 'chest' | 'snare';
+export type StructureId =
+  | 'campfire'
+  | 'wall'
+  | 'shelter'
+  | 'spikeTrap'
+  | 'floor'
+  | 'gate'
+  | 'stairs'
+  | 'chest'
+  | 'snare'
+  | 'fishTrap'
+  | 'torchPost';
+
+/** Offenes Feuer eines Bauwerks (Lagerfeuer, Standfackel). */
+export interface FlameDef {
+  /** Größe des Flammeneffekts. */
+  size: number;
+  /** Höhe der Flamme bzw. des Lichts über dem Ursprung (m). */
+  height: number;
+  lightHeight: number;
+  intensity: number;
+  distance: number;
+  /** Wärmt (Kälte, Regeneration) und lässt sich zum Kochen nutzen. */
+  warmth: boolean;
+}
 
 export interface StructureDef {
   id: StructureId;
@@ -20,7 +44,14 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'sleep' | 'door' | 'storage' | 'snare';
+  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap';
+  /** Brennt nach dem Bauen (an/aus mit `E`, Regen löscht es). */
+  flame?: FlameDef;
+  /**
+   * Steht im flachen Wasser (Fischreuse): Mindest- und Höchsttiefe an der Mitte (m). Der Ursprung
+   * liegt `sink` m unter dem Wasserspiegel (aber nie unter dem Grund), damit der Korb herausragt.
+   */
+  inWater?: { minDepth: number; maxDepth: number; sink: number };
   /** Kein Hindernis für die Wegfindung (Böden, Treppen, Fallen am Boden). */
   walkable?: boolean;
   /** Lagerplätze (nur Kisten). */
@@ -179,6 +210,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     maxStep: 0.5,
     maxHealth: 60,
     interaction: 'fire',
+    flame: { size: 0.6, height: 0.04, lightHeight: 0.7, intensity: 38, distance: 26, warmth: true },
     build() {
       const g = new THREE.Group();
       const rng = mulberry32(3);
@@ -424,6 +456,86 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return frame;
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(0.32, 0.2, 0.3).setTranslation(0, 0.2, 0).setSensor(true)],
+  },
+
+  fishTrap: {
+    id: 'fishTrap',
+    name: 'Fischreuse',
+    description: 'Ein Korb aus Ästen für flaches Wasser. Fängt mit der Zeit von selbst Fische; E nimmt sie heraus.',
+    cost: [{ item: 'stick', count: 6 }],
+    halfExtents: v(0.45, 0.35, 0.65),
+    maxStep: 0.9,
+    maxHealth: 40,
+    interaction: 'trap',
+    walkable: true,
+    inWater: { minDepth: 0.25, maxDepth: 1.3, sink: 0.42 },
+    // Liegender Kegel entlang Z: Öffnung vorne (+Z), Spitze hinten, zwei Pflöcke bis zum Grund.
+    build() {
+      const g = new THREE.Group();
+      const ribs = 12;
+      const back = v(0, 0.3, -0.62);
+      for (let i = 0; i < ribs; i++) {
+        const a = (i / ribs) * Math.PI * 2;
+        const front = v(Math.cos(a) * 0.32, 0.3 + Math.sin(a) * 0.28, 0.55);
+        g.add(log(front, back, 0.013, i % 2 ? M.bark : M.cut));
+      }
+      // Geflochtene Reifen halten die Ruten zusammen.
+      for (const [z, r] of [
+        [0.52, 1],
+        [0.18, 0.72],
+        [-0.2, 0.42],
+      ] as const) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 3, 14), M.rope);
+        ring.scale.set(0.33 * r, 0.29 * r, 0.33);
+        ring.position.set(0, 0.3, z);
+        g.add(ring);
+      }
+      const knot = new THREE.Mesh(STONE_GEOMETRY, M.rope);
+      knot.scale.setScalar(0.05);
+      knot.position.copy(back);
+      g.add(knot);
+      for (const x of [-0.42, 0.42]) g.add(stake(v(x, -1.3, 0.1), v(0, 1, 0), 2.05, 0.025));
+      return finish(g, 'FishTrap');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.36, 0.3, 0.6).setTranslation(0, 0.3, 0).setSensor(true)],
+  },
+
+  torchPost: {
+    id: 'torchPost',
+    name: 'Standfackel',
+    description: 'Ein Pfahl mit Fackelkopf. Leuchtet die Umgebung aus und hält Schrate nachts auf Abstand – wärmt aber nicht.',
+    cost: [
+      { item: 'stick', count: 4 },
+      { item: 'stone', count: 2 },
+    ],
+    halfExtents: v(0.25, 0.9, 0.25),
+    maxStep: 0.6,
+    maxHealth: 40,
+    interaction: 'light',
+    flame: { size: 0.24, height: 1.66, lightHeight: 1.8, intensity: 16, distance: 18, warmth: false },
+    build() {
+      const g = new THREE.Group();
+      const rng = mulberry32(11);
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.3;
+        const st = new THREE.Mesh(STONE_GEOMETRY, M.stone);
+        const r = 0.08 + rng() * 0.03;
+        st.scale.set(r * 1.2, r * 0.8, r);
+        st.position.set(Math.cos(a) * 0.13, r * 0.4, Math.sin(a) * 0.13);
+        st.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+        g.add(st);
+      }
+      g.add(log(v(0, -0.1, 0), v(0, 1.58, 0), 0.03, M.bark));
+      // Fackelkopf: umwickeltes Bündel, an der Spitze verkohlt.
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.16, 7), M.rope);
+      head.position.y = 1.56;
+      g.add(head);
+      const char = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.04, 7), M.ash);
+      char.position.y = 1.65;
+      g.add(char);
+      return finish(g, 'TorchPost');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cylinder(0.85, 0.08).setTranslation(0, 0.85, 0)],
   },
 
   stairs: {

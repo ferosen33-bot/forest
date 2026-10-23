@@ -21,7 +21,7 @@ export interface Structure {
   readonly position: THREE.Vector3;
   readonly rotation: number;
   health: number;
-  /** Nur Lagerfeuer. */
+  /** Nur Bauwerke mit Flamme (Lagerfeuer, Standfackel). */
   lit: boolean;
   fire?: FireEffect;
   light?: LightRequest;
@@ -38,6 +38,8 @@ export interface Structure {
   doorAngle?: number;
   leaf?: THREE.Object3D;
   doorCollider?: RAPIER.Collider;
+  /** Nur Fischreusen: gefangene Fische. */
+  catch?: number;
 }
 
 /** Ergebnis des Einrastens: Position wird verschoben, optional Höhe und Drehung vorgegeben. */
@@ -55,6 +57,7 @@ export interface StructureSave {
   open?: boolean;
   storage?: InventoryData;
   armed?: boolean;
+  catch?: number;
 }
 
 export interface Placement {
@@ -270,6 +273,18 @@ export class BuildingSystem {
     }
 
     const result: Placement = { valid: true, position, rotation, snapped };
+    if (def.inWater) {
+      // Fischreuse: die Mitte muss passend tief im Wasser liegen; der Korb ragt etwas heraus.
+      position.y = Math.max(ground, this.heightMap.waterLevel - def.inWater.sink);
+      const depth = this.heightMap.waterLevel - ground;
+      if (depth < def.inWater.minDepth) return { ...result, valid: false, reason: 'Nur in flachem Wasser' };
+      if (depth > def.inWater.maxDepth) return { ...result, valid: false, reason: 'Wasser zu tief' };
+      if (max - min > def.maxStep) return { ...result, valid: false, reason: 'Grund zu steil' };
+      const blocker = this.findBlocker(def, position, rotation, false);
+      if (blocker === 'player') return { ...result, valid: false, reason: 'Du stehst im Weg' };
+      if (blocker) return { ...result, valid: false, reason: 'Kein Platz' };
+      return result;
+    }
     if (def.snap === 'stairs') {
       // Treppen hängen immer an einer Bodenkante; Wände/Tore an derselben Kante stören nicht.
       if (!snapped) return { ...result, valid: false, reason: 'Nur an einer Bodenkante' };
@@ -495,15 +510,18 @@ export class BuildingSystem {
       if (def.doorCollider !== undefined) structure.doorCollider = body.collider(def.doorCollider);
     }
 
-    if (def.interaction === 'fire') {
-      structure.fire = new FireEffect(0.6);
-      structure.fire.object.position.set(0, 0.04, 0);
+    if (def.interaction === 'trap') structure.catch = 0;
+
+    if (def.flame) {
+      const f = def.flame;
+      structure.fire = new FireEffect(f.size);
+      structure.fire.object.position.set(0, f.height, 0);
       object.add(structure.fire.object);
       structure.light = {
-        position: position.clone().add(new THREE.Vector3(0, 0.7, 0)),
-        color: new THREE.Color(0xff8a3a),
+        position: position.clone().add(new THREE.Vector3(0, f.lightHeight, 0)),
+        color: new THREE.Color(f.warmth ? 0xff8a3a : 0xffa04a),
         intensity: 0,
-        distance: 26,
+        distance: f.distance,
       };
       this.setLit(structure, true);
     }
@@ -523,6 +541,7 @@ export class BuildingSystem {
       ...(s.open ? { open: true } : {}),
       ...(s.storage ? { storage: s.storage.serialize() } : {}),
       ...(s.def.interaction === 'snare' ? { armed: s.armed === true } : {}),
+      ...(s.catch ? { catch: s.catch } : {}),
     }));
   }
 
@@ -543,6 +562,7 @@ export class BuildingSystem {
       }
       if (s.storage && Array.isArray(d.storage)) s.storage.load(d.storage, isItemId);
       if (d.armed === false) this.setArmed(s, false);
+      if (s.catch !== undefined && Number.isFinite(d.catch)) s.catch = Math.max(0, Math.min(9, Math.floor(d.catch!)));
       out.push(s);
     }
     return out;
@@ -582,7 +602,8 @@ export class BuildingSystem {
   /** `E` auf ein Bauwerk: Feuer an/aus. (Schlafen übernimmt das Spiel selbst.) */
   toggleFire(s: Structure): void {
     this.setLit(s, !s.lit);
-    if (!s.lit) this.particles.burst(s.position.clone().add(new THREE.Vector3(0, 0.3, 0)), { count: 10, color: 0x444040, speed: 1.2, size: 0.06, gravity: -1, life: 1.4 });
+    const at = s.position.clone().add(new THREE.Vector3(0, (s.def.flame?.height ?? 0) + 0.3, 0));
+    if (!s.lit) this.particles.burst(at, { count: 10, color: 0x444040, speed: 1.2, size: 0.06, gravity: -1, life: 1.4 });
   }
 
   /**
@@ -619,6 +640,8 @@ export class BuildingSystem {
         });
       }
     }
+    // Gefangene Fische einer Reuse treiben heraus.
+    if (s.catch) this.worldItems.spawn('rawFish', s.catch, s.position.clone().setY(Math.max(s.position.y, this.heightMap.waterLevel) + 0.4));
     // Inhalt einer Lagerkiste fällt heraus.
     for (const stack of s.storage?.takeAll() ?? []) {
       const pos = s.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.5, (Math.random() - 0.5) * 0.8));
@@ -629,9 +652,9 @@ export class BuildingSystem {
     this.events.emit('hud:message', { text: `${s.def.name} abgerissen.` });
   }
 
-  /** Steht `pos` in der Wärme eines brennenden Lagerfeuers? */
+  /** Steht `pos` in der Wärme eines brennenden Lagerfeuers? (Standfackeln wärmen nicht.) */
   isNearLitFire(pos: THREE.Vector3, radius = FIRE_WARMTH_RADIUS): boolean {
-    return this.structures.some((s) => s.lit && s.position.distanceTo(pos) < radius);
+    return this.structures.some((s) => s.lit && s.def.flame?.warmth && s.position.distanceTo(pos) < radius);
   }
 
   update(dt: number, viewer: THREE.Vector3): void {
@@ -655,26 +678,29 @@ export class BuildingSystem {
         );
       }
 
-      if (!s.fire || !s.lit || !s.light) continue;
+      const flame = s.def.flame;
+      if (!s.fire || !s.lit || !s.light || !flame) continue;
       const dist = s.position.distanceTo(viewer);
       if (dist > 120) continue; // weit weg: keine Effekte berechnen
 
       s.fire.update(dt);
-      s.light.intensity = 38 * s.fire.flicker;
+      s.light.intensity = flame.intensity * s.fire.flicker;
       this.lights.request(s.light);
 
-      // Glut steigt auf
+      // Glut steigt auf (aus der Fackel nur vereinzelt)
+      const big = flame.warmth;
       s.emberTimer -= dt;
       if (s.emberTimer <= 0 && dist < 60) {
-        s.emberTimer = 0.08 + Math.random() * 0.12;
-        this.tmp.copy(s.position).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4));
-        this.embers.burst(this.tmp, { count: 1, color: 0xff7a2a, speed: 0.6, spread: 0.6, size: 0.025, life: 1.6, gravity: -0.6 });
+        s.emberTimer = (0.08 + Math.random() * 0.12) * (big ? 1 : 4);
+        const spread = big ? 0.4 : 0.1;
+        this.tmp.copy(s.position).add(new THREE.Vector3((Math.random() - 0.5) * spread, flame.height + 0.26, (Math.random() - 0.5) * spread));
+        this.embers.burst(this.tmp, { count: 1, color: 0xff7a2a, speed: 0.6, spread: 0.6 * spread / 0.4 + 0.1, size: 0.025, life: 1.6, gravity: -0.6 });
       }
       // Knistern, leiser mit der Entfernung
       s.crackleTimer -= dt;
       if (s.crackleTimer <= 0 && dist < 25) {
-        s.crackleTimer = 0.08 + Math.random() * 0.5;
-        this.audio.play('crackle', { volume: 0.8, position: s.position });
+        s.crackleTimer = (0.08 + Math.random() * 0.5) * (big ? 1 : 2.5);
+        this.audio.play('crackle', { volume: big ? 0.8 : 0.4, position: this.tmp.copy(s.position).setY(s.position.y + flame.height) });
       }
     }
   }

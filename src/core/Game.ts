@@ -29,6 +29,7 @@ import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
 import { Climate } from '../systems/Climate';
+import { Fishing, FishTraps } from '../systems/Fishing';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
 import { QUALITY, SettingsStore, type Settings } from '../systems/Settings';
 import { SettingsUI } from '../ui/SettingsUI';
@@ -110,6 +111,8 @@ export class Game {
   projectiles!: Projectiles;
   cooking!: Cooking;
   climate!: Climate;
+  fishing!: Fishing;
+  fishTraps!: FishTraps;
   ambience!: Ambience;
   footsteps!: Footsteps;
   hud!: HUD;
@@ -143,6 +146,7 @@ export class Game {
   /** Erst speichern, wenn wirklich gespielt wurde (nicht schon im Startmenü) – und nie nach "Neues Spiel". */
   private saveEnabled = false;
   private lastSaved: Date | null = null;
+  private readonly rodTip = new THREE.Vector3();
   private readonly torchLight: LightRequest = {
     position: new THREE.Vector3(),
     color: new THREE.Color(),
@@ -360,6 +364,18 @@ export class Game {
       this.camera,
       this.items,
     );
+    this.fishing = new Fishing({
+      heightMap: this.world.heightMap,
+      items: this.items,
+      particles: this.particles,
+      audio: this.audio,
+      events: this.events,
+      wearRod: () => this.tools.wearEquipped(1),
+      playCast: (duration) => this.viewModel.playCast(duration),
+      setRod: (out, pull) => this.viewModel.setRod(out, pull),
+    });
+    this.scene.add(this.fishing.group);
+    this.fishTraps = new FishTraps(this.building, this.events);
 
     // Spielstand fortsetzen – oder neu beginnen mit der Axt aus dem Flugzeugwrack.
     this.saves = new SaveStore(worldKey(cfg.seed, cfg.world.size, cfg.world.cellSize));
@@ -771,7 +787,9 @@ export class Game {
 
     this.render();
     const building = this.building.isActive;
-    const prompt = this.mode === 'playing' && !building ? this.interaction.prompt : null;
+    // Während die Schnur draußen ist, zeigt der Hinweis die Angel; sonst hat das anvisierte Ziel Vorrang.
+    const fishingPrompt = this.fishing.busy ? this.fishing.prompt : null;
+    const prompt = this.mode === 'playing' && !building ? (fishingPrompt ?? this.interaction.prompt ?? this.fishing.prompt) : null;
     const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `);
     this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
     this.updateNavigation(dt);
@@ -842,6 +860,7 @@ export class Game {
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
     this.world.update(dt, this.elapsed, player.position);
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
+    this.updateFishing(dt, playing && !building);
 
     // Fackel in der Hand → Licht an der Flamme.
     const light = this.tools.equipped ? getItem(this.tools.equipped.id).light : undefined;
@@ -868,6 +887,25 @@ export class Game {
     this.footsteps.updatePlayer(dt, player);
   }
 
+  /** Angel in der Hand (Linksklick wirft aus bzw. schlägt an) und Fischreusen. */
+  private updateFishing(dt: number, active: boolean): void {
+    const holding = this.tools.equipped?.id === 'fishingRod' && !this.player.stats.isDead;
+    this.camera.getWorldDirection(this.tmpDir);
+    this.fishing.update({
+      dt,
+      holding,
+      active,
+      click: active && this.input.wasMousePressed(0),
+      eye: this.camera.position,
+      look: this.tmpDir,
+      tip: holding ? this.viewModel.getRodTip(this.rodTip, this.camera) : null,
+      player: this.player.position,
+      swimming: this.player.swimming,
+      rain: this.climate.weather.rain,
+    });
+    this.fishTraps.update(dt, this.climate.season.snow);
+  }
+
   /** Erkundung, Kompass, Ziele und (falls offen) Karte. */
   private updateNavigation(dt: number): void {
     this.journal.setDay(this.dayNight.day);
@@ -892,7 +930,13 @@ export class Game {
     const showHome = r.distanceTo(this.world.spawnPoint) > 0.5 && r.distanceTo(p) > 8;
     this.compass.update(bearing, showHome ? deg(Math.atan2(r.x - p.x, -(r.z - p.z))) : null);
     if (!this.mapUI.open) return;
-    const kinds: Record<string, 'fire' | 'shelter' | 'wall' | 'other'> = { campfire: 'fire', shelter: 'shelter', wall: 'wall', gate: 'wall' };
+    const kinds: Record<string, 'fire' | 'shelter' | 'wall' | 'other'> = {
+      campfire: 'fire',
+      torchPost: 'fire',
+      shelter: 'shelter',
+      wall: 'wall',
+      gate: 'wall',
+    };
     this.mapUI.render({
       player: { x: p.x, z: p.z, bearing: THREE.MathUtils.degToRad(bearing) },
       respawn: showHome ? { x: r.x, z: r.z } : null,

@@ -36,7 +36,14 @@ const MATERIALS = {
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
   bone: mat(0xe6dcc6, { roughness: 0.7 }),
+  fish: mat(0x7f9298, { roughness: 0.35, metalness: 0.15 }),
+  fishBack: mat(0x4a5d63, { roughness: 0.45 }),
+  cookedFish: mat(0x9b6a3c, { roughness: 0.7 }),
+  line: mat(0xd8d6cc, { roughness: 0.6 }),
 };
+
+/** Länge der Angelrute (m); die Spitze trägt ein Hilfsobjekt "tip" für die Schnur. */
+const ROD_LENGTH = 1.4;
 
 /** Länge eines Holzstamms (m) – wird auch beim Zerlegen gefällter Bäume genutzt. */
 export const LOG_LENGTH = 2.0;
@@ -227,6 +234,48 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'fishingRod': {
+      const half = ROD_LENGTH / 2;
+      const blank = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.012, ROD_LENGTH - 0.3, 5), MATERIALS.lightWood);
+      blank.position.y = 0.15;
+      g.add(blank);
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.02, 0.3, 6), MATERIALS.binding);
+      handle.position.y = -half + 0.15;
+      g.add(handle);
+      // Einfache Rolle: aufgewickelte Schnur neben dem Griff.
+      const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.025, 8), MATERIALS.line);
+      reel.rotation.z = Math.PI / 2;
+      reel.position.set(0.035, -half + 0.32, 0);
+      g.add(reel);
+      for (const y of [-0.1, 0.25, 0.55]) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.003, 3, 6), MATERIALS.line);
+        ring.position.set(0.012, y, 0);
+        ring.rotation.y = Math.PI / 2;
+        g.add(ring);
+      }
+      const tip = new THREE.Object3D();
+      tip.name = 'tip';
+      tip.position.y = half;
+      g.add(tip);
+      break;
+    }
+    case 'rawFish':
+    case 'cookedFish': {
+      // Kind 0 = Körper (wird am Bratspieß umgefärbt).
+      const cooked = id === 'cookedFish';
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), cooked ? MATERIALS.cookedFish : MATERIALS.fish);
+      body.scale.set(0.055, 0.17, 0.032);
+      g.add(body);
+      const back = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 4), cooked ? MATERIALS.cookedFish : MATERIALS.fishBack);
+      back.scale.set(0.012, 0.11, 0.022);
+      back.position.set(0.045, 0.01, 0);
+      g.add(back);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.09, 4), cooked ? MATERIALS.cookedFish : MATERIALS.fishBack);
+      tail.scale.z = 0.25;
+      tail.position.y = -0.19;
+      g.add(tail);
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -290,6 +339,11 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.25, 0.2).setDensity(250);
     case 'arrow':
       return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
+    case 'fishingRod':
+      return RAPIER.ColliderDesc.cylinder(ROD_LENGTH / 2, 0.025).setDensity(500);
+    case 'rawFish':
+    case 'cookedFish':
+      return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);
   }
 }
 

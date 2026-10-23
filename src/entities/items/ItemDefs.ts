@@ -20,7 +20,10 @@ export type ItemId =
   | 'arrow'
   | 'hide'
   | 'backpack'
-  | 'furCoat';
+  | 'furCoat'
+  | 'fishingRod'
+  | 'rawFish'
+  | 'cookedFish';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -131,6 +134,31 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'food',
     maxStack: 10,
     food: { hunger: 35, thirst: -2, health: 8 },
+  },
+  rawFish: {
+    id: 'rawFish',
+    name: 'Roher Fisch',
+    description: 'Frisch aus dem Wasser. Roh nur im Notfall – am Lagerfeuer gebraten wird eine gute Mahlzeit daraus.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 5, thirst: 1, health: -4 },
+  },
+  cookedFish: {
+    id: 'cookedFish',
+    name: 'Gebratener Fisch',
+    description: 'Knusprig über dem Feuer gegart. Leichter als Fleisch, aber sättigend – auch im Winter zu haben.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 24, thirst: 2, health: 5 },
+  },
+  fishingRod: {
+    id: 'fishingRod',
+    name: 'Angelrute',
+    description:
+      'Linksklick: Köder ins Wasser werfen. Taucht der Schwimmer unter, sofort noch einmal klicken – sonst ist der Fisch weg.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 40,
   },
   bowl: {
     id: 'bowl',

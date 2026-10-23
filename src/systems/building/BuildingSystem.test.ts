@@ -197,4 +197,55 @@ describe('BuildingSystem', () => {
       expect(doors).toEqual([true, false]);
     });
   });
+
+  describe('Fischreuse & Standfackel', () => {
+    /** Stelle mit ~0,6 m tiefem, ebenem Grund. */
+    function shallow(): THREE.Vector3 {
+      for (let z = -250; z < 250; z += 2) {
+        for (let x = -250; x < 250; x += 2) {
+          const h = w.heightMap.heightAt(x, z);
+          if (h > -0.5 || h < -0.8) continue;
+          const around = [-0.7, 0.7].flatMap((dx) => [-0.7, 0.7].map((dz) => w.heightMap.heightAt(x + dx, z + dz)));
+          if (Math.max(...around) - Math.min(...around) < 0.5) return new THREE.Vector3(x, h, z);
+        }
+      }
+      throw new Error('kein flaches Wasser gefunden');
+    }
+
+    it('Reuse nur in flachem Wasser', () => {
+      const def = getStructure('fishTrap');
+      const water = shallow();
+      const p = w.building.evaluate(def, water, 0);
+      expect(p.reason).toBeUndefined();
+      expect(p.valid).toBe(true);
+      // Der Korb sitzt knapp unter dem Wasserspiegel (über dem Grund), nicht auf dem Grund.
+      expect(p.position.y).toBeCloseTo(w.heightMap.waterLevel - def.inWater!.sink, 3);
+      expect(p.position.y).toBeGreaterThan(water.y);
+      expect(w.building.evaluate(def, w.flat, 0).reason).toBe('Nur in flachem Wasser');
+    });
+
+    it('Reuse speichert ihren Fang und verliert ihn beim Abriss nicht', () => {
+      const trap = w.building.place('fishTrap', shallow(), 0);
+      trap.catch = 2;
+      const save = w.building.serialize().find((s) => s.id === 'fishTrap')!;
+      expect(save.catch).toBe(2);
+      const before = w.worldItems.size;
+      w.building.demolish(trap);
+      expect(w.worldItems.serialize().some((i) => i.id === 'rawFish' && i.count === 2)).toBe(true);
+      expect(w.worldItems.size).toBeGreaterThan(before);
+    });
+
+    it('Standfackel brennt, wärmt aber nicht', () => {
+      const pos = w.flat.clone().add(new THREE.Vector3(3, 0, 3));
+      pos.y = w.heightMap.heightAt(pos.x, pos.z);
+      const post = w.building.place('torchPost', pos, 0);
+      expect(post.lit).toBe(true);
+      expect(post.light?.position.y).toBeCloseTo(pos.y + 1.8, 3);
+      expect(w.building.isNearLitFire(pos)).toBe(false);
+      const fire = w.building.place('campfire', pos.clone().add(new THREE.Vector3(8, 0, 0)), 0);
+      expect(w.building.isNearLitFire(fire.position)).toBe(true);
+      w.building.demolish(post);
+      w.building.demolish(fire);
+    });
+  });
 });

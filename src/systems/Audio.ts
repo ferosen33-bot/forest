@@ -44,7 +44,10 @@ export type SoundId =
   | 'thunderNear'
   | 'door'
   | 'bowShot'
-  | 'bowDraw';
+  | 'bowDraw'
+  | 'cast'
+  | 'splash'
+  | 'reel';
 
 export interface PlayOptions {
   volume?: number;
@@ -335,6 +338,20 @@ export class Audio {
         break;
       case 'bowDraw':
         this.tone(t, 'sawtooth', 120 * pitch, 160, 0.5, 0.05, 600);
+        break;
+      // Angel: Rute zischt durch die Luft, Schnur surrt von der Rolle.
+      case 'cast':
+        this.noise(t, 0.3, 'bandpass', 700, 1.4, 0.4, 2600);
+        this.tone(t + 0.12, 'sawtooth', 1400, 900, 0.45, 0.035, 3000);
+        break;
+      // Schwimmer taucht unter / Köder schlägt auf: kurzes "Plopp" mit Spritzer.
+      case 'splash':
+        this.tone(t, 'sine', 380 * pitch, 140, 0.12, 0.45);
+        this.noise(t + 0.02, 0.3, 'bandpass', 1600 * pitch, 0.8, 0.45, 700);
+        break;
+      // Einholen: schnelles Klicken der Rolle.
+      case 'reel':
+        for (let i = 0; i < 10; i++) this.noise(t + i * 0.045, 0.018, 'highpass', 3200, 1, 0.22);
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

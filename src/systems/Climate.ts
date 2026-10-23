@@ -145,15 +145,19 @@ export class Climate {
   private updateFires(dt: number): void {
     const rain = this.weather.rain;
     for (const s of this.d.building.structures) {
-      if (!s.lit || s.def.interaction !== 'fire') continue;
+      if (!s.lit || !s.def.flame) continue;
       let t = this.fireRain.get(s) ?? 0;
-      if (rain > 0.45 && !this.roofAbove(this.tmp.copy(s.position).setY(s.position.y + 1))) t += dt * rain * (1 - 0.5 * this.season.snowfall);
+      if (rain > 0.45 && !this.roofAbove(this.tmp.copy(s.position).setY(s.position.y + Math.max(1, s.def.flame.height + 0.3)))) t += dt * rain * (1 - 0.5 * this.season.snowfall);
       else t = Math.max(0, t - dt);
       if (t > FIRE_RAIN_TIME) {
         t = 0;
         this.d.building.setLit(s, false);
         if (s.position.distanceTo(this.d.player.position) < 60) {
-          this.d.events.emit('hud:message', { text: 'Der Regen hat ein Lagerfeuer gelöscht. Ein Unterstand darüber schützt es.' });
+          this.d.events.emit('hud:message', {
+            text: s.def.flame.warmth
+              ? 'Der Regen hat ein Lagerfeuer gelöscht. Ein Unterstand darüber schützt es.'
+              : 'Der Regen hat eine Standfackel gelöscht.',
+          });
         }
       }
       this.fireRain.set(s, t);
