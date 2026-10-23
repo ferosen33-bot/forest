@@ -54,6 +54,32 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 22 – Die verlassene Stadt
+
+- **Altwasser**, eine verlassene Kleinstadt im Inselinneren: Hauptstraße und zwei Querstraßen mit Mittellinien,
+  Straßenlaternen, liegengebliebenen Autos, Mülltonnen und Briefkästen; rund 20 Gebäude:
+  - **Wohnhäuser** mit Satteldach, Tür, Fenstern und zwei Räumen (Wohnküche, Schlafzimmer), Möbeln und zum Teil
+    vernagelten Fenstern – man kann hineingehen;
+  - ein **Supermarkt** („MARKT“) mit Regalreihen und Kasse, eine **Tankstelle** mit Dach über den Zapfsäulen,
+    das **Gemeindehaus** mit weithin sichtbarem Funkmast und zwei **ausgebrannte Ruinen**.
+- **Plündern:** 60 durchsuchbare Behälter (Kühlschrank, Küchen- und Kleiderschrank, Regal, Kasse, Werkzeugkiste,
+  Schreibtisch, Kofferraum) mit je Behälter fest ausgewürfelten Fundstücken; die Werkzeugkisten von Tankstelle und
+  Laden enthalten garantiert Machete bzw. Taschenlampe. Durchsuchtes bleibt im Spielstand leer.
+- **Neue Gegenstände:** Konserve (macht ohne Feuer satt), Wasserflasche (leer an jedem Gewässer wieder füllbar –
+  Füllen ist jetzt allgemein über `fillsTo` gelöst, wie bei der Holzschale), Schmerzmittel, **Machete** (schnelle,
+  starke Nahkampfwaffe), **Taschenlampe** (hell und weit, brennt im Regen nicht ab, aber Kriecher scheuen ihr kaltes
+  Licht nicht; Batterie hält ~5 Minuten), Batterie (Rechtsklick lädt die leerste Lampe), Winterjacke (wärmt wie
+  der Fellmantel).
+- **Gefahr:** Schrate haben sich auf dem Marktplatz eingerichtet – das größte Lager der Insel mit fünf Mitgliedern,
+  darunter ein Koloss. Wände, Möbel und Autos sind Hindernisse ihrer Wegfindung, Türen bleiben Durchgänge.
+- **Technik:** Der Stadtplan (`world/Town.ts`) ist rein und getestet: Bauplatzsuche (geringste Höhenspanne, weit vom
+  Spawn), Gebäude ohne Überschneidungen und abseits der Fahrbahn. Die Höhenkarte wird *vor* dem Aufbau von Gelände
+  und Physik eingeebnet (`HeightMap.flatten`), ein „Stadtfaktor“ macht den Boden staubig und hält Gras von Straßen
+  und Häusern fern. `world/TownMeshes.ts` baut alles aus Quadern mit Vertexfarben und verschmilzt die ganze Stadt
+  zu zwei Meshes (mit/ohne Schnee im Winter) plus drei Schildern – ~690 Kollisionsquader, Aufbau in ~0,1 s.
+  Schritte klingen auf Dielen nach Holz und auf Asphalt nach Stein; die Karte zeigt Straßen und Häuser.
+- Tagebuch-Kapitel **„Die verlassene Stadt“** (Stadt finden, 15 Behälter durchsuchen, Konserve, Machete, Taschenlampe).
+
 ### Meilenstein 21 – Höhlenbewohner
 
 - **Kriecher**: bleiche, tief gebückte Höhlenbewohner mit glühenden Augen – in der Dunkelheit sieht man oft nur
@@ -436,6 +462,8 @@ src/
 ├── world/
 │   ├── HeightMap.ts        Prozedurale Höhenkarte (rein, ohne Three.js → testbar)
 │   ├── CaveGenerator.ts    Höhlen: Grundriss, Abstandsfunktion, Surface Nets, Eingangssuche (getestet)
+│   ├── Town.ts             Stadtplan: Bauplatz, Straßen, Gebäude, Requisiten, Stadtfaktor (getestet)
+│   ├── TownMeshes.ts       Gebäude, Möbel, Autos → verschmolzene Meshes, Kollider, Behälter, Türen
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -482,6 +510,7 @@ src/
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer (Fleisch, Fisch)
 │   ├── Fishing.ts          Angeln (Wurf, Biss, Schnur) und Fischreusen (getestet)
 │   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Bewohner-Plätze, Zustand
+│   ├── Settlement.ts       Stadt zur Laufzeit: Kollision, Beutetabellen, Durchsuchen, Entdeckung
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -552,3 +581,5 @@ src/
 20. ~~Angeln, Fischreusen & Standfackeln~~ ✓
 21. ~~Höhlen (Dunkelheit, Feuerstein, Vorratskisten)~~ ✓
 22. ~~Höhlenbewohner~~ ✓
+23. ~~Die verlassene Stadt~~ ✓
+24. Was geschah: Notizen, Briefe und Funkprotokolle

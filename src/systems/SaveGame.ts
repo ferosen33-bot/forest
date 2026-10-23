@@ -1,5 +1,6 @@
 import type { InventoryData } from './Inventory';
 import type { CaveSave } from './Caves';
+import type { SettlementSave } from './Settlement';
 import type { VegetationSave } from '../world/Vegetation';
 import type { HarvestSave } from './HarvestSystem';
 import type { StructureSave } from './building/BuildingSystem';
@@ -55,6 +56,8 @@ export interface SaveData {
   journal?: JournalSave;
   /** Seit Meilenstein 20: entdeckte Höhlen, geöffnete Kisten, abgebauter Feuerstein. */
   caves?: CaveSave;
+  /** Seit Meilenstein 22: Stadt entdeckt, durchsuchte Behälter. */
+  town?: SettlementSave;
 }
 
 /** Kurzinfo für das Startmenü. */

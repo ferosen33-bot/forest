@@ -165,6 +165,16 @@ export class Inventory {
     return this.add(to, 1);
   }
 
+  /** Setzt die Haltbarkeit eines Exemplars wieder auf den Neuwert (z. B. neue Batterie). */
+  restore(index: number): boolean {
+    const s = this.slots[index];
+    const max = s ? getItem(s.id).durability : undefined;
+    if (!s || max === undefined) return false;
+    s.durability = max;
+    this.changed();
+    return true;
+  }
+
   wear(index: number, amount: number): boolean {
     const s = this.slots[index];
     if (!s || s.durability === undefined) return false;

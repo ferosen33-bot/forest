@@ -35,6 +35,14 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   flint: { position: new THREE.Vector3(0.26, -0.27, -0.45), rotation: new THREE.Euler(0.2, 0.5, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1.1 },
   mushroom: { position: new THREE.Vector3(0.24, -0.26, -0.42), rotation: new THREE.Euler(0.25, 0.4, 0), grip: new THREE.Vector3(0, -0.04, 0), scale: 1.3 },
   medkit: { position: new THREE.Vector3(0.22, -0.27, -0.44), rotation: new THREE.Euler(0.35, 0.5, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
+  cannedFood: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.3, 0.4, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1.1 },
+  waterBottle: { position: new THREE.Vector3(0.24, -0.3, -0.45), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.08, 0), scale: 1 },
+  bottle: { position: new THREE.Vector3(0.24, -0.3, -0.45), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.08, 0), scale: 1 },
+  painkillers: { position: new THREE.Vector3(0.22, -0.26, -0.42), rotation: new THREE.Euler(0.4, 0.5, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.3 },
+  machete: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.24, 0), scale: 1 },
+  // Lampe zeigt nach vorne (Längsachse +Y → Blickrichtung).
+  flashlight: { position: new THREE.Vector3(0.26, -0.28, -0.46), rotation: new THREE.Euler(-1.5, 0.05, 0), grip: new THREE.Vector3(0, -0.04, 0), scale: 1 },
+  battery: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.3, 0.4, 0.5), grip: new THREE.Vector3(0, 0, 0), scale: 1.4 },
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
 };
@@ -182,6 +190,14 @@ export class ViewModel {
     if (!this.flame.object.parent || this.raise < 0.5) return null;
     this.scene.updateMatrixWorld();
     return this.flame.object.getWorldPosition(out);
+  }
+
+  /** Weltposition der Lampe (Taschenlampe in der Hand), sonst null. */
+  getLampPosition(out: THREE.Vector3): THREE.Vector3 | null {
+    const lamp = this.currentId === 'flashlight' && this.raise > 0.5 ? this.model?.getObjectByName('lamp') : undefined;
+    if (!lamp) return null;
+    this.scene.updateMatrixWorld();
+    return lamp.getWorldPosition(out);
   }
 
   get flameFlicker(): number {

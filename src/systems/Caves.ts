@@ -113,6 +113,8 @@ export interface CavesDeps {
   spawnPoint: THREE.Vector3;
   /** Hier keine Eingänge (Lager). */
   avoid: THREE.Vector3[];
+  /** Weitere Sperrflächen (Stadt). */
+  avoidAreas?: { x: number; z: number; radius: number }[];
   /** Felsen am Eingang als Hindernis für die Wegfindung melden. */
   markObstacle: (x: number, z: number, radius: number) => void;
 }
@@ -189,6 +191,7 @@ export class Caves {
     const avoid = [
       { x: d.spawnPoint.x, z: d.spawnPoint.z, radius: 130 },
       ...d.avoid.map((p) => ({ x: p.x, z: p.z, radius: 55 })),
+      ...(d.avoidAreas ?? []),
     ];
     findCaveSites(d.heightMap, d.seed, CAVE_COUNT, avoid).forEach((site, index) => {
       const layout = generateLayout(d.seed, index);

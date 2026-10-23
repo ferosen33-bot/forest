@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Audio, SoundId } from './Audio';
 import type { HeightMap } from '../world/HeightMap';
-import type { Physics } from '../core/Physics';
+import type { Physics, RAPIER } from '../core/Physics';
 import type { BuildingSystem } from './building/BuildingSystem';
 import type { Player } from '../entities/Player';
 import type { EventBus } from '../core/EventBus';
@@ -38,6 +38,8 @@ export class Footsteps {
   private readonly origin = new THREE.Vector3();
   /** In einer Höhle klingt jeder Schritt nach Fels. */
   cave = false;
+  /** Stadt: Dielen in Häusern, Asphalt auf der Straße. */
+  town: { isTownCollider(c: RAPIER.Collider): boolean; isPaved(x: number, z: number): boolean } | null = null;
 
   constructor(
     private readonly audio: Audio,
@@ -82,6 +84,10 @@ export class Footsteps {
     // Steht der Spieler auf einem Bauwerk? Kurzer Strahl nach unten.
     this.origin.set(p.x, p.y + 0.3, p.z);
     const hit = this.physics.raycast(this.origin, this.down, 0.6, undefined, true);
+    if (this.town) {
+      if (hit && this.town.isTownCollider(hit.collider)) return 'wood';
+      if (this.town.isPaved(p.x, p.z)) return 'rock';
+    }
     const onStructure = !!hit && !!this.building.getByCollider(hit.collider);
     return surfaceAt(this.heightMap, p.x, p.z, submersion, onStructure);
   }

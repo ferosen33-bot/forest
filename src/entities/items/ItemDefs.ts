@@ -27,7 +27,15 @@ export type ItemId =
   | 'flint'
   | 'flintAxe'
   | 'mushroom'
-  | 'medkit';
+  | 'medkit'
+  | 'cannedFood'
+  | 'waterBottle'
+  | 'bottle'
+  | 'painkillers'
+  | 'machete'
+  | 'flashlight'
+  | 'battery'
+  | 'jacket';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -95,7 +103,9 @@ export interface ItemDef {
   /** Kann geworfen werden (rechte Maustaste zielen, linke werfen). */
   throwable?: { speed: number; damageMultiplier: number };
   /** Rechtsklick im Inventar: dauerhaft anlegen bzw. benutzen (wird dabei verbraucht). */
-  use?: 'backpack' | 'clothing';
+  use?: 'backpack' | 'clothing' | 'battery';
+  /** Leeres Gefäß: am Wasser mit `E` zu diesem Item füllen. */
+  fillsTo?: ItemId;
   /** Fernwaffe: Linksklick gedrückt halten zum Spannen, loslassen zum Schießen. */
   ranged?: RangedStats;
   tool?: ToolStats;
@@ -198,6 +208,82 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     maxStack: 5,
     food: { hunger: 0, thirst: 0, health: 45, medicine: true },
   },
+  cannedFood: {
+    id: 'cannedFood',
+    name: 'Konserve',
+    description: 'Bohneneintopf, noch luftdicht. Macht ohne Feuer satt – Rechtsklick oder Linksklick in der Hand.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 32, thirst: 4, health: 3 },
+  },
+  waterBottle: {
+    id: 'waterBottle',
+    name: 'Wasserflasche',
+    description: 'Eine Plastikflasche voll Wasser. Leer lässt sie sich an jedem Gewässer mit E wieder füllen.',
+    category: 'food',
+    maxStack: 4,
+    food: { hunger: 0, thirst: 40, health: 0, leftover: 'bottle' },
+  },
+  bottle: {
+    id: 'bottle',
+    name: 'Leere Flasche',
+    description: 'In der Hand am Wasser mit E füllen.',
+    category: 'tool',
+    maxStack: 4,
+    fillsTo: 'waterBottle',
+  },
+  painkillers: {
+    id: 'painkillers',
+    name: 'Schmerzmittel',
+    description: 'Eine angebrochene Packung Tabletten aus der Hausapotheke. Lindert Schmerzen und heilt etwas.',
+    category: 'food',
+    maxStack: 6,
+    food: { hunger: 0, thirst: -2, health: 25, medicine: true },
+  },
+  machete: {
+    id: 'machete',
+    name: 'Machete',
+    description: 'Eine lange, scharfe Klinge aus einem Geräteschuppen. Schnell und tödlich – für Bäume taugt sie wenig.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 180,
+    tool: {
+      treeDamage: 12,
+      rockYield: 0,
+      damage: 48,
+      swingTime: 0.48,
+      impactAt: 0.4,
+      staminaCost: 6,
+      reach: 2.6,
+      animation: 'swing',
+    },
+  },
+  flashlight: {
+    id: 'flashlight',
+    name: 'Taschenlampe',
+    description:
+      'Heller und weiter als jede Fackel, brennt nicht im Regen ab – aber Kriecher fürchten ihr kaltes Licht nicht. Batterie hält etwa fünf Minuten.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 300,
+    light: { color: 0xf4f1e6, intensity: 26, distance: 26 },
+  },
+  battery: {
+    id: 'battery',
+    name: 'Batterie',
+    description: 'Rechtsklick: lädt die Taschenlampe im Rucksack wieder voll.',
+    category: 'resource',
+    maxStack: 10,
+    use: 'battery',
+  },
+  jacket: {
+    id: 'jacket',
+    name: 'Winterjacke',
+    description: 'Gefütterte Jacke aus einem Kleiderschrank. Rechtsklick: anziehen – man friert deutlich weniger.',
+    category: 'resource',
+    maxStack: 1,
+    use: 'clothing',
+  },
   fishingRod: {
     id: 'fishingRod',
     name: 'Angelrute',
@@ -214,6 +300,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     // Wird in der Hand benutzt → wie Werkzeuge bevorzugt in den Schnellzugriff.
     category: 'tool',
     maxStack: 3,
+    fillsTo: 'bowlWater',
   },
   bowlWater: {
     id: 'bowlWater',

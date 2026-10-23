@@ -18,6 +18,7 @@ import type { AnimalDirector } from './AnimalDirector';
 import { isCookable, type Cooking } from './Cooking';
 import type { ItemId } from '../entities/items/ItemDefs';
 import type { Caves, CaveTarget } from './Caves';
+import type { LootContainer, Settlement } from './Settlement';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -27,6 +28,7 @@ export type InteractionTarget =
   | { type: 'enemy'; enemy: Enemy; zone: HitZone; hit: RaycastHit }
   | { type: 'animal'; animal: Animal; hit: RaycastHit }
   | { type: 'cave'; cave: CaveTarget; hit: RaycastHit }
+  | { type: 'loot'; container: LootContainer; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -42,6 +44,7 @@ export interface InteractionDeps {
   animals: AnimalDirector;
   cooking: Cooking;
   caves: Caves;
+  settlement: Settlement | null;
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -144,6 +147,8 @@ export class InteractionSystem {
       if (structure) return { type: 'structure', structure, hit };
       const cave = this.deps.caves.getTarget(hit.collider);
       if (cave) return { type: 'cave', cave, hit };
+      const container = this.deps.settlement?.getContainer(hit.collider);
+      if (container) return { type: 'loot', container, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
       if (inst) {
         switch (inst.kind) {
@@ -251,6 +256,11 @@ export class InteractionSystem {
       }
       case 'enemy':
         return null;
+      case 'loot': {
+        if (target.hit.distance > INTERACT_REACH) return null;
+        const c = target.container;
+        return c.searched ? { key: null, action: 'Durchsucht', label: c.label } : { key: 'E', action: 'Durchsuchen', label: c.label };
+      }
       case 'cave': {
         const c = target.cave;
         if (c.type === 'flint') {
@@ -276,9 +286,11 @@ export class InteractionSystem {
       case 'animal':
         if (!target.animal.isDead || target.hit.distance > INTERACT_REACH) return null;
         return { key: 'E', action: 'Ausnehmen', label: target.animal.name };
-      case 'water':
-        if (this.deps.heldItem() === 'bowl') return { key: 'E', action: 'Schale füllen', label: 'Wasser' };
+      case 'water': {
+        const held = this.deps.heldItem();
+        if (held && getItem(held).fillsTo) return { key: 'E', action: held === 'bowl' ? 'Schale füllen' : 'Flasche füllen', label: 'Wasser' };
         return { key: 'E', action: 'Trinken', label: 'Wasser' };
+      }
     }
   }
 
@@ -345,6 +357,9 @@ export class InteractionSystem {
       case 'animal':
         this.deps.animals.butcher(target.animal);
         break;
+      case 'loot':
+        this.deps.settlement?.search(target.container);
+        break;
       case 'cave': {
         const c = target.cave;
         if (c.type === 'entrance' || c.type === 'exit') this.deps.onCave(c);
@@ -353,8 +368,9 @@ export class InteractionSystem {
         break;
       }
       case 'water':
-        if (this.deps.heldItem() === 'bowl') {
-          this.deps.transformHeld('bowlWater');
+        const fills = this.deps.heldItem() ? getItem(this.deps.heldItem()!).fillsTo : undefined;
+        if (fills) {
+          this.deps.transformHeld(fills);
           this.audio.play('drink', 0.6);
           break;
         }

@@ -45,6 +45,19 @@ const MATERIALS = {
   mushroomCap: mat(0x2fc8b4, { roughness: 0.5, emissive: 0x138a7c, emissiveIntensity: 1.2 }),
   mushroomStem: mat(0xd6e8e0, { roughness: 0.8, emissive: 0x2a5a52, emissiveIntensity: 0.5 }),
   linen: mat(0xe8e2d0, { roughness: 1 }),
+  tin: mat(0xa9aba6, { roughness: 0.4, metalness: 0.4 }),
+  label: mat(0xb8432e, { roughness: 0.8 }),
+  plastic: mat(0x9fc4d4, { roughness: 0.25, transparent: true, opacity: 0.7, flatShading: false }),
+  bottleWater: mat(0x4a86a8, { roughness: 0.15, transparent: true, opacity: 0.75, flatShading: false }),
+  cap: mat(0x2f5f9a, { roughness: 0.6 }),
+  pillbox: mat(0xe9e6de, { roughness: 0.7 }),
+  blade: mat(0xa4a9ad, { roughness: 0.35, metalness: 0.45 }),
+  grip: mat(0x1f1f1f, { roughness: 0.8 }),
+  lampBody: mat(0x2b2e33, { roughness: 0.5, metalness: 0.3 }),
+  lens: mat(0xfff6d8, { roughness: 0.2, emissive: 0xfff0c0, emissiveIntensity: 0.6 }),
+  batteryBody: mat(0x2c7a3c, { roughness: 0.5 }),
+  jacket: mat(0x3d5a7a, { roughness: 1 }),
+  jacketDark: mat(0x2c4259, { roughness: 1 }),
   redCross: mat(0xb02a24, { roughness: 0.8 }),
 };
 
@@ -343,6 +356,88 @@ function build(id: ItemId): THREE.Object3D {
       g.add(band);
       break;
     }
+    case 'cannedFood': {
+      const tin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.11, 12), MATERIALS.tin);
+      g.add(tin);
+      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.051, 0.051, 0.07, 12), MATERIALS.label);
+      g.add(label);
+      break;
+    }
+    case 'waterBottle':
+    case 'bottle': {
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.038, 0.2, 10), id === 'bottle' ? MATERIALS.plastic : MATERIALS.bottleWater);
+      g.add(body);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.034, 0.05, 10), MATERIALS.plastic);
+      neck.position.y = 0.125;
+      g.add(neck);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.02, 8), MATERIALS.cap);
+      cap.position.y = 0.16;
+      g.add(cap);
+      break;
+    }
+    case 'painkillers': {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.03), MATERIALS.pillbox);
+      g.add(box);
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.092, 0.012, 0.032), MATERIALS.redCross);
+      g.add(stripe);
+      break;
+    }
+    case 'machete': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.14, 6), MATERIALS.grip);
+      handle.position.y = -0.18;
+      g.add(handle);
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.03), MATERIALS.grip);
+      guard.position.y = -0.105;
+      g.add(guard);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.006), MATERIALS.blade);
+      blade.position.set(0.006, 0.11, 0);
+      g.add(blade);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.05, 0.006), MATERIALS.blade);
+      tip.position.set(0.0, 0.34, 0);
+      tip.rotation.z = 0.5;
+      g.add(tip);
+      break;
+    }
+    case 'flashlight': {
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.16, 8), MATERIALS.lampBody);
+      g.add(body);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 0.05, 10), MATERIALS.lampBody);
+      head.position.y = 0.1;
+      g.add(head);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.026, 10), MATERIALS.lens);
+      lens.rotation.x = -Math.PI / 2;
+      lens.position.y = 0.126;
+      g.add(lens);
+      // Lichtquelle vor der Linse (für die Hand-Lampe).
+      const lamp = new THREE.Object3D();
+      lamp.name = 'lamp';
+      lamp.position.y = 0.14;
+      g.add(lamp);
+      break;
+    }
+    case 'battery': {
+      const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 8), MATERIALS.batteryBody);
+      g.add(cell);
+      const plus = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.006, 6), MATERIALS.tin);
+      plus.position.y = 0.028;
+      g.add(plus);
+      break;
+    }
+    case 'jacket': {
+      const torso = new THREE.Mesh(jitter(new THREE.CylinderGeometry(0.16, 0.2, 0.5, 8, 2), 0.01, 97), MATERIALS.jacket);
+      g.add(torso);
+      const collar = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 5, 10), MATERIALS.jacketDark);
+      collar.rotation.x = Math.PI / 2;
+      collar.position.y = 0.25;
+      g.add(collar);
+      for (const s of [-1, 1]) {
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.36, 6), MATERIALS.jacket);
+        sleeve.position.set(s * 0.22, 0.05, 0);
+        sleeve.rotation.z = s * 0.45;
+        g.add(sleeve);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -416,6 +511,21 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.ball(0.07).setDensity(600);
     case 'medkit':
       return RAPIER.ColliderDesc.cylinder(0.05, 0.05).setDensity(400);
+    case 'cannedFood':
+      return RAPIER.ColliderDesc.cylinder(0.055, 0.05).setDensity(900);
+    case 'waterBottle':
+    case 'bottle':
+      return RAPIER.ColliderDesc.cylinder(0.1, 0.037).setDensity(id === 'bottle' ? 100 : 900);
+    case 'painkillers':
+      return RAPIER.ColliderDesc.cuboid(0.045, 0.025, 0.015).setDensity(300);
+    case 'machete':
+      return RAPIER.ColliderDesc.cuboid(0.03, 0.26, 0.01).setDensity(2000);
+    case 'flashlight':
+      return RAPIER.ColliderDesc.cylinder(0.1, 0.025).setDensity(700);
+    case 'battery':
+      return RAPIER.ColliderDesc.cylinder(0.025, 0.014).setDensity(2000);
+    case 'jacket':
+      return RAPIER.ColliderDesc.cylinder(0.25, 0.2).setDensity(250);
     case 'rawFish':
     case 'cookedFish':
       return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);

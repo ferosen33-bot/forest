@@ -17,6 +17,8 @@ export type Trigger =
   | { on: 'fish' }
   | { on: 'cave' }
   | { on: 'crate' }
+  | { on: 'town' }
+  | { on: 'loot' }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'day'; day: number };
@@ -96,6 +98,17 @@ export const CHAPTERS: Chapter[] = [
       { id: 'caves', text: 'Alle drei Höhlen erkunden', trigger: { on: 'cave' }, count: 3 },
     ],
   },
+  {
+    title: 'Die verlassene Stadt',
+    intro: 'Hinter den Hügeln liegt ein Ort mit Straßen und Häusern. Niemand ist mehr da – zumindest kein Mensch.',
+    objectives: [
+      { id: 'town', text: 'Die Stadt finden', trigger: { on: 'town' } },
+      { id: 'loot', text: 'Schränke, Regale und Autos durchsuchen', trigger: { on: 'loot' }, count: 15 },
+      { id: 'canned', text: 'Eine Konserve essen', trigger: { on: 'eat', item: 'cannedFood' } },
+      { id: 'machete', text: 'Eine Machete finden', trigger: { on: 'collect', item: 'machete' } },
+      { id: 'flashlight', text: 'Eine Taschenlampe finden', trigger: { on: 'collect', item: 'flashlight' } },
+    ],
+  },
 ];
 
 export interface JournalSave {
@@ -128,6 +141,8 @@ export class Journal {
       if (first) this.advance((t) => t.on === 'cave');
     });
     events.on('cave:crate', () => this.advance((t) => t.on === 'crate'));
+    events.on('town:discovered', () => this.advance((t) => t.on === 'town'));
+    events.on('loot:searched', () => this.advance((t) => t.on === 'loot'));
     events.on('fish:caught', ({ count }) => this.advance((t) => t.on === 'fish', count));
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));

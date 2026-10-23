@@ -31,6 +31,8 @@ import { Cooking } from '../systems/Cooking';
 import { Climate } from '../systems/Climate';
 import { Fishing, FishTraps } from '../systems/Fishing';
 import { Caves, type CaveTarget } from '../systems/Caves';
+import { Settlement } from '../systems/Settlement';
+import { townWorld } from '../world/Town';
 import { SaveStore, SAVE_VERSION, worldKey, type SaveData } from '../systems/SaveGame';
 import { QUALITY, SettingsStore, type Settings } from '../systems/Settings';
 import { SettingsUI } from '../ui/SettingsUI';
@@ -115,6 +117,8 @@ export class Game {
   fishing!: Fishing;
   fishTraps!: FishTraps;
   caves!: Caves;
+  /** Die verlassene Stadt (null, falls die Insel keinen Bauplatz bot). */
+  settlement: Settlement | null = null;
   /** Laufender Übergang in eine Höhle bzw. hinaus (Abblenden, Teleport in der Mitte). */
   private caveTransition: { timer: number; target: CaveTarget; applied: boolean } | null = null;
   ambience!: Ambience;
@@ -264,9 +268,17 @@ export class Game {
       dayNight: this.dayNight,
       config: cfg,
       spawnPoint: this.world.spawnPoint,
-      isPlayerLit: () => !!(this.tools.equipped && getItem(this.tools.equipped.id).light),
+      isPlayerLit: () => !!this.heldLight(),
+      isPlayerFire: () => this.tools.equipped?.id === 'torch',
       rain: () => this.climate.weather.rain,
       playerHidden: () => !!this.caves?.current,
+      town: this.world.town
+        ? (() => {
+            const t = this.world.town!;
+            const p = townWorld(t, t.plaza.x, t.plaza.z);
+            return { center: t.center, radius: t.radius, plaza: new THREE.Vector3(p.x, t.center.y, p.z) };
+          })()
+        : null,
     });
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
@@ -312,9 +324,27 @@ export class Game {
       seed: cfg.seed,
       spawnPoint: this.world.spawnPoint,
       avoid: this.enemies.camps.map((c) => c.center),
+      // Keine Höhle in der Stadt (großzügig: Eingang samt Felshügel).
+      avoidAreas: this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 50 }] : [],
       markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
     });
     this.scene.add(this.caves.group);
+    if (this.world.town) {
+      this.menu.setLoading('Die Stadt wird aufgebaut …');
+      await nextFrame();
+      this.settlement = new Settlement({
+        physics: this.physics,
+        town: this.world.town,
+        seed: cfg.seed,
+        items: this.items,
+        audio: this.audio,
+        events: this.events,
+        markObstacle: (x, z, yaw, hx, hz) => this.enemies.nav.markBox(x, z, yaw, hx, hz, 1),
+        markDoor: (door) => this.enemies.nav.markPassage(door.position.x, door.position.z, door.yaw, door.halfX, door.halfZ, 1),
+      });
+      this.scene.add(this.settlement.group);
+      this.footsteps.town = this.settlement;
+    }
     this.enemies.onCaveDwellerKilled = (cave, slot) => this.caves.dwellerKilled(cave, slot, this.dayNight.day);
     this.climate = new Climate({
       physics: this.physics,
@@ -359,6 +389,7 @@ export class Game {
       animals: this.animals,
       cooking: this.cooking,
       caves: this.caves,
+      settlement: this.settlement,
       items: this.items,
       audio: this.audio,
       events: this.events,
@@ -438,6 +469,7 @@ export class Game {
       }
     });
     this.mapUI = new MapUI(document.getElementById('map')!, this.world.heightMap, this.world.vegetation, this.exploration);
+    if (this.world.town) this.mapUI.drawTown(this.world.town);
     this.compass = new Compass(this.hud.compassCanvas);
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
     this.inventoryUI.onCraft = (recipe) => this.craft(recipe);
@@ -516,6 +548,7 @@ export class Game {
       camps: [...this.discoveredCamps],
       journal: this.journal.serialize(),
       caves: this.caves.serialize(),
+      ...(this.settlement ? { town: this.settlement.serialize() } : {}),
     };
   }
 
@@ -537,6 +570,7 @@ export class Game {
     const s = this.player.stats;
     // In einer Höhle gespeichert: Innenraum (samt Kollision) muss vor dem Aufsetzen stehen.
     if (d.caves) this.caves.load(d.caves);
+    if (d.town) this.settlement?.load(d.town);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
     if (cave) {
@@ -789,6 +823,14 @@ export class Game {
   }
 
   /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
+  /** Licht des Items in der Hand (Taschenlampe nur mit geladener Batterie). */
+  private heldLight(): ReturnType<typeof getItem>['light'] {
+    const stack = this.tools.equipped;
+    if (!stack) return undefined;
+    if (stack.id === 'flashlight' && (stack.durability ?? 0) <= 1) return undefined;
+    return getItem(stack.id).light;
+  }
+
   /** Großer Rucksack: zwölf zusätzliche Plätze (einmalig). */
   private hasBackpack = false;
 
@@ -815,13 +857,29 @@ export class Game {
     }
     if (use === 'clothing') {
       if (this.player.stats.clothing) {
-        this.events.emit('hud:message', { text: 'Du trägst schon einen Fellmantel.' });
+        this.events.emit('hud:message', { text: 'Du trägst schon warme Kleidung.' });
         return;
       }
       this.inventory.takeFromSlot(slot, 1);
       this.player.stats.clothing = true;
       this.audio.play('craft');
-      this.events.emit('hud:message', { text: 'Fellmantel angezogen – Nässe macht dir jetzt viel weniger aus.' });
+      this.events.emit('hud:message', { text: `${getItem(stack.id).name} angezogen – Kälte und Nässe machen dir jetzt viel weniger aus.` });
+      return;
+    }
+    if (use === 'battery') {
+      // Die leerste Taschenlampe im Rucksack bekommt die Batterie.
+      let lamp = -1;
+      this.inventory.slots.forEach((s, i) => {
+        if (s?.id === 'flashlight' && (lamp < 0 || (s.durability ?? 0) < (this.inventory.slots[lamp]!.durability ?? 0))) lamp = i;
+      });
+      if (lamp < 0) {
+        this.events.emit('hud:message', { text: 'Keine Taschenlampe im Rucksack.' });
+        return;
+      }
+      this.inventory.takeFromSlot(slot, 1);
+      this.inventory.restore(lamp);
+      this.audio.play('pickup');
+      this.events.emit('hud:message', { text: 'Neue Batterie eingelegt – die Taschenlampe ist voll.' });
       return;
     }
     if (getItem(stack.id).food) {
@@ -961,11 +1019,18 @@ export class Game {
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
     this.updateFishing(dt, playing && !building);
 
-    // Fackel in der Hand → Licht an der Flamme.
-    const light = this.tools.equipped ? getItem(this.tools.equipped.id).light : undefined;
+    // Fackel in der Hand → Licht an der Flamme; Taschenlampe → ruhiges Licht ein Stück vor der Lampe.
+    const light = this.heldLight();
     if (light && this.viewModel.getFlamePosition(this.torchLight.position)) {
       this.torchLight.color.set(light.color);
       this.torchLight.intensity = light.intensity * this.viewModel.flameFlicker;
+      this.torchLight.distance = light.distance;
+      this.lights.request(this.torchLight);
+    } else if (light && this.viewModel.getLampPosition(this.torchLight.position)) {
+      this.camera.getWorldDirection(this.tmpDir);
+      this.torchLight.position.addScaledVector(this.tmpDir, 2.2);
+      this.torchLight.color.set(light.color);
+      this.torchLight.intensity = light.intensity;
       this.torchLight.distance = light.distance;
       this.lights.request(this.torchLight);
     }
@@ -1019,6 +1084,7 @@ export class Game {
       this.exploreTimer = 0.5;
       this.exploration.reveal(p.x, p.z, 70);
       this.caves.updateDiscovery(p);
+      this.settlement?.updateDiscovery(p);
       this.enemies.camps.forEach((c, i) => {
         if (!this.discoveredCamps.has(i) && c.center.distanceTo(p) < 60) {
           this.discoveredCamps.add(i);

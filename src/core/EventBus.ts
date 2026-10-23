@@ -39,6 +39,9 @@ export type GameEvents = {
   /** Höhle betreten (`first`: zum ersten Mal), Vorratskiste geöffnet. */
   'cave:entered': { index: number; first: boolean };
   'cave:crate': { index: number };
+  /** Stadt: Behälter durchsucht, Ort entdeckt. */
+  'loot:searched': { kind: string; items: ItemId[] };
+  'town:discovered': { name: string };
   /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */
   'fish:caught': { count: number; trap: boolean };
   /** Tagebuch: ein Ziel wurde erreicht. */

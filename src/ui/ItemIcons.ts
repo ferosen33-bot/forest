@@ -29,6 +29,14 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   flintAxe: new THREE.Euler(0, 0.35, -0.65),
   mushroom: new THREE.Euler(0.35, 0.3, 0),
   medkit: new THREE.Euler(0.5, 0.6, 0),
+  cannedFood: new THREE.Euler(0.35, 0.4, 0),
+  waterBottle: new THREE.Euler(0.2, 0.3, -0.4),
+  bottle: new THREE.Euler(0.2, 0.3, -0.4),
+  painkillers: new THREE.Euler(0.5, 0.6, 0.1),
+  machete: new THREE.Euler(0, 0.3, -0.75),
+  flashlight: new THREE.Euler(0.2, 0.3, -0.7),
+  battery: new THREE.Euler(0.3, 0.3, -0.5),
+  jacket: new THREE.Euler(0.2, 0.5, 0),
 };
 
 export interface IconSets {

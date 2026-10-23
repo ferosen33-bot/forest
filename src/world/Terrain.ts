@@ -16,6 +16,7 @@ const PALETTE = {
   dirt: new THREE.Color(0x54452f),
   rock: new THREE.Color(0x6c6962),
   rockDark: new THREE.Color(0x48453f),
+  urban: new THREE.Color(0x5e584a),
 };
 
 const tmpColor = new THREE.Color();
@@ -62,6 +63,8 @@ export class Terrain {
     readonly heightMap: HeightMap,
     readonly chunkSize: number,
     seed: number,
+    /** Bebauung 0..1 (Stadt): staubiger, zertretener Boden statt Wiese. */
+    private readonly urban?: (x: number, z: number) => number,
   ) {
     this.group.name = 'Terrain';
     this.colorNoise = createNoise2D(mulberry32(deriveSeed(seed, 'terrain-color')));
@@ -245,6 +248,9 @@ export class Terrain {
     if (rockT > 0) {
       out.lerp(tmpColor.copy(PALETTE.rock).lerp(PALETTE.rockDark, n1), rockT);
     }
+
+    const u = this.urban?.(x, z) ?? 0;
+    if (u > 0) out.lerp(tmpColor.copy(PALETTE.urban).lerp(PALETTE.dirt, n1 * 0.5), u * 0.8);
 
     out.multiplyScalar(1 + fine);
   }

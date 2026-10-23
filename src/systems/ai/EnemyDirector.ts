@@ -78,6 +78,10 @@ export interface DirectorDeps {
   rain: () => number;
   /** Spieler ist in einer Höhle (für Schrate draußen unauffindbar). */
   playerHidden: () => boolean;
+  /** Spieler hält eine brennende Fackel (Kriecher scheuen nur Feuer, kein Lampenlicht). */
+  isPlayerFire: () => boolean;
+  /** Die verlassene Stadt: Plünderer haben sich auf dem Marktplatz eingerichtet. */
+  town?: { center: THREE.Vector3; radius: number; plaza: THREE.Vector3 } | null;
 }
 
 const MAX_ENEMIES = 24;
@@ -210,14 +214,18 @@ export class EnemyDirector {
   /** Lager deterministisch auf flachem, trockenem Land weit weg vom Spawn verteilen. */
   private createCamps(): void {
     const hm = this.d.heightMap;
+    const town = this.d.town;
+    // Das Lager der Plünderer in der Stadt ist größer als die im Wald.
+    if (town) this.addCamp(town.plaza.clone(), ['schrat', 'spaeher', 'schrat', 'spaeher', 'koloss']);
     const n: [number, number, number] = [0, 1, 0];
-    for (let attempt = 0; attempt < 4000 && this.camps.length < this.cfg.camps; attempt++) {
+    for (let attempt = 0; attempt < 4000 && this.camps.length < this.cfg.camps + (town ? 1 : 0); attempt++) {
       const x = (this.rng() - 0.5) * hm.size * 0.8;
       const z = (this.rng() - 0.5) * hm.size * 0.8;
       const h = hm.heightAt(x, z);
       if (h < 4 || h > 30 || hm.normalAt(x, z, n)[1] < 0.985) continue;
       const c = new THREE.Vector3(x, h, z);
       if (c.distanceTo(this.d.spawnPoint) < this.cfg.campMinDistance) continue;
+      if (town && Math.hypot(x - town.center.x, z - town.center.z) < town.radius + 80) continue;
       if (this.camps.some((o) => o.center.distanceTo(c) < 140)) continue;
       // Rund ums Lager muss genug begehbarer Platz sein.
       let free = 0;
@@ -230,7 +238,7 @@ export class EnemyDirector {
     }
   }
 
-  private addCamp(center: THREE.Vector3): void {
+  private addCamp(center: THREE.Vector3, roster?: EnemyKind[]): void {
     // Bäume im Lager entfernen (Lichtung).
     for (const v of this.d.vegetation.instances) {
       if (v.alive && v.position.distanceTo(center) < 7.5 && v.kind !== 'stick' && v.kind !== 'pebble') {
@@ -252,11 +260,11 @@ export class EnemyDirector {
       fire,
       light: { position: center.clone().add(new THREE.Vector3(0, 0.8, 0)), color: new THREE.Color(0xff7a30), intensity: 0, distance: 28 },
       members: new Set(),
-      roster: this.rosterFor(this.camps.length),
+      roster: roster ?? this.rosterFor(this.camps.length),
       respawnTimer: 0,
     };
     this.camps.push(camp);
-    for (let i = 0; i < this.cfg.perCamp; i++) this.spawnAt(camp);
+    for (let i = 0; i < (roster ? roster.length : this.cfg.perCamp); i++) this.spawnAt(camp);
   }
 
   /** Gemischte Besetzung: jedes Lager hat einen Späher, jedes zweite einen Koloss. */
@@ -362,7 +370,7 @@ export class EnemyDirector {
       player: target,
       isNight: true,
       // Die einzige Flamme unter Tage ist die Fackel des Spielers.
-      fireNear: (pos, radius) => (d.isPlayerLit() && pos.distanceTo(player.position) < radius ? player.position : null),
+      fireNear: (pos, radius) => (d.isPlayerFire() && pos.distanceTo(player.position) < radius ? player.position : null),
       structureByCollider: () => undefined,
       damageStructure: () => {},
       alertAllies: (source) => {

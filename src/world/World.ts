@@ -6,6 +6,7 @@ import { Vegetation } from './Vegetation';
 import { Grass } from './Grass';
 import type { Physics } from '../core/Physics';
 import type { GameConfig } from '../config';
+import { findTownSite, generateTown, TOWN_FLAT_BLEND, TOWN_FLAT_RADIUS, urbanAt, type TownLayout } from './Town';
 
 /**
  * Bündelt alle statischen Welt-Bestandteile: Höhenkarte, Terrain, Wasser, Vegetation.
@@ -18,6 +19,8 @@ export class World {
   readonly vegetation: Vegetation;
   readonly grass: Grass | null;
   readonly spawnPoint: THREE.Vector3;
+  /** Die verlassene Kleinstadt (null, falls die Insel keinen Platz bietet). */
+  readonly town: TownLayout | null;
 
   constructor(scene: THREE.Scene, physics: Physics, config: GameConfig) {
     const { world, seed } = config;
@@ -29,11 +32,17 @@ export class World {
       seed,
       waterLevel: world.waterLevel,
     });
+    // Bauplatz der Stadt einebnen – vor Physik und Gelände-Mesh, damit beide dieselben Höhen sehen.
+    const site = findTownSite(this.heightMap, seed);
+    this.town = site ? generateTown(seed, site) : null;
+    if (site) this.heightMap.flatten(site.x, site.z, TOWN_FLAT_RADIUS, TOWN_FLAT_BLEND, site.y);
+    const town = this.town;
+    const urban = town ? (x: number, z: number) => urbanAt(town, x, z) : undefined;
     physics.addTerrain(this.heightMap);
     const tHeight = performance.now() - t;
 
     t = performance.now();
-    this.terrain = new Terrain(this.heightMap, world.chunkSize, seed);
+    this.terrain = new Terrain(this.heightMap, world.chunkSize, seed, urban);
     scene.add(this.terrain.group);
     const tTerrain = performance.now() - t;
 
@@ -48,13 +57,24 @@ export class World {
       seed,
       cellSize: world.vegetationCellSize,
       cullDistance: config.graphics.vegetationDistance,
-      clearings: [{ x: spawn.x, z: spawn.z, radius: 7 }],
+      clearings: [
+        { x: spawn.x, z: spawn.z, radius: 7 },
+        ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),
+      ],
     });
     scene.add(this.vegetation.group);
     const tVeg = performance.now() - t;
 
     const g = config.graphics;
-    this.grass = g.grassRadius > 0 ? new Grass(this.heightMap, { seed, radius: g.grassRadius, spacing: g.grassSpacing }) : null;
+    this.grass =
+      g.grassRadius > 0
+        ? new Grass(this.heightMap, {
+            seed,
+            radius: g.grassRadius,
+            spacing: g.grassSpacing,
+            density: urban ? (x, z) => 1 - (urban(x, z) ?? 0) : undefined,
+          })
+        : null;
     if (this.grass) scene.add(this.grass.mesh);
 
     console.info(

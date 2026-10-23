@@ -3,6 +3,7 @@ import type { Vegetation } from '../world/Vegetation';
 import { isTree } from '../world/Vegetation';
 import type { Exploration } from '../systems/Exploration';
 import { clamp, smoothstep } from '../utils/math';
+import { townWorld, type TownLayout } from '../world/Town';
 
 /** Was die Karte außer dem Gelände zeigt. */
 export interface MapMarkers {
@@ -60,6 +61,47 @@ export class MapUI {
   }
 
   /** Welt → Kartenpixel */
+  /** Straßen und Häuser der Stadt einmalig in die Grundkarte zeichnen (unter dem Erkundungsnebel). */
+  drawTown(t: TownLayout): void {
+    const ctx = this.base.getContext('2d')!;
+    const pt = (x: number, z: number) => {
+      const w = townWorld(t, x, z);
+      return this.px(w.x, w.z);
+    };
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#4a4844';
+    for (const s of t.streets) {
+      ctx.lineWidth = Math.max(2, (s.width * RES) / this.heightMap.size);
+      ctx.beginPath();
+      ctx.moveTo(...pt(s.ax, s.az));
+      ctx.lineTo(...pt(s.bx, s.bz));
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#6e6658';
+    ctx.strokeStyle = '#2b2620';
+    ctx.lineWidth = 0.8;
+    for (const b of t.buildings) {
+      const c = Math.cos(b.rotation);
+      const s = Math.sin(b.rotation);
+      ctx.beginPath();
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([u, v], i) => {
+        const lx = (u * b.w) / 2;
+        const lz = (v * b.d) / 2;
+        const [x, y] = pt(b.x + c * lx + s * lz, b.z - s * lx + c * lz);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    const [lx, ly] = pt(0, 0);
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(30, 26, 18, 0.85)';
+    ctx.fillText(t.name, lx, ly - 26);
+  }
+
   private px(x: number, z: number): [number, number] {
     const s = RES / this.heightMap.size;
     return [(x + this.heightMap.half) * s, (z + this.heightMap.half) * s];

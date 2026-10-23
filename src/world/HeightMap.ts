@@ -139,6 +139,31 @@ export class HeightMap {
     return h;
   }
 
+  /**
+   * Ebnet eine runde Fläche auf Höhe `y` ein (Bauplatz der Stadt) und lässt sie über `blend` m
+   * weich ins Gelände übergehen. Muss vor dem Aufbau von Terrain und Physik aufgerufen werden.
+   */
+  flatten(cx: number, cz: number, radius: number, blend: number, y: number): void {
+    const r = radius + blend;
+    const i0 = Math.max(0, Math.floor((cx - r + this.half) / this.cellSize));
+    const i1 = Math.min(this.cells, Math.ceil((cx + r + this.half) / this.cellSize));
+    const k0 = Math.max(0, Math.floor((cz - r + this.half) / this.cellSize));
+    const k1 = Math.min(this.cells, Math.ceil((cz + r + this.half) / this.cellSize));
+    for (let iz = k0; iz <= k1; iz++) {
+      for (let ix = i0; ix <= i1; ix++) {
+        const x = ix * this.cellSize - this.half;
+        const z = iz * this.cellSize - this.half;
+        const d = Math.hypot(x - cx, z - cz);
+        if (d >= r) continue;
+        const t = 1 - smoothstep(radius, r, d);
+        const i = iz * this.samples + ix;
+        this.heights[i] = lerp(this.heights[i], y, t);
+      }
+    }
+    this.minHeight = Math.min(this.minHeight, y);
+    this.maxHeight = Math.max(this.maxHeight, y);
+  }
+
   // ---------------------------------------------------------------------------
   // Abfragen
   // ---------------------------------------------------------------------------

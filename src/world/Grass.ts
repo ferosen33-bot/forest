@@ -10,6 +10,8 @@ export interface GrassOptions {
   radius?: number;
   /** Rasterabstand der Grasbüschel (m). */
   spacing?: number;
+  /** Zusätzlicher Dichte-Faktor 0..1 je Weltposition (z. B. kein Gras auf Straßen und unter Häusern). */
+  density?: (x: number, z: number) => number;
 }
 
 /**
@@ -94,7 +96,10 @@ export class Grass {
     const noise = createNoise2D(mulberry32(deriveSeed(opts.seed, 'grass')));
     const mask = new Uint8Array(hm.samples * hm.samples);
     for (let iz = 0; iz < hm.samples; iz++) {
-      for (let ix = 0; ix < hm.samples; ix++) mask[iz * hm.samples + ix] = Math.round(grassDensity(hm, ix, iz, noise) * 255);
+      for (let ix = 0; ix < hm.samples; ix++) {
+        const extra = opts.density ? opts.density(ix * hm.cellSize - hm.half, iz * hm.cellSize - hm.half) : 1;
+        mask[iz * hm.samples + ix] = Math.round(grassDensity(hm, ix, iz, noise) * extra * 255);
+      }
     }
     const maskTex = new THREE.DataTexture(mask, hm.samples, hm.samples, THREE.RedFormat, THREE.UnsignedByteType);
     maskTex.magFilter = THREE.LinearFilter;

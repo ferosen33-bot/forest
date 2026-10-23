@@ -106,8 +106,13 @@ export class ToolController {
     // Das ViewModel zeigt immer, was im gewählten Slot liegt (auch nach Inventar-Änderungen).
     const stack = this.equipped;
     this.viewModel.equip(stack?.id ?? null);
-    // Fackeln brennen ab, solange man sie in der Hand hält.
+    // Fackeln brennen ab, solange man sie in der Hand hält; die Taschenlampe leert ihre Batterie
+    // (sie geht dabei nicht kaputt – eine leere Lampe bleibt für neue Batterien im Rucksack).
     if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt * this.torchBurnRate);
+    if (stack?.id === 'flashlight' && !this.player.stats.isDead && (stack.durability ?? 0) > 1) {
+      this.inventory.wear(this.selected, Math.min(dt, (stack.durability ?? 0) - 1));
+      if ((stack.durability ?? 0) <= 1) this.events.emit('hud:message', { text: 'Die Batterie der Taschenlampe ist leer.' });
+    }
 
     if (this.swing) this.updateSwing(dt);
     if (this.eating) this.updateEating(dt);
@@ -165,7 +170,7 @@ export class ToolController {
     // Horizontale Schlagrichtung aus der Blickrichtung des Spielers.
     this.fromDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
 
-    if (!target || target.type === 'water' || target.type === 'item' || target.type === 'bush' || target.type === 'ground') {
+    if (!target || target.type === 'water' || target.type === 'item' || target.type === 'bush' || target.type === 'ground' || target.type === 'loot') {
       this.audio.play('swing');
       return;
     }
