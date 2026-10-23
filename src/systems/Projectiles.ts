@@ -40,6 +40,8 @@ export interface ProjectileDeps {
   groundAt: (x: number, z: number) => number;
   /** Treffer eines feindlichen Geschosses am Spieler (Blocken wird dort berücksichtigt). */
   hitPlayer: (damage: number, from: THREE.Vector3) => void;
+  /** Ein Geschoss des Spielers hat eine Kreatur getroffen (für die Fertigkeit Bogenschießen). */
+  onPlayerHit?: (killed: boolean, headshot: boolean) => void;
 }
 
 const GRAVITY = PROJECTILE_GRAVITY;
@@ -152,12 +154,14 @@ export class Projectiles {
       const enemy = this.d.enemies.getHitTarget(c);
       if (enemy) {
         this.d.enemies.damage(enemy.enemy, p.damage, enemy.zone, p.prev, point, this.normal);
+        if (!p.hostile) this.d.onPlayerHit?.(enemy.enemy.isDead, enemy.zone === 'head');
         this.bounce(p, point);
         return true;
       }
       const animal = this.d.animals.getByCollider(c);
       if (animal && !animal.isDead) {
-        this.d.animals.damage(animal, p.damage, p.prev, point, this.normal);
+        const killed = this.d.animals.damage(animal, p.damage, p.prev, point, this.normal);
+        if (!p.hostile) this.d.onPlayerHit?.(killed, false);
         this.bounce(p, point);
         return true;
       }

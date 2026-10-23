@@ -39,6 +39,8 @@ export const KEY_BINDINGS = {
   map: ['KeyM'],
   /** Tagebuch ein/aus. */
   journal: ['KeyJ'],
+  /** Fertigkeiten ein/aus. */
+  skills: ['KeyK'],
   /** Debug: nächste Wetterlage (nur mit sichtbarer Debug-Anzeige). */
   weather: ['KeyY'],
 } as const satisfies Record<string, readonly string[]>;

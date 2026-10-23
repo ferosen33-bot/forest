@@ -30,6 +30,10 @@ export class PlayerStats {
   clothing = false;
   /** Grundkälte der Jahreszeit (0..1, nachts voll, tagsüber ein Drittel) – vom Klima gesetzt. */
   chill = 0;
+  /** Fertigkeiten: Faktor auf Hunger/Durst (Überleben) und Ausdauer-Verbrauch/-Erholung (Ausdauer). */
+  needsFactor = 1;
+  staminaFactor = 1;
+  regenFactor = 1;
 
   private regenDelay = 0;
   private readonly cfg: GameConfig['stats'];
@@ -63,21 +67,21 @@ export class PlayerStats {
     if (activity.sprinting) staminaDrain += c.staminaSprintCost;
     if (activity.swimming) staminaDrain += c.staminaSwimCost;
     if (staminaDrain > 0) {
-      this.stamina -= staminaDrain * dt;
+      this.stamina -= staminaDrain * this.staminaFactor * dt;
       this.regenDelay = c.staminaRegenDelay;
     } else if (this.regenDelay > 0) {
       this.regenDelay -= dt;
     } else {
       // Wer hungrig oder durstig ist, regeneriert langsamer.
       const needs = Math.min(this.hunger, this.thirst) / c.max;
-      this.stamina += c.staminaRegen * (0.4 + 0.6 * needs) * (this.warm ? 1.6 : 1) * (1 - 0.45 * this.cold) * dt;
+      this.stamina += c.staminaRegen * this.regenFactor * (0.4 + 0.6 * needs) * (this.warm ? 1.6 : 1) * (1 - 0.45 * this.cold) * dt;
     }
     this.stamina = clamp(this.stamina, 0, c.max);
     if (this.stamina <= 0) this.exhausted = true;
     else if (this.exhausted && this.stamina >= c.exhaustedThreshold) this.exhausted = false;
 
     // Hunger & Durst
-    const needsMul = activity.sprinting ? c.sprintNeedsMultiplier : 1;
+    const needsMul = (activity.sprinting ? c.sprintNeedsMultiplier : 1) * this.needsFactor;
     this.hunger = clamp(this.hunger - c.hungerRate * needsMul * dt, 0, c.max);
     this.thirst = clamp(this.thirst - c.thirstRate * needsMul * dt, 0, c.max);
 

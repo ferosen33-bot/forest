@@ -42,6 +42,8 @@ import { Compass } from '../ui/Compass';
 import { CHAPTERS, Journal } from '../systems/Journal';
 import { JournalUI } from '../ui/JournalUI';
 import { NoteUI } from '../ui/NoteUI';
+import { SkillsUI } from '../ui/SkillsUI';
+import { getSkill, Skills, wireSkillEvents } from '../systems/Skills';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -98,6 +100,8 @@ export class Game {
   readonly inventory = new Inventory(30, 6);
   readonly postFX: PostFX;
   readonly crafting = new Crafting(this.inventory);
+  /** Fertigkeiten (wachsen durch Tun). */
+  readonly skills = new Skills(this.events);
 
   physics!: Physics;
   world!: World;
@@ -149,6 +153,8 @@ export class Game {
   journal!: Journal;
   private journalUI!: JournalUI;
   private noteUI!: NoteUI;
+  private skillsUI!: SkillsUI;
+  private stealthTimer = 0;
   /** Wo die offene Notiz gelesen wurde (weggehen legt sie weg). */
   private readonly noteAt = new THREE.Vector3();
   /** Indizes der Lager, die der Spieler schon gesehen hat (Karte). */
@@ -373,6 +379,7 @@ export class Game {
       thrower: () => this.player.collisionShape,
       waterLevel: this.world.heightMap.waterLevel,
       groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
+      onPlayerHit: (killed, headshot) => this.skills.gain('archery', killed ? 8 : headshot ? 5 : 3),
       hitPlayer: (damage, from) => {
         this.player.receiveHit(damage, from);
         this.audio.play('hurt');
@@ -426,7 +433,9 @@ export class Game {
       this.camera,
       this.items,
       this.caves,
+      this.skills,
     );
+    wireSkillEvents(this.skills, this.events);
     this.fishing = new Fishing({
       heightMap: this.world.heightMap,
       items: this.items,
@@ -466,6 +475,13 @@ export class Game {
       this.crafting,
     );
     this.noteUI = new NoteUI(document.getElementById('note')!);
+    this.skillsUI = new SkillsUI(document.getElementById('skills')!, this.skills);
+    this.events.on('skill:levelUp', ({ id, level }) => {
+      const s = getSkill(id);
+      this.audio.play('craft', 0.8);
+      this.events.emit('hud:message', { text: `${s.name} – Stufe ${level}: ${s.effect(level)}` });
+      if (this.skillsUI.open) this.skillsUI.render();
+    });
     this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal);
     this.events.on('journal:completed', ({ text, chapterDone }) => {
       this.audio.play('craft', 0.7);
@@ -556,6 +572,7 @@ export class Game {
       journal: this.journal.serialize(),
       caves: this.caves.serialize(),
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
+      skills: this.skills.serialize(),
     };
   }
 
@@ -578,6 +595,7 @@ export class Game {
     // In einer Höhle gespeichert: Innenraum (samt Kollision) muss vor dem Aufsetzen stehen.
     if (d.caves) this.caves.load(d.caves);
     if (d.town) this.settlement?.load(d.town);
+    if (d.skills) this.skills.load(d.skills);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
     if (cave) {
@@ -693,6 +711,7 @@ export class Game {
     this.mapUI.hide();
     this.journalUI.hide();
     this.noteUI.hide();
+    this.skillsUI.hide();
     this.saveNow();
     this.menu.showPaused(this.lastSaved);
   }
@@ -746,7 +765,7 @@ export class Game {
       this.building.begin(recipe.result);
       return;
     }
-    const rest = this.crafting.craftItem(recipe);
+    const rest = this.crafting.craftItem(recipe, this.skills.craftedDurability);
     if (rest === null) return;
     if (rest > 0) this.worldItems.spawn(recipe.result, rest, this.player.position.clone().add(new THREE.Vector3(0, 1, 0)));
     this.audio.play('craft');
@@ -781,6 +800,32 @@ export class Game {
       this.events.emit('hud:message', { text: 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.' });
       this.events.emit('player:slept', {});
       this.saveNow();
+    }
+  }
+
+  /** Fertigkeiten wirken auf den Spieler; Bewegung und Schleichen bringen laufend Erfahrung. */
+  private updateSkills(dt: number, playing: boolean): void {
+    const p = this.player;
+    const sk = this.skills;
+    p.stealthNoise = sk.noise;
+    p.stealthVisibility = sk.visibility;
+    p.stats.needsFactor = sk.needs;
+    p.stats.staminaFactor = sk.staminaUse;
+    p.stats.regenFactor = sk.staminaRegen;
+    if (!playing || p.stats.isDead) return;
+    const speed = Math.hypot(p.velocity.x, p.velocity.z);
+    if (p.sprinting && speed > 3) sk.gain('athletics', 0.3 * dt);
+    if (p.swimming && speed > 0.8) sk.gain('athletics', 0.25 * dt);
+    // Schleichen: geduckt in Bewegung, ein ahnungsloser Gegner in der Nähe.
+    this.stealthTimer -= dt;
+    if (this.stealthTimer <= 0) {
+      this.stealthTimer = 1;
+      if (p.crouching && speed > 0.4) {
+        const near = [...this.enemies.enemies, ...this.enemies.caveDwellers].some(
+          (e) => !e.isDead && e.unaware && e.feet.distanceTo(p.position) < 18,
+        );
+        if (near) sk.gain('stealth', 0.8);
+      }
     }
   }
 
@@ -943,10 +988,18 @@ export class Game {
     }
     if (this.mode === 'playing' && this.input.wasPressed('map')) {
       this.journalUI.hide();
+      this.skillsUI.hide();
       this.mapUI.toggle();
+    }
+    if (this.mode === 'playing' && this.input.wasPressed('skills')) {
+      this.mapUI.hide();
+      this.journalUI.hide();
+      this.noteUI.hide();
+      this.skillsUI.toggle();
     }
     if (this.mode === 'playing' && this.input.wasPressed('journal')) {
       this.mapUI.hide();
+      this.skillsUI.hide();
       this.noteUI.hide();
       this.journalUI.toggle();
     }
@@ -1035,6 +1088,7 @@ export class Game {
     this.particles.update(dt);
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position);
+    this.updateSkills(dt, playing);
     this.updateClimate(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
     const chest = this.openChest;

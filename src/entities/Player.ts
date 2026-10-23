@@ -168,14 +168,17 @@ export class Player {
   get noiseRadius(): number {
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
     if (speed < 0.5 || this.stats.isDead) return 0;
-    if (this.swimming) return 7;
-    if (this.crouching) return 2.5;
-    return this.sprinting ? 22 : 9;
+    const base = this.swimming ? 7 : this.crouching ? 2.5 : this.sprinting ? 22 : 9;
+    return base * this.stealthNoise;
   }
+
+  /** Fertigkeit Schleichen: Faktoren auf Geräusche und Sichtbarkeit (vom Spiel gesetzt). */
+  stealthNoise = 1;
+  stealthVisibility = 1;
 
   /** Faktor auf die Sichtweite der Gegner (geduckt schwerer zu entdecken). */
   get visibility(): number {
-    return this.crouching ? 0.55 : 1;
+    return (this.crouching ? 0.55 : 1) * this.stealthVisibility;
   }
 
   /**
@@ -315,7 +318,7 @@ export class Player {
     } else {
       this.velocity.y -= cfg.gravity * dt;
       if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0 && !this.crouching) {
-        if (this.stats.useStamina(this.statsCfg.staminaJumpCost)) {
+        if (this.stats.useStamina(this.statsCfg.staminaJumpCost * this.stats.staminaFactor)) {
           this.velocity.y = cfg.jumpSpeed;
           this.coyoteTimer = 0;
           this.jumpBufferTimer = 0;

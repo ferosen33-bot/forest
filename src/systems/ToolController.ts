@@ -14,6 +14,7 @@ import type { AnimalDirector } from './AnimalDirector';
 import type { Projectiles } from './Projectiles';
 import type { ItemService } from './ItemService';
 import type { Caves } from './Caves';
+import type { Skills } from './Skills';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -61,6 +62,7 @@ export class ToolController {
     private readonly camera: THREE.Camera,
     private readonly items: ItemService,
     private readonly caves: Caves,
+    private readonly skills: Skills,
   ) {}
 
   get equipped(): ItemStack | null {
@@ -143,7 +145,7 @@ export class ToolController {
   }
 
   private startSwing(tool: ToolStats): void {
-    if (!this.player.stats.useStamina(tool.staminaCost)) {
+    if (!this.player.stats.useStamina(tool.staminaCost * this.skills.meleeStamina)) {
       if (this.exhaustedHintCooldown <= 0) {
         this.events.emit('hud:message', { text: 'Zu erschöpft zum Zuschlagen.' });
         this.exhaustedHintCooldown = 2;
@@ -177,13 +179,15 @@ export class ToolController {
     const h = target.hit;
     this.point.set(h.point.x, h.point.y, h.point.z);
     this.normal.set(h.normal.x, h.normal.y, h.normal.z);
+    // Fertigkeiten verstärken den Schlag je nach Ziel.
+    const sk = this.skills;
     switch (target.type) {
       case 'tree':
-        this.harvest.hitTree(target.instance, tool, this.point, this.normal, this.fromDir);
+        this.harvest.hitTree(target.instance, { ...tool, treeDamage: tool.treeDamage * sk.treeDamage }, this.point, this.normal, this.fromDir);
         break;
       case 'rock':
         if (tool.rockYield > 0) {
-          this.harvest.hitRock(target.instance, tool, this.point, this.normal);
+          this.harvest.hitRock(target.instance, { ...tool, rockYield: tool.rockYield * sk.rockYield }, this.point, this.normal);
         } else {
           this.audio.play('stoneHit');
           this.events.emit('hud:message', { text: 'Damit lässt sich kein Stein abschlagen.' });
@@ -193,17 +197,19 @@ export class ToolController {
         this.building.damage(target.structure, tool.treeDamage, this.point, this.normal);
         break;
       case 'enemy':
-        this.enemies.damage(target.enemy, tool.damage, target.zone, this.player.position, this.point, this.normal);
+        this.enemies.damage(target.enemy, tool.damage * sk.meleeDamage, target.zone, this.player.position, this.point, this.normal);
+        sk.gain('melee', target.enemy.isDead ? 8 : 2);
         break;
       case 'animal':
         if (target.animal.isDead) {
           this.audio.play('swing');
           return;
         }
-        this.animals.damage(target.animal, tool.damage, this.player.position, this.point, this.normal);
+        this.animals.damage(target.animal, tool.damage * sk.meleeDamage, this.player.position, this.point, this.normal);
+        sk.gain('melee', target.animal.isDead ? 5 : 1.5);
         break;
       case 'cave':
-        if (target.cave.type === 'flint') this.caves.hitFlint(target.cave.feature, tool, this.point, this.normal);
+        if (target.cave.type === 'flint') this.caves.hitFlint(target.cave.feature, { ...tool, rockYield: tool.rockYield * sk.rockYield }, this.point, this.normal);
         else if (target.cave.type === 'crate') this.audio.play('chop');
         else {
           this.audio.play('swing');
@@ -239,7 +245,7 @@ export class ToolController {
     }
     if (!this.drawing) return;
     if (this.input.isMouseDown(0)) {
-      this.drawCharge = Math.min(1, this.drawCharge + dt / r.drawTime);
+      this.drawCharge = Math.min(1, this.drawCharge + dt / (r.drawTime * this.skills.drawTime));
       this.viewModel.setDraw(this.drawCharge);
       return;
     }
@@ -250,7 +256,7 @@ export class ToolController {
     this.viewModel.setDraw(0);
     if (charge < 0.15 || !this.inventory.remove(r.ammo, 1)) return;
     const speed = r.minSpeed + (r.maxSpeed - r.minSpeed) * charge;
-    const damage = r.minDamage + (r.maxDamage - r.minDamage) * charge * charge;
+    const damage = (r.minDamage + (r.maxDamage - r.minDamage) * charge * charge) * this.skills.rangedDamage;
     const { origin, dir } = this.aimRay(0.08, -0.02);
     const velocity = dir.multiplyScalar(speed).add(this.player.velocity);
     velocity.y += 0.6;
@@ -277,7 +283,7 @@ export class ToolController {
   private throwEquipped(def: ItemDef): void {
     const tool = def.tool!;
     const t = def.throwable!;
-    if (!this.player.stats.useStamina(tool.staminaCost * 1.5)) {
+    if (!this.player.stats.useStamina(tool.staminaCost * 1.5 * this.skills.meleeStamina)) {
       if (this.exhaustedHintCooldown <= 0) {
         this.events.emit('hud:message', { text: 'Zu erschöpft zum Werfen.' });
         this.exhaustedHintCooldown = 2;
@@ -291,7 +297,7 @@ export class ToolController {
     // Leicht angehoben: auf ~12 m fällt der Speer genau auf die Zielhöhe.
     const velocity = throwDir.multiplyScalar(t.speed).add(this.player.velocity);
     velocity.y += 1.2;
-    this.projectiles.launch(stack.id, stack.durability, tool.damage * t.damageMultiplier, origin, velocity);
+    this.projectiles.launch(stack.id, stack.durability, tool.damage * t.damageMultiplier * this.skills.rangedDamage, origin, velocity);
     // Der Wurf selbst ist lautlos – erst der Einschlag macht Lärm (sonst flieht das Ziel vorher).
     this.viewModel.playThrow();
     this.throwCooldown = 0.4;

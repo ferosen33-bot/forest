@@ -93,8 +93,9 @@ export class Crafting {
    * damit freigewordene Slots genutzt werden können.
    * @returns Anzahl, die nicht mehr ins Inventar passte (fällt dann in die Welt), oder null bei Fehlschlag.
    */
-  craftItem(recipe: Extract<Recipe, { kind: 'item' }>): number | null {
+  craftItem(recipe: Extract<Recipe, { kind: 'item' }>, durabilityFactor = 1): number | null {
     if (!this.consume(recipe.cost)) return null;
-    return this.inventory.add(recipe.result, recipe.count);
+    const base = getItem(recipe.result).durability;
+    return this.inventory.add(recipe.result, recipe.count, base !== undefined ? Math.round(base * durabilityFactor) : undefined);
   }
 }

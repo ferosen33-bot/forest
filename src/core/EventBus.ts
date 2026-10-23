@@ -5,6 +5,7 @@
 import type { Vector3 } from 'three';
 import type { ItemId } from '../entities/items/ItemDefs';
 import type { StructureId } from '../systems/building/StructureDefs';
+import type { SkillId } from '../systems/Skills';
 
 export type GameEvents = {
   /** `from`: Position des Angreifers (für die Richtungsanzeige). */
@@ -42,6 +43,8 @@ export type GameEvents = {
   /** Stadt: Behälter durchsucht, Ort entdeckt. */
   'loot:searched': { kind: string; items: ItemId[] };
   'town:discovered': { name: string };
+  /** Eine Fertigkeit ist eine Stufe aufgestiegen. */
+  'skill:levelUp': { id: SkillId; level: number };
   /** Eine Notiz wurde gelesen (`first`: zum ersten Mal). */
   'note:read': { id: string; first: boolean };
   /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */

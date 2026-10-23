@@ -192,7 +192,8 @@ export class Inventory {
   condition(index: number): number | null {
     const s = this.slots[index];
     const max = s ? getItem(s.id).durability : undefined;
-    return s && max !== undefined && s.durability !== undefined ? s.durability / max : null;
+    // Handwerklich gute Werkzeuge können über dem Neuwert liegen – die Anzeige endet bei 100 %.
+    return s && max !== undefined && s.durability !== undefined ? Math.min(1, s.durability / max) : null;
   }
 
   /**

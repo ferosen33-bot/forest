@@ -40,6 +40,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `B`                 | Herstellen & Bauen (Inventar)         |
 | `M`                 | Inselkarte ein/aus                    |
 | `J`                 | Tagebuch & Ziele                      |
+| `K`                 | Fertigkeiten                          |
 | `R` / Mausrad       | Bauvorschau drehen                    |
 | Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bogen: zielen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
@@ -53,6 +54,26 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > funktioniert auch `Strg` gefahrlos (Chromium-Browser).
 
 ## Aktueller Stand
+
+> **Richtung:** Ein Open-World-Survival-Horror im Geist von *The Forest*, mit Plündern und Erkunden wie in *DayZ*,
+> Horden-Nächten wie in *7 Days to Die*, Rollenspiel durch Fertigkeiten – und später **Koop-Mehrspieler**
+> (alle gemeinsam gegen die Insel). Nächste Schritte: Furcht & nächtlicher Horror, die Fiebernacht (Horden alle
+> sieben Tage), Zufallsereignisse, dann das Mehrspieler-Fundament.
+
+### Meilenstein 24 – Fertigkeiten
+
+- **Acht Fertigkeiten, die durch Tun wachsen** (Stufe 0–10, Taste `K`): Holzfällen (Bäume treffen und fällen →
+  mehr Schaden an Bäumen), Steinmetz (Felsen und Feuerstein → mehr Ausbeute), Nahkampf (Treffer mit Waffen →
+  mehr Schaden, weniger Ausdauer je Schlag), Bogenschießen (Treffer mit Pfeil und Speer → mehr Schaden, kürzere
+  Spannzeit), Schleichen (geduckt nahe an ahnungslosen Gegnern, Schleichangriffe → leiser und schwerer zu
+  sehen), Überleben (kochen, angeln, ausnehmen, plündern, schlafen → weniger Hunger und Durst), Handwerk
+  (herstellen und bauen → haltbarere Werkzeuge) und Ausdauer (rennen, schwimmen → weniger Verbrauch, schnellere
+  Erholung).
+- Jede Stufe braucht etwas mehr Erfahrung (20 + 15 × Stufe); ein gefällter Baum bringt gut die Hälfte der ersten
+  Holzfäll-Stufe. Stufenaufstiege werden mit ihrer neuen Wirkung gemeldet.
+- `Skills.ts` ist reine, getestete Logik; die Erfahrung hängt an vorhandenen Spielereignissen (Treffer, gefällte
+  Bäume, Kochen, Angeln, Herstellen …), Wirkungen greifen über Faktoren in Werkzeugschlag, Bogen, Geschossen,
+  Spielerwerten und der Haltbarkeit neu hergestellter Werkzeuge. Erfahrung wird gespeichert.
 
 ### Meilenstein 23 – Was geschah
 
@@ -525,6 +546,7 @@ src/
 │   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Bewohner-Plätze, Zustand
 │   ├── Settlement.ts       Stadt zur Laufzeit: Kollision, Beutetabellen, Durchsuchen, Entdeckung
 │   ├── Notes.ts            Die Notizen der Geschichte und ihre Fundorte (getestet)
+│   ├── Skills.ts           Fertigkeiten: Erfahrung, Stufen, Wirkungen (getestet)
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -597,4 +619,8 @@ src/
 22. ~~Höhlenbewohner~~ ✓
 23. ~~Die verlassene Stadt~~ ✓
 24. ~~Was geschah: Notizen, Briefe und Funkprotokolle~~ ✓
-25. Der Steg in der Nordbucht: Boot instand setzen und fliehen
+25. ~~Fertigkeiten~~ ✓
+26. Furcht & nächtlicher Horror
+27. Die Fiebernacht (Horden alle sieben Tage)
+28. Zufallsereignisse
+29. Koop-Mehrspieler (Server, bis zu 50 Spieler)
