@@ -92,6 +92,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'flintAxe', text: 'Eine Feuersteinaxt herstellen', trigger: { on: 'craft', item: 'flintAxe' } },
       { id: 'mushroom', text: 'Leuchtpilze essen', trigger: { on: 'eat', item: 'mushroom' } },
       { id: 'crates', text: 'Alte Vorratskisten öffnen', trigger: { on: 'crate' }, count: 3 },
+      { id: 'kriecher', text: 'Kriecher besiegen', trigger: { on: 'kill', name: 'Kriecher' }, count: 3 },
       { id: 'caves', text: 'Alle drei Höhlen erkunden', trigger: { on: 'cave' }, count: 3 },
     ],
   },

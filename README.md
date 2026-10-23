@@ -54,6 +54,24 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 ## Aktueller Stand
 
+### Meilenstein 21 – Höhlenbewohner
+
+- **Kriecher**: bleiche, tief gebückte Höhlenbewohner mit glühenden Augen – in der Dunkelheit sieht man oft nur
+  diese. Fast blind (kurze Sichtweite, mit Fackel etwas weiter, denn Licht verrät), aber mit feinem Gehör:
+  Schritte tragen im Fels weit, Schleichen hilft. Sie schlagen zu und ziehen sich gleich wieder ins Dunkel zurück.
+- **Fackel oder Waffe?** Den Schein einer Fackel in der Hand scheuen sie und lauern in etwa acht Metern Abstand –
+  wer sie angreift, provoziert sie aber, und dann kommen sie trotzdem. Mit der Waffe in der Hand ist man im Dunkeln.
+- Erster Raum hinter dem Eingang ist ruhig, jede weitere Kammer hat einen Bewohner, die hinterste zwei. Besiegte
+  Kriecher sind nach zwei Tagen ersetzt (im Spielstand gemerkt). Beim Verlassen der Höhle verschwinden sie.
+- **Technik:** Die vorhandene Gegner-KI läuft unverändert – sie fragt Wegfindung jetzt über eine Schnittstelle
+  (`NavQuery`) ab. Unter Tage beantwortet die `CaveNav`: ein NavGrid über der **Bodenkarte der Höhle**, die direkt aus
+  dem Voxelraster des Höhlengenerators entsteht (je Säule der höchste Luftraum mit genug Kopffreiheit), in
+  Höhlenkoordinaten und nach außen in Weltkoordinaten übersetzt. Der Gegner-Direktor führt die Bewohner der
+  aktuellen Höhle als eigene Population mit eigenem Wahrnehmungs-Kontext (die einzige „Flamme“ ist die Fackel des
+  Spielers); Treffer, Kopftreffer, Schleichangriffe, Geräusche und Darstellung teilen sie mit den Schraten.
+  Tests prüfen, dass vom Eingang aus Wege in jede Kammer gefunden werden.
+- Tagebuch: „Kriecher besiegen“ im Kapitel „Unter der Erde“.
+
 ### Meilenstein 20 – Höhlen
 
 - **Drei Höhlen** (Tropfsteinhöhle, Pilzgrotte, Feuersteinstollen) mit Eingängen an Berghängen: ein Felshügel mit
@@ -463,7 +481,7 @@ src/
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer (Fleisch, Fisch)
 │   ├── Fishing.ts          Angeln (Wurf, Biss, Schnur) und Fischreusen (getestet)
-│   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Zustand
+│   ├── Caves.ts            Höhleneingänge, Innenräume, Ausstattung, Bewohner-Plätze, Zustand
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -473,6 +491,7 @@ src/
 │   ├── Seasons.ts          Jahreszeiten mit Überblendung (getestet)
 │   ├── ai/
 │   │   ├── NavGrid.ts      Navigationsraster + A* + Pfadglättung (getestet)
+│   │   ├── CaveNav.ts      Wegfindung in Höhlen (NavGrid über der Bodenkarte, getestet)
 │   │   ├── EnemyDirector.ts  Lager, Spawns, Geräusche, Jagdgruppen, Treffer, LOD
 │   │   └── CampModel.ts    Modell eines Schrat-Lagers
 │   └── building/
@@ -532,4 +551,4 @@ src/
 19. ~~Jahreszeiten~~ ✓
 20. ~~Angeln, Fischreusen & Standfackeln~~ ✓
 21. ~~Höhlen (Dunkelheit, Feuerstein, Vorratskisten)~~ ✓
-22. Höhlenbewohner (eigene Gegner unter Tage)
+22. ~~Höhlenbewohner~~ ✓

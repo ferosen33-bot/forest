@@ -54,6 +54,73 @@ export interface CaveMesh {
   indices: Uint32Array;
   /** Anzahl Dreiecke. */
   triangles: number;
+  /** Abgetastete Abstandsfunktion (Gitterpunkte, x schnell, dann y, dann z) – Grundlage der Bodenkarte. */
+  field: Float32Array;
+  dims: [number, number, number];
+  min: THREE.Vector3;
+  h: number;
+}
+
+/** Begehbarer Boden je Säule des Gitters (lokale Koordinaten); NaN = kein Boden mit genug Kopffreiheit. */
+export interface CaveFloor {
+  min: THREE.Vector3;
+  h: number;
+  nx: number;
+  nz: number;
+  floor: Float32Array;
+  /** Bodenhöhe an (x, z) (nächste Säule) oder NaN. */
+  heightAt(x: number, z: number): number;
+}
+
+/**
+ * Bodenkarte für die Wegfindung: In jeder senkrechten Gittersäule wird der höchste Luftraum mit
+ * mindestens `headroom` m gesucht; sein Boden (Nulldurchgang, interpoliert) ist die Bodenhöhe.
+ */
+export function caveFloor(mesh: CaveMesh, headroom = 1.6): CaveFloor {
+  const [nx, ny, nz] = mesh.dims;
+  const { field, min, h } = mesh;
+  const floor = new Float32Array(nx * nz).fill(NaN);
+  const at = (i: number, j: number, k: number) => field[i + nx * (j + ny * k)];
+  for (let k = 0; k < nz; k++) {
+    for (let i = 0; i < nx; i++) {
+      let best = -1;
+      let bestFloor = NaN;
+      let j = 0;
+      while (j < ny) {
+        if (at(i, j, k) > 0) {
+          j++;
+          continue;
+        }
+        const start = j;
+        while (j < ny && at(i, j, k) <= 0) j++;
+        // Nulldurchgänge unten und oben interpolieren.
+        const a0 = at(i, start - 1, k);
+        const a1 = at(i, start, k);
+        const bottom = min.y + (start - 1 + a0 / (a0 - a1)) * h;
+        const b0 = at(i, j - 1, k);
+        const b1 = j < ny ? at(i, j, k) : 1;
+        const top = min.y + (j - 1 + b0 / (b0 - b1)) * h;
+        if (top - bottom >= headroom && top - bottom > best) {
+          best = top - bottom;
+          bestFloor = bottom;
+        }
+      }
+      floor[i + nx * k] = bestFloor;
+    }
+  }
+  return {
+    min,
+    h,
+    nx,
+    nz,
+    floor,
+    heightAt(x, z) {
+      const i = Math.round((x - min.x) / h);
+      const k = Math.round((z - min.z) / h);
+      if (i < 0 || k < 0 || i >= nx || k >= nz) return NaN;
+      return floor[i + nx * k];
+    },
+  };
 }
 
 /** Gitterweite der Felshülle (m) – grob genug für Low-Poly-Fels, fein genug für Tunnel. */
@@ -349,7 +416,15 @@ export function buildCaveMesh(sdf: CaveSdf, bounds: THREE.Box3, h = CAVE_VOXEL):
       }
     }
   }
-  return { positions: new Float32Array(positions), indices: new Uint32Array(indices), triangles: indices.length / 3 };
+  return {
+    positions: new Float32Array(positions),
+    indices: new Uint32Array(indices),
+    triangles: indices.length / 3,
+    field,
+    dims: [nx, ny, nz],
+    min: min.clone(),
+    h,
+  };
 }
 
 // ---------------------------------------------------------------------------

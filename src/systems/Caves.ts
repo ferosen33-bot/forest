@@ -8,6 +8,7 @@ import { injectSeason } from '../world/SeasonShader';
 import {
   buildCaveMesh,
   caveBounds,
+  caveFloor,
   createCaveSdf,
   findCaveSites,
   generateLayout,
@@ -23,6 +24,8 @@ import type { ItemService } from './ItemService';
 import type { Particles } from './Particles';
 import type { LightPool, LightRequest } from './LightPool';
 import type { Audio } from './Audio';
+import { CaveNav } from './ai/CaveNav';
+import type { CaveSpawn } from './ai/EnemyDirector';
 
 export const CAVE_COUNT = 3;
 export const CAVE_NAMES = ['Tropfsteinhöhle', 'Pilzgrotte', 'Feuersteinstollen'];
@@ -36,6 +39,15 @@ const CAVE_SPACING = 80;
 const FLINT_PER_NODE = 3;
 /** Ab dieser Nähe gilt ein Eingang als entdeckt (Karte). */
 const DISCOVER_RANGE = 28;
+/** Nach so vielen Tagen ist ein getöteter Höhlenbewohner ersetzt. */
+const DWELLER_RESPAWN_DAYS = 2;
+
+/** Fester Platz eines Höhlenbewohners. */
+interface DwellerSlot {
+  chamber: number;
+  /** Ab diesem Tag lebt er wieder (0 = lebt). */
+  respawnDay: number;
+}
 
 /** Zustand einer Ausstattung (Kiste geöffnet, Pilze gepflückt, Feuerstein übrig). */
 interface Feature {
@@ -67,6 +79,9 @@ export interface Cave {
   features: Feature[];
   interior: THREE.Group | null;
   body: RAPIER.RigidBody | null;
+  /** Wegfindung der Höhlenbewohner (mit dem Innenraum gebaut). */
+  nav: CaveNav | null;
+  dwellers: DwellerSlot[];
   exitLight: LightRequest;
   exitMaterial: THREE.MeshBasicMaterial;
 }
@@ -81,6 +96,8 @@ export interface CaveSave {
   visited: number[];
   /** [Höhle, Ausstattung, Wert]: Kisten/Pilze 0 = erledigt, Feuerstein = Reststücke. */
   features: [number, number, number][];
+  /** [Höhle, Platz, Tag der Wiederkehr] getöteter Bewohner. */
+  dwellers?: [number, number, number][];
 }
 
 export interface CavesDeps {
@@ -189,6 +206,11 @@ export class Caves {
         features: [],
         interior: null,
         body: null,
+        nav: null,
+        // Der erste Raum hinter dem Eingang bleibt ruhig; jeder weitere hat einen Bewohner, der hinterste zwei.
+        dwellers: layout.chambers.flatMap((_, i) =>
+          i === 0 ? [] : i === layout.chambers.length - 1 ? [{ chamber: i, respawnDay: 0 }, { chamber: i, respawnDay: 0 }] : [{ chamber: i, respawnDay: 0 }],
+        ),
         exitLight: { position: new THREE.Vector3(), color: new THREE.Color(0xbcd2e6), intensity: 0, distance: 16 },
         exitMaterial: new THREE.MeshBasicMaterial({
           color: 0xffffff,
@@ -341,6 +363,8 @@ export class Caves {
       body,
     );
     cave.body = body;
+
+    cave.nav = new CaveNav(caveFloor(mesh), cave.origin, cave.site.into);
 
     this.buildExit(cave, g, body);
     this.buildFeatures(cave, g, body);
@@ -613,6 +637,34 @@ export class Caves {
     this.d.events.emit('cave:crate', { index: cave.index });
   }
 
+  /** Bewohner, die heute (wieder) in der Höhle leben – auf dem Boden ihrer Kammer. */
+  dwellerSpawns(cave: Cave, day: number): CaveSpawn[] {
+    const sdf = createCaveSdf(this.d.seed, cave.index, cave.layout);
+    const out: CaveSpawn[] = [];
+    cave.dwellers.forEach((d, slot) => {
+      if (d.respawnDay > day) return;
+      d.respawnDay = 0;
+      const c = cave.layout.chambers[d.chamber];
+      // Zwei Bewohner einer Kammer stehen nicht aufeinander.
+      const side = slot % 2 === 0 ? 1.2 : -1.2;
+      const x = c.center.x + side;
+      const z = c.center.z;
+      const floor = probe(sdf, x, c.floor + 1.2, z, -1);
+      if (floor === null) return;
+      out.push({
+        slot,
+        position: this.world(cave, new THREE.Vector3(x, floor + 0.05, z)),
+        home: this.world(cave, new THREE.Vector3(c.center.x, floor, c.center.z)),
+      });
+    });
+    return out;
+  }
+
+  dwellerKilled(caveIndex: number, slot: number, day: number): void {
+    const d = this.caves[caveIndex]?.dwellers[slot];
+    if (d) d.respawnDay = day + DWELLER_RESPAWN_DAYS;
+  }
+
   isDepleted(f: Feature): boolean {
     return f.def.kind === 'flint' ? f.flintLeft <= 0 : f.done;
   }
@@ -647,10 +699,13 @@ export class Caves {
         else if ((f.def.kind === 'crate' || f.def.kind === 'mushroom') && f.done) features.push([cave.index, f.index, 0]);
       }
     }
+    const dwellers: [number, number, number][] = [];
+    for (const cave of this.caves) cave.dwellers.forEach((d, slot) => d.respawnDay > 0 && dwellers.push([cave.index, slot, d.respawnDay]));
     return {
       discovered: this.caves.filter((c) => c.discovered).map((c) => c.index),
       visited: this.caves.filter((c) => c.visited).map((c) => c.index),
       features,
+      dwellers,
     };
   }
 
@@ -662,6 +717,10 @@ export class Caves {
       if (!f) continue;
       if (f.def.kind === 'flint') f.flintLeft = Math.max(0, Math.min(FLINT_PER_NODE, value | 0));
       else f.done = true;
+    }
+    for (const [c, slot, day] of data.dwellers ?? []) {
+      const d = this.caves[c]?.dwellers[slot];
+      if (d && Number.isFinite(day)) d.respawnDay = Math.max(0, day | 0);
     }
   }
 }

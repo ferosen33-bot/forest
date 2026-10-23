@@ -5,6 +5,17 @@ export interface NavPoint {
   z: number;
 }
 
+/** Was die Gegner-KI von einer Wegfindung braucht (Oberfläche: NavGrid, Höhlen: CaveNav). */
+export interface NavQuery {
+  isWalkable(x: number, z: number): boolean;
+  lineWalkable(a: NavPoint, b: NavPoint): boolean;
+  nearestWalkable(x: number, z: number, maxRadius?: number): NavPoint | null;
+  findPath(from: NavPoint, to: NavPoint, maxExpansions?: number): NavPoint[] | null;
+}
+
+/** Höhenquelle des Rasters: die Insel-Höhenkarte oder eine Höhlen-Bodenkarte. */
+export type NavHeightSource = Pick<HeightMap, 'size' | 'half' | 'waterLevel' | 'heightAt'>;
+
 /** Binärer Min-Heap über Zellindizes, sortiert nach f-Wert (allokationsfrei wiederverwendbar). */
 class IndexHeap {
   private items: number[] = [];
@@ -79,7 +90,7 @@ const NEIGHBORS: [number, number, number][] = [
  * Pfadsuche: A* mit 8er-Nachbarschaft (keine Ecken-Abkürzungen durch Hindernisse),
  * begrenztem Suchbudget und anschließender Glättung per Sichtlinie.
  */
-export class NavGrid {
+export class NavGrid implements NavQuery {
   readonly cellSize: number;
   readonly size: number;
   readonly half: number;
@@ -101,7 +112,7 @@ export class NavGrid {
   private generation = 0;
   private readonly heap: IndexHeap;
 
-  constructor(heightMap: HeightMap, opts: { cellSize?: number; maxStep?: number; minHeight?: number } = {}) {
+  constructor(heightMap: NavHeightSource, opts: { cellSize?: number; maxStep?: number; minHeight?: number } = {}) {
     this.cellSize = opts.cellSize ?? 2;
     this.size = heightMap.size;
     this.half = heightMap.half;

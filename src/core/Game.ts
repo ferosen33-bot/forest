@@ -315,6 +315,7 @@ export class Game {
       markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
     });
     this.scene.add(this.caves.group);
+    this.enemies.onCaveDwellerKilled = (cave, slot) => this.caves.dwellerKilled(cave, slot, this.dayNight.day);
     this.climate = new Climate({
       physics: this.physics,
       player: this.player,
@@ -561,6 +562,7 @@ export class Game {
     this.dayNight.day = Math.max(1, d.time.day | 0);
     this.dayNight.hour = ((d.time.hour % 24) + 24) % 24;
     this.lastSaved = new Date(d.savedAt);
+    this.populateCave();
   }
 
   /** Speichert sofort (nicht im Tod oder beim Laden). @returns true bei Erfolg. */
@@ -605,6 +607,7 @@ export class Game {
         this.caves.current = null;
         this.caveTransition = null;
         this.applyUnderground();
+        this.enemies.leaveCave();
         this.player.respawn(this.respawnPoint);
         this.enemies.onPlayerRespawn(this.respawnPoint);
       }
@@ -760,6 +763,7 @@ export class Game {
         this.player.spawn(to.position, to.yaw);
         this.player.pitch = 0;
       }
+      this.populateCave();
       this.applyUnderground();
       this.hud.faded = false;
       if (this.caves.current && t.target.type === 'entrance') {
@@ -767,6 +771,13 @@ export class Game {
       }
     }
     if (t.timer <= 0) this.caveTransition = null;
+  }
+
+  /** Bewohner der aktuellen Höhle erscheinen lassen (bzw. entfernen, wenn man draußen ist). */
+  private populateCave(): void {
+    const cave = this.caves.current;
+    if (cave?.nav) this.enemies.enterCave(cave.index, cave.nav, this.caves.dwellerSpawns(cave, this.dayNight.day));
+    else this.enemies.leaveCave();
   }
 
   /** Licht, Oberwelt und Schritte an den Aufenthaltsort (Höhle/Oberfläche) anpassen. */

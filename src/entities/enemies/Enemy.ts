@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../../core/Physics';
-import type { NavGrid, NavPoint } from '../../systems/ai/NavGrid';
+import type { NavPoint, NavQuery } from '../../systems/ai/NavGrid';
 import type { Structure } from '../../systems/building/BuildingSystem';
 import type { GameConfig } from '../../config';
 import { EnemyRig } from './EnemyRig';
@@ -38,7 +38,7 @@ export interface PlayerTarget {
 export interface EnemyContext {
   time: number;
   physics: Physics;
-  nav: NavGrid;
+  nav: NavQuery;
   player: PlayerTarget;
   /** Aktuelle Sichtweite auf den Spieler (Tageszeit, Licht, Ducken). */
   sightRange: number;
@@ -144,7 +144,7 @@ export class Enemy {
     kind: EnemyKind = 'schrat',
   ) {
     const def = (this.kind = ENEMY_KINDS[kind]);
-    this.rig = new EnemyRig(scale, def.club);
+    this.rig = new EnemyRig(scale, def.club, def.hunch ?? 0);
     this.home = home.clone();
     // Lebenspunkte nach Typ; die kleine Größenvariation innerhalb des Typs wirkt mit.
     this.maxHealth = this.health = cfg.health * def.health * (scale / def.scale);

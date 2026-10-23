@@ -153,9 +153,13 @@ export class EnemyRig {
   /** Körperbau-Variation pro Gegner. */
   readonly scale: number;
 
+  /** Geduckte Haltung 0..1 (Kriecher: tief gebeugt, Knie angewinkelt, Arme pendeln vor dem Körper). */
+  readonly hunch: number;
+
   /** @param club Trägt eine Keule (Späher kämpfen mit bloßen Klauen). */
-  constructor(scale = 1, club = true) {
+  constructor(scale = 1, club = true, hunch = 0) {
     this.scale = scale;
+    this.hunch = hunch;
     const link = (parent: THREE.Object3D, child: THREE.Object3D, x: number, y: number, z: number) => {
       child.position.set(x, y, z);
       parent.add(child);
@@ -231,6 +235,18 @@ export class EnemyRig {
     // Gebückte, lauernde Haltung – beim Rennen stärker nach vorne gelehnt.
     this.torso.rotation.set(0.12 + run * 0.3 + breathe, 0, Math.sin(this.phase) * 0.05 * moving);
     this.neck.rotation.set(-0.1 - run * 0.2, a.lookYaw, 0);
+    const h = this.hunch;
+    if (h > 0) {
+      this.pelvis.position.y -= 0.24 * h;
+      this.torso.rotation.x += 0.6 * h;
+      this.neck.rotation.x -= 0.55 * h;
+      this.hipL.rotation.x -= 0.55 * h;
+      this.hipR.rotation.x -= 0.55 * h;
+      this.kneeL.rotation.x += 0.75 * h;
+      this.kneeR.rotation.x += 0.75 * h;
+      this.shoulderL.rotation.x -= 0.5 * h;
+      this.shoulderR.rotation.x -= 0.5 * h;
+    }
 
     // --- Angriff: Keule über den Kopf, dann herunterschlagen ---
     if (a.attack >= 0) {

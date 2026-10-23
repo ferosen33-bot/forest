@@ -1,5 +1,5 @@
 /** Gegnertypen der Insel. */
-export type EnemyKind = 'schrat' | 'spaeher' | 'koloss';
+export type EnemyKind = 'schrat' | 'spaeher' | 'koloss' | 'kriecher';
 
 export interface EnemyKindDef {
   kind: EnemyKind;
@@ -27,6 +27,8 @@ export interface EnemyKindDef {
   hitAndRun: boolean;
   /** Trägt eine Keule. */
   club: boolean;
+  /** Gebückte Haltung (0 = aufrecht, 1 = kriechend). */
+  hunch?: number;
   /** Fernangriff: Steine werfen, wenn der Spieler in diesem Abstand sichtbar ist. */
   ranged?: { minRange: number; maxRange: number; cooldown: number; speed: number; damage: number };
   /** Hauttöne (sRGB) für die Variation innerhalb des Typs. */
@@ -93,6 +95,28 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: false,
     club: true,
     tones: [0x5f5c58, 0x56534f, 0x67625a],
+  },
+  // Höhlenbewohner: bleich und fast blind, aber mit feinem Gehör. Scheut den Fackelschein,
+  // schlägt zu und zieht sich gleich wieder ins Dunkel zurück.
+  kriecher: {
+    kind: 'kriecher',
+    name: 'Kriecher',
+    scale: 0.86,
+    health: 0.7,
+    speed: 1.12,
+    damage: 0.8,
+    attackRange: 0.95,
+    attackTime: 0.85,
+    sight: 0.5,
+    hearing: 1.9,
+    alertRadius: 30,
+    structureDamage: 10,
+    staggerThreshold: 0,
+    fearsFire: true,
+    hitAndRun: true,
+    club: false,
+    hunch: 1,
+    tones: [0xcfc6b8, 0xc2baad, 0xd8cfc0],
   },
 };
 

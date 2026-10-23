@@ -16,12 +16,27 @@ import type { Particles } from '../Particles';
 import type { LightPool, LightRequest } from '../LightPool';
 import type { Audio, SoundId } from '../Audio';
 import type { DayNightCycle } from '../DayNightCycle';
-import { NavGrid } from './NavGrid';
+import { NavGrid, type NavQuery } from './NavGrid';
 import { CAMP_OBSTACLES, createCampModel } from './CampModel';
 import { deriveSeed, mulberry32 } from '../../utils/random';
 import { lerp } from '../../utils/math';
 
 export type HitZone = 'head' | 'body';
+
+/** Startplatz eines Höhlenbewohners (`slot` = fester Platz in der Höhle, für Tod und Wiederkehr). */
+export interface CaveSpawn {
+  slot: number;
+  position: THREE.Vector3;
+  home: THREE.Vector3;
+}
+
+/** Bewohner der Höhle, in der sich der Spieler gerade befindet. */
+interface CavePopulation {
+  index: number;
+  enemies: Enemy[];
+  slots: Map<Enemy, number>;
+  ctx: EnemyContext;
+}
 
 export interface EnemySave {
   camp: number;
@@ -93,6 +108,10 @@ export class EnemyDirector {
   private pathPlansThisTick = 0;
   private huntTimer = 40;
   private readonly tmp = new THREE.Vector3();
+  private cave: CavePopulation | null = null;
+  private caveNoiseTimer = 0;
+  /** Ein Höhlenbewohner ist gestorben (für die Wiederkehr nach einigen Tagen). */
+  onCaveDwellerKilled: ((cave: number, slot: number) => void) | null = null;
 
   constructor(private readonly d: DirectorDeps) {
     this.cfg = d.config.ai;
@@ -294,15 +313,102 @@ export class EnemyDirector {
     return this.byCollider.get(collider.handle);
   }
 
+  /** Kontext, in dem ein Gegner denkt (Oberfläche oder Höhle). */
+  private ctxFor(enemy: Enemy): EnemyContext {
+    return this.cave?.slots.has(enemy) ? this.cave.ctx : this.ctx;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Höhlen
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Der Spieler betritt eine Höhle: Ihre Bewohner erscheinen und nutzen die Wegfindung der Höhle.
+   * Sie sind fast blind (kurze Sicht), hören aber gut – und scheuen den Schein einer Fackel.
+   */
+  enterCave(index: number, nav: NavQuery, spawns: CaveSpawn[]): void {
+    this.leaveCave();
+    const d = this.d;
+    const player = d.player;
+    const enemies: Enemy[] = [];
+    const target: PlayerTarget = {
+      get position() {
+        return player.position;
+      },
+      get eye() {
+        return d.camera.position;
+      },
+      get collider() {
+        return player.collisionShape;
+      },
+      get isDead() {
+        return player.stats.isDead;
+      },
+      get stealthy() {
+        return player.crouching && !player.sprinting;
+      },
+      get velocity() {
+        return player.velocity;
+      },
+      receiveHit: (amount, from) => {
+        player.receiveHit(amount, from);
+        d.audio.play('hurt');
+      },
+    };
+    const ctx: EnemyContext = {
+      ...this.ctx,
+      time: this.ctx.time,
+      nav,
+      player: target,
+      isNight: true,
+      // Die einzige Flamme unter Tage ist die Fackel des Spielers.
+      fireNear: (pos, radius) => (d.isPlayerLit() && pos.distanceTo(player.position) < radius ? player.position : null),
+      structureByCollider: () => undefined,
+      damageStructure: () => {},
+      alertAllies: (source) => {
+        for (const e of enemies) if (e !== source && e.feet.distanceTo(source.feet) < source.kind.alertRadius) e.alertedBy(player.position, ctx);
+      },
+      others: enemies,
+    };
+    const pop: CavePopulation = { index, enemies, slots: new Map(), ctx };
+    for (const s of spawns) {
+      const kind: EnemyKind = 'kriecher';
+      const enemy = new Enemy(this.nextId++, d.physics, s.position, s.home, this.cfg, Math.floor(this.rng() * 3), ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16), kind);
+      enemies.push(enemy);
+      pop.slots.set(enemy, s.slot);
+      this.byCollider.set(enemy.collider.handle, { enemy, zone: 'body' });
+      this.byCollider.set(enemy.headCollider.handle, { enemy, zone: 'head' });
+    }
+    this.cave = pop;
+  }
+
+  /** Höhle verlassen: Bewohner verschwinden (tote bleiben tot, bis die Höhle sie ersetzt). */
+  leaveCave(): void {
+    const pop = this.cave;
+    if (!pop) return;
+    for (const e of pop.enemies) {
+      e.dispose();
+      this.byCollider.delete(e.collider.handle);
+      this.byCollider.delete(e.headCollider.handle);
+    }
+    this.cave = null;
+  }
+
+  /** Lebende Bewohner der aktuellen Höhle. */
+  get caveDwellers(): readonly Enemy[] {
+    return this.cave?.enemies ?? [];
+  }
+
   /** Treffer durch eine Waffe des Spielers. */
   damage(enemy: Enemy, amount: number, zone: HitZone, from: THREE.Vector3, point: THREE.Vector3, normal: THREE.Vector3): void {
     if (enemy.isDead) return;
+    const ctx = this.ctxFor(enemy);
     const headshot = zone === 'head';
     const wasAggressive = enemy.isAggressive;
     // Schleichangriff: wer den Spieler nicht bemerkt hat, trifft es dreifach – und leise.
     const sneak = enemy.unaware;
     const total = amount * (headshot ? this.cfg.headshotMultiplier : 1) * (sneak ? SNEAK_MULTIPLIER : 1);
-    const killed = enemy.takeDamage(total, from, this.ctx);
+    const killed = enemy.takeDamage(total, from, ctx);
 
     this.d.particles.burst(point, { count: headshot ? 16 : 10, color: 0x5c0f10, direction: normal, speed: 3, size: 0.035 });
     this.d.audio.play('fleshHit');
@@ -323,8 +429,10 @@ export class EnemyDirector {
       this.byCollider.delete(enemy.collider.handle);
       this.byCollider.delete(enemy.headCollider.handle);
       this.playAt('enemyDeath', enemy.feet);
+      const slot = this.cave?.slots.get(enemy);
+      if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);
     } else if (!wasAggressive) {
-      this.ctx.alertAllies(enemy);
+      ctx.alertAllies(enemy);
     }
   }
 
@@ -338,10 +446,16 @@ export class EnemyDirector {
     this.pathPlansThisTick = 0;
     // Tote erhalten den Takt weiter (Leichen-Timer), pausierte Gegner nicht.
     for (const e of this.enemies) if (e.active || e.isDead) e.fixedUpdate(dt, this.ctx);
+    const cave = this.cave;
+    if (cave) {
+      cave.ctx.time = this.ctx.time;
+      for (const e of cave.enemies) e.fixedUpdate(dt, cave.ctx);
+    }
   }
 
   afterPhysicsStep(): void {
     for (const e of this.enemies) if (e.active) e.afterPhysicsStep();
+    for (const e of this.cave?.enemies ?? []) e.afterPhysicsStep();
   }
 
   update(dt: number, alpha: number): void {
@@ -368,8 +482,37 @@ export class EnemyDirector {
     this.updateHunts(dt, night);
     this.updateCamps(dt);
 
+    // Höhle: kurze Sicht (mit Fackel etwas weiter – Licht verrät), Schritte tragen im Fels weit.
+    const cave = this.cave;
+    if (cave) {
+      cave.ctx.sightRange = (d.isPlayerLit() ? 16 : 9) * player.visibility;
+      this.caveNoiseTimer -= dt;
+      if (this.caveNoiseTimer <= 0) {
+        this.caveNoiseTimer = 0.3;
+        const r = player.noiseRadius * 1.3;
+        if (r > 0) for (const e of cave.enemies) if (!e.isDead && e.feet.distanceTo(player.position) < r) e.hear(player.position, player.sprinting ? 0.4 : 0.2);
+      }
+    }
+
     // LOD, Leichen, Darstellung
     const visible: { rig: Enemy['rig']; tone: number; kind: EnemyKind }[] = [];
+    if (cave) {
+      for (let i = cave.enemies.length - 1; i >= 0; i--) {
+        const e = cave.enemies[i];
+        if (e.isDead && e.deadFor > 48) {
+          cave.enemies.splice(i, 1);
+          e.dispose();
+          continue;
+        }
+        e.active = !e.isDead;
+        e.updateVisual(dt, alpha, player.position);
+        if (e.rig.steps !== (this.stepCounts.get(e) ?? 0)) {
+          this.stepCounts.set(e, e.rig.steps);
+          this.onEnemyStep?.(e.position, e.rig.anim.speed);
+        }
+        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind });
+      }
+    }
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       const dist = e.feet.distanceTo(player.position);
@@ -442,7 +585,7 @@ export class EnemyDirector {
   }
 
   private propagateNoise(position: THREE.Vector3, radius: number, strength: number): void {
-    for (const e of this.enemies) {
+    for (const e of [...this.enemies, ...(this.cave?.enemies ?? [])]) {
       if (!e.isDead && e.feet.distanceTo(position) < radius) e.hear(position, strength);
     }
   }
