@@ -14,6 +14,8 @@ export interface MapMarkers {
   camps: { x: number; z: number }[];
   /** Entdeckte Höhleneingänge. */
   caves?: { x: number; z: number }[];
+  /** Zufallsereignisse (Abwurf, Ritual, verlassenes Lager). */
+  events?: { x: number; z: number; kind: 'drop' | 'ritual' | 'camp' }[];
 }
 
 const RES = 512;
@@ -243,6 +245,38 @@ export class MapUI {
       ctx.arc(x, y + 3, 4, Math.PI, 0);
       ctx.closePath();
       ctx.fill();
+    }
+    // Ereignisse: Abwurf rotes Quadrat mit Kreuz, Ritual oranges Feuer, Lager heller Kreis
+    for (const e of m.events ?? []) {
+      const [x, y] = this.px(e.x, e.z);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#1a1612';
+      if (e.kind === 'drop') {
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(x - 5, y - 5, 10, 10);
+        ctx.strokeRect(x - 5, y - 5, 10, 10);
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y);
+        ctx.lineTo(x + 5, y);
+        ctx.moveTo(x, y - 5);
+        ctx.lineTo(x, y + 5);
+        ctx.stroke();
+      } else if (e.kind === 'ritual') {
+        ctx.fillStyle = '#ff7a2a';
+        ctx.beginPath();
+        ctx.moveTo(x, y - 8);
+        ctx.lineTo(x + 5, y + 4);
+        ctx.lineTo(x - 5, y + 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#e8dcc0';
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
     // Aufwachpunkt: Zelt-Symbol
     if (m.respawn) {

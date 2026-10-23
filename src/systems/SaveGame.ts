@@ -2,6 +2,7 @@ import type { InventoryData } from './Inventory';
 import type { CaveSave } from './Caves';
 import type { SettlementSave } from './Settlement';
 import type { SkillsSave } from './Skills';
+import type { WorldEventSave } from './WorldEvents';
 import type { VegetationSave } from '../world/Vegetation';
 import type { HarvestSave } from './HarvestSystem';
 import type { StructureSave } from './building/BuildingSystem';
@@ -61,6 +62,8 @@ export interface SaveData {
   town?: SettlementSave;
   /** Seit Meilenstein 24: Erfahrung je Fertigkeit. */
   skills?: SkillsSave;
+  /** Seit Meilenstein 27: Versorgungsabwürfe und verlassene Lager. */
+  worldEvents?: WorldEventSave[];
 }
 
 /** Kurzinfo für das Startmenü. */

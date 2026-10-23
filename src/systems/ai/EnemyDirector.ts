@@ -465,6 +465,59 @@ export class EnemyDirector {
     return spawned;
   }
 
+  // ---------------------------------------------------------------------------
+  // Zufallsereignisse
+  // ---------------------------------------------------------------------------
+
+  /** Gruppe ohne Lager an einem Ort (z. B. Ritual); wird nicht gespeichert. */
+  spawnGroup(center: THREE.Vector3, kinds: EnemyKind[]): Enemy[] {
+    const out: Enemy[] = [];
+    for (const kind of kinds) {
+      if (this.enemies.length >= MAX_ENEMIES + MAX_HORDE) break;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const a = this.rng() * Math.PI * 2;
+        const r = 3 + this.rng() * 4;
+        const x = center.x + Math.cos(a) * r;
+        const z = center.z + Math.sin(a) * r;
+        if (!this.nav.isWalkable(x, z)) continue;
+        const pos = new THREE.Vector3(x, this.d.heightMap.heightAt(x, z), z);
+        const enemy = new Enemy(this.nextId++, this.d.physics, pos, center.clone(), this.cfg, Math.floor(this.rng() * 4), ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16), kind);
+        this.enemies.push(enemy);
+        this.byCollider.set(enemy.collider.handle, { enemy, zone: 'body' });
+        this.byCollider.set(enemy.headCollider.handle, { enemy, zone: 'head' });
+        out.push(enemy);
+        break;
+      }
+    }
+    return out;
+  }
+
+  /** Entfernt Gegner einer Gruppe, die weit genug vom Spieler weg sind (Leichen bleiben liegen). @returns verbliebene. */
+  despawnGroup(group: Enemy[], minDistance: number): Enemy[] {
+    return group.filter((e) => {
+      if (!this.enemies.includes(e)) return false;
+      if (e.isDead || e.feet.distanceTo(this.d.player.position) < minDistance) return true;
+      this.removeEnemy(this.enemies.indexOf(e));
+      return false;
+    });
+  }
+
+  /** Das nächste Lager (bis 450 m) schickt bis zu `count` ruhige Mitglieder, um nachzusehen. */
+  sendGroupTo(position: THREE.Vector3, count: number): number {
+    const camp = this.camps
+      .filter((c) => c.center.distanceTo(position) < 450)
+      .sort((a, b) => a.center.distanceTo(position) - b.center.distanceTo(position))[0];
+    if (!camp) return 0;
+    let sent = 0;
+    for (const m of camp.members) {
+      if (sent >= count || m.isDead || m.isAggressive) continue;
+      m.active = true;
+      m.hunt(position.clone().add(new THREE.Vector3((this.rng() - 0.5) * 8, 0, (this.rng() - 0.5) * 8)));
+      sent++;
+    }
+    return sent;
+  }
+
   /** Horden-Schrate verlieren nie die Witterung (außer der Spieler ist in einer Höhle). */
   private updateHorde(dt: number): void {
     if (this.horde.size === 0) return;

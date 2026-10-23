@@ -58,7 +58,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > **Richtung:** Ein Open-World-Survival-Horror im Geist von *The Forest*, mit Plündern und Erkunden wie in *DayZ*,
 > Horden-Nächten wie in *7 Days to Die*, Rollenspiel durch Fertigkeiten – und später **Koop-Mehrspieler**
 > (alle gemeinsam gegen die Insel). Nächste Schritte: Furcht & nächtlicher Horror, die Fiebernacht (Horden alle
-> sieben Tage), Zufallsereignisse, dann das Mehrspieler-Fundament.
+> sieben Tage), Zufallsereignisse – und als Nächstes das Mehrspieler-Fundament.
+
+### Meilenstein 27 – Die Insel lebt (Zufallsereignisse)
+
+- Alle 5–10 Minuten passiert irgendwo in 120–320 m Entfernung etwas (höchstens drei Ereignisse zugleich,
+  nicht in Stadt, Lagern oder vor Höhlen):
+  - **Versorgungsabwurf:** Ein Flugzeug brummt tief über die Insel (Meldung mit Himmelsrichtung) und wirft eine Kiste
+    am Fallschirm ab. Roter Rauch steigt minutenlang auf, die Stelle ist auf der Karte markiert. Drin:
+    Verbandszeug, Konserven, Wasser, Pfeile, Batterien, mit Glück Taschenlampe, Machete oder Winterjacke. Aber: Der
+    Lärm lockt Schrate aus dem nächsten Lager an.
+  - **Schrat-Ritual** (nachts): Trommeln dröhnen weithin (Meldung mit Richtung); an einem großen Feuer mit Totems
+    versammeln sich vier Schrate, daneben liegt eine Opfergabe (Felle, Feuerstein, Fleisch, Arznei). Kämpfen oder
+    heranschleichen. Im Morgengrauen erlischt das Feuer und die Schrate verschwinden.
+  - **Verlassenes Lager:** Zelt, kalte Feuerstelle, eine zusammengesunkene Gestalt, ein Rucksack zum Durchsuchen und
+    die letzte Aufzeichnung eines Überlebenden (vier verschiedene).
+- Karte: Abwurf (rot), Ritual (orange), Lager (hell). Abwürfe und Lager bleiben im Spielstand. Tagebuch-Ziele für
+  Kiste und Opfergabe, Erfahrung in Überleben.
 
 ### Meilenstein 26 – Die Fiebernacht
 
@@ -580,6 +596,7 @@ src/
 │   ├── Fear.ts             Furcht aus Dunkelheit, Bedrohung und Schreck (getestet)
 │   ├── Horror.ts           Nächtliche Schrecken: Gestalten, Klopfen, Schritte, Flüstern
 │   ├── FeverNight.ts       Zeitplan der Fiebernacht (getestet)
+│   ├── WorldEvents.ts      Zufallsereignisse: Versorgungsabwurf, Schrat-Ritual, verlassenes Lager
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -655,5 +672,5 @@ src/
 25. ~~Fertigkeiten~~ ✓
 26. ~~Furcht & nächtlicher Horror~~ ✓
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
-28. Zufallsereignisse
+28. ~~Zufallsereignisse~~ ✓
 29. Koop-Mehrspieler (Server, bis zu 50 Spieler)

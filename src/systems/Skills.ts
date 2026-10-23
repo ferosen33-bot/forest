@@ -150,6 +150,7 @@ export function wireSkillEvents(skills: Skills, events: EventBus): void {
   events.on('fish:caught', ({ count }) => skills.gain('survival', 4 * count));
   events.on('player:slept', () => skills.gain('survival', 5));
   events.on('loot:searched', () => skills.gain('survival', 0.8));
+  events.on('world:event', ({ phase }) => phase === 'looted' && skills.gain('survival', 3));
   events.on('item:collected', ({ item, count }) => {
     if (item === 'rawMeat' || item === 'hide') skills.gain('survival', count);
   });

@@ -48,6 +48,7 @@ import { Fear } from '../systems/Fear';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemId } from '../entities/items/ItemDefs';
+import { WorldEvents } from '../systems/WorldEvents';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -109,6 +110,7 @@ export class Game {
   /** Furcht des Spielers und die nächtlichen Schrecken der Insel. */
   readonly fear = new Fear();
   horror!: Horror;
+  worldEvents!: WorldEvents;
   private heartbeatTimer = 0;
   private fearVignette: HTMLDivElement | null = null;
   private lastFilter = '';
@@ -407,6 +409,27 @@ export class Game {
     });
     this.scene.add(this.projectiles.group);
     this.enemies.onThrow = (origin, velocity, damage) => this.projectiles.launch('stone', undefined, damage, origin, velocity, true);
+    this.worldEvents = new WorldEvents({
+      physics: this.physics,
+      heightMap: this.world.heightMap,
+      vegetation: this.world.vegetation,
+      enemies: this.enemies,
+      items: this.items,
+      particles: this.particles,
+      lights: this.lights,
+      audio: this.audio,
+      events: this.events,
+      avoid: [
+        ...this.enemies.camps.map((c) => ({ x: c.center.x, z: c.center.z, radius: 70 })),
+        ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 30 }] : []),
+        ...this.caves.caves.map((c) => ({ x: c.site.position.x, z: c.site.position.z, radius: 25 })),
+      ],
+      showNote: (title, text) => {
+        this.noteUI.showText(title, text);
+        this.noteAt.copy(this.player.position);
+      },
+    });
+    this.scene.add(this.worldEvents.group);
     this.interaction = new InteractionSystem({
       physics: this.physics,
       camera: this.camera,
@@ -421,6 +444,7 @@ export class Game {
       cooking: this.cooking,
       caves: this.caves,
       settlement: this.settlement,
+      worldEvents: this.worldEvents,
       items: this.items,
       audio: this.audio,
       events: this.events,
@@ -599,6 +623,7 @@ export class Game {
       caves: this.caves.serialize(),
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
       skills: this.skills.serialize(),
+      worldEvents: this.worldEvents.serialize(),
     };
   }
 
@@ -622,6 +647,7 @@ export class Game {
     if (d.caves) this.caves.load(d.caves);
     if (d.town) this.settlement?.load(d.town);
     if (d.skills) this.skills.load(d.skills);
+    if (d.worldEvents) this.worldEvents.load(d.worldEvents);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
     if (cave) {
@@ -1227,6 +1253,13 @@ export class Game {
     player.stats.warm = this.building.isNearLitFire(player.position);
     this.updateSkills(dt, playing);
     this.updateFever(dt);
+    this.worldEvents.update({
+      dt,
+      player: player.position,
+      hour: this.dayNight.hour,
+      isNight: this.dayNight.isNight,
+      inCave: !!this.caves.current,
+    });
     this.updateFear(dt, playing);
     this.updateClimate(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
@@ -1332,6 +1365,7 @@ export class Game {
       structures: this.building.structures.map((s) => ({ x: s.position.x, z: s.position.z, kind: kinds[s.def.id] ?? 'other' })),
       camps: [...this.discoveredCamps].map((i) => this.enemies.camps[i].center),
       caves: this.caves.caves.filter((c) => c.discovered).map((c) => ({ x: c.site.position.x, z: c.site.position.z })),
+      events: this.worldEvents.markers(),
     });
     const explored = document.querySelector('[data-ref="mapExplored"]');
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
@@ -1440,6 +1474,7 @@ export class Game {
       `Wetter     ${this.climate.weather.name} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
+      `Ereignisse ${this.worldEvents.active} aktiv`,
       `Fieber     ${feverLabel(this.dayNight.day, this.dayNight.hour) || '–'} · Horde ${this.enemies.hordeCount} (N: Fiebernacht)`,
       `Furcht     ${(this.fear.value * 100).toFixed(0)} %${this.fear.hallucinating ? ' · Halluzinationen' : ''} · ${this.horror.activeWatchers} Gestalten`,
     ];

@@ -15,12 +15,16 @@ export class NoteUI {
 
   show(id: string): void {
     const note = getNote(id);
-    if (!note) return;
+    if (note) this.showText(note.title, note.text, note.style, id);
+  }
+
+  /** Beliebiger Text (z. B. Aufzeichnungen aus Zufallsereignissen, die nicht ins Tagebuch gehören). */
+  showText(title: string, text: string, style = 'paper', id = title): void {
     this._open = id;
     const paper = this.root.querySelector<HTMLElement>('.note__paper')!;
-    paper.className = `note__paper is-${note.style}`;
-    this.root.querySelector<HTMLElement>('[data-ref="noteTitle"]')!.textContent = note.title;
-    this.root.querySelector<HTMLElement>('[data-ref="noteText"]')!.textContent = note.text;
+    paper.className = `note__paper is-${style}`;
+    this.root.querySelector<HTMLElement>('[data-ref="noteTitle"]')!.textContent = title;
+    this.root.querySelector<HTMLElement>('[data-ref="noteText"]')!.textContent = text;
     this.root.classList.remove('hidden');
   }
 

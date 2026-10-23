@@ -52,7 +52,9 @@ export type SoundId =
   | 'heartbeat'
   | 'whisper'
   | 'knock'
-  | 'twig';
+  | 'twig'
+  | 'plane'
+  | 'drum';
 
 export interface PlayOptions {
   volume?: number;
@@ -386,6 +388,17 @@ export class Audio {
         this.noise(t, 0.03, 'highpass', 2600, 0.8, 0.9);
         this.noise(t + 0.035, 0.05, 'bandpass', 1500, 2, 0.6);
         this.tone(t, 'square', 900 * pitch, 260, 0.04, 0.12, 2500);
+        break;
+      // Propellerflugzeug: tiefes, schwebendes Brummen (wird alle 1,4 s neu angesetzt, überlappend).
+      case 'plane':
+        this.tone(t, 'sawtooth', 58, 54, 2.2, 0.16, 380);
+        this.tone(t, 'sawtooth', 87, 84, 2.2, 0.08, 520);
+        this.noise(t, 2.0, 'lowpass', 420, 0.6, 0.25);
+        break;
+      // Ritualtrommel: dumpfer Schlag mit Fell-Rauschen.
+      case 'drum':
+        this.tone(t, 'sine', 95 * pitch, 48, 0.42, 0.9);
+        this.noise(t, 0.12, 'lowpass', 900, 0.8, 0.4);
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

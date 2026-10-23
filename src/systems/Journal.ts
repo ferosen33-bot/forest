@@ -21,6 +21,7 @@ export type Trigger =
   | { on: 'loot' }
   | { on: 'note'; id?: string }
   | { on: 'fever' }
+  | { on: 'event'; kind?: string }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'day'; day: number };
@@ -85,6 +86,8 @@ export const CHAPTERS: Chapter[] = [
       { id: 'coat', text: 'Einen Fellmantel herstellen', trigger: { on: 'craft', item: 'furCoat' } },
       { id: 'koloss', text: 'Einen Koloss besiegen', trigger: { on: 'kill', name: 'Koloss' } },
       { id: 'fever', text: 'Eine Fiebernacht überleben', trigger: { on: 'fever' } },
+      { id: 'drop', text: 'Eine Versorgungskiste öffnen', trigger: { on: 'event', kind: 'drop' } },
+      { id: 'ritual', text: 'Die Opfergabe eines Rituals an dich nehmen', trigger: { on: 'event', kind: 'ritual' } },
       { id: 'day10', text: 'Zehn Tage überleben', trigger: { on: 'day', day: 10 } },
     ],
   },
@@ -163,6 +166,9 @@ export class Journal {
     events.on('town:discovered', () => this.advance((t) => t.on === 'town'));
     events.on('loot:searched', () => this.advance((t) => t.on === 'loot'));
     events.on('fever:survived', () => this.advance((t) => t.on === 'fever'));
+    events.on('world:event', ({ kind, phase }) => {
+      if (phase === 'looted') this.advance((t) => t.on === 'event' && (!t.kind || t.kind === kind));
+    });
     events.on('note:read', ({ id, first }) => {
       if (!first) return;
       this.notes.add(id);

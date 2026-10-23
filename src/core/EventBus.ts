@@ -43,6 +43,8 @@ export type GameEvents = {
   /** Stadt: Behälter durchsucht, Ort entdeckt. */
   'loot:searched': { kind: string; items: ItemId[] };
   'town:discovered': { name: string };
+  /** Zufallsereignis begonnen bzw. geplündert. */
+  'world:event': { kind: string; phase: 'start' | 'looted' };
   /** Eine Fiebernacht wurde überlebt. */
   'fever:survived': { number: number };
   /** Eine Fertigkeit ist eine Stufe aufgestiegen. */
