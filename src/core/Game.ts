@@ -46,6 +46,8 @@ import { SkillsUI } from '../ui/SkillsUI';
 import { getSkill, Skills, wireSkillEvents } from '../systems/Skills';
 import { Fear } from '../systems/Fear';
 import { Horror } from '../systems/Horror';
+import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
+import type { ItemId } from '../entities/items/ItemDefs';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -110,6 +112,9 @@ export class Game {
   private heartbeatTimer = 0;
   private fearVignette: HTMLDivElement | null = null;
   private lastFilter = '';
+  private feverState: FeverPhase = 'none';
+  private feverWaveTimer = 0;
+  private feverLook = 0;
 
   physics!: Physics;
   world!: World;
@@ -364,6 +369,13 @@ export class Game {
       this.footsteps.town = this.settlement;
     }
     this.enemies.onCaveDwellerKilled = (cave, slot) => this.caves.dwellerKilled(cave, slot, this.dayNight.day);
+    // Gefallene Horden-Schrate lassen manchmal etwas fallen.
+    this.enemies.onHordeKill = (at) => {
+      if (Math.random() > 0.35) return;
+      const drops: [ItemId, number][] = [['arrow', 2], ['cannedFood', 1], ['painkillers', 1], ['battery', 1], ['flint', 2], ['rawMeat', 1]];
+      const [item, count] = drops[Math.floor(Math.random() * drops.length)];
+      this.items.drop(item, count, at.clone().setY(at.y + 1));
+    };
     this.climate = new Climate({
       physics: this.physics,
       player: this.player,
@@ -416,7 +428,10 @@ export class Game {
       onCave: (target) => this.startCaveTransition(target),
       onReadNote: (id) => this.readNote(id),
       isNoteRead: (id) => this.journal.notes.has(id),
-      canSleep: () => this.dayNight.isSleepTime,
+      canSleep: () =>
+        this.feverState === 'night'
+          ? 'In der Fiebernacht findet niemand Schlaf'
+          : this.dayNight.isSleepTime || 'Schlafen erst ab dem Abend',
       onSleep: (shelter) => this.sleep(shelter),
       heldItem: () => this.tools.equipped?.id ?? null,
       takeHeld: () => void this.inventory.takeFromSlot(this.tools.selected, 1),
@@ -786,7 +801,7 @@ export class Game {
 
   /** Schlafen im Unterstand: abblenden, Zeit auf den Morgen setzen, Aufwachpunkt merken. */
   private sleep(shelter: Structure): void {
-    if (!this.dayNight.isSleepTime || this.sleepTimer > 0) return;
+    if (!this.dayNight.isSleepTime || this.sleepTimer > 0 || this.feverState === 'night') return;
     this.sleepTimer = 2.4;
     this.sleepApplied = false;
     this.hud.faded = true;
@@ -848,7 +863,7 @@ export class Game {
     const p = this.player;
     const inCave = !!this.caves.current;
     const lit = !!this.heldLight() || this.building.structures.some((s) => s.lit && s.position.distanceTo(p.position) < 10);
-    let darkness = inCave ? 1 : 1 - this.dayNight.daylight;
+    let darkness = inCave ? 1 : Math.min(1, 1 - this.dayNight.daylight + 0.25 * this.feverLook);
     if (lit) darkness *= 0.35;
     let threat = 0;
     for (const e of [...this.enemies.enemies, ...this.enemies.caveDwellers]) {
@@ -882,6 +897,49 @@ export class Game {
       pulse = 1;
     }
     this.applyFearLook(fear, pulse);
+  }
+
+  /** Fiebernacht: Warnung am Abend, roter Himmel, Horden in Wellen, am Morgen vorüber. */
+  private updateFever(dt: number): void {
+    const day = this.dayNight.day;
+    const hour = this.dayNight.hour;
+    if (this.hud.debugVisible && this.input.wasPressed('feverDebug')) {
+      // Debug: zum nächsten Fiebertag, kurz vor 21 Uhr.
+      this.dayNight.day = Math.ceil((day + (feverPhase(day, hour) === 'night' ? 1 : 0)) / 7) * 7 || 7;
+      this.dayNight.hour = 20.95;
+    }
+    const phase = feverPhase(this.dayNight.day, this.dayNight.hour);
+    const n = feverNumber(this.dayNight.day, this.dayNight.hour);
+    if (phase !== this.feverState) {
+      const was = this.feverState;
+      this.feverState = phase;
+      if (phase === 'warning') {
+        this.events.emit('hud:message', { text: 'Der Himmel färbt sich rot … Heute Nacht ist Fiebernacht. Verbarrikadiere dich – oder lauf.' });
+        this.audio.play('scream', { volume: 0.6, position: this.player.position.clone().add(new THREE.Vector3(80, 10, 40)) });
+      } else if (phase === 'night') {
+        this.events.emit('hud:message', { text: `Die ${n}. Fiebernacht beginnt. Sie kommen.` });
+        this.enemies.startHorde();
+        this.feverWaveTimer = 6;
+      }
+      if (was === 'night' && phase !== 'night') {
+        this.enemies.endHorde();
+        this.events.emit('hud:message', { text: 'Die Fiebernacht ist vorüber. Du hast überlebt.' });
+        this.events.emit('fever:survived', { number: n });
+        this.skills.gain('survival', 15);
+      }
+    }
+    if (phase === 'night' && !this.player.stats.isDead) {
+      this.feverWaveTimer -= dt;
+      if (this.feverWaveTimer <= 0) {
+        this.feverWaveTimer = waveInterval(n);
+        // In der Höhle lauern sie am Eingang.
+        const around = this.caves.current ? this.caves.current.site.position : this.player.position;
+        this.enemies.spawnHorde(waveSize(n), around, n);
+      }
+    }
+    const target = phase === 'night' ? 1 : phase === 'warning' ? 0.35 : 0;
+    this.feverLook += (target - this.feverLook) * Math.min(1, dt * 0.3);
+    this.dayNight.fever = this.feverLook;
   }
 
   /** Bild entsättigen, Rand abdunkeln (pulsiert mit dem Herzschlag). */
@@ -1096,7 +1154,8 @@ export class Game {
     // Während die Schnur draußen ist, zeigt der Hinweis die Angel; sonst hat das anvisierte Ziel Vorrang.
     const fishingPrompt = this.fishing.busy ? this.fishing.prompt : null;
     const prompt = this.mode === 'playing' && !building ? (fishingPrompt ?? this.interaction.prompt ?? this.fishing.prompt) : null;
-    const where = this.caves.current ? ` · ${this.caves.current.name}` : '';
+    const fever = feverLabel(this.dayNight.day, this.dayNight.hour);
+    const where = (this.caves.current ? ` · ${this.caves.current.name}` : '') + (fever ? ` · ${fever}` : '');
     const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `) + where;
     this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
     this.updateNavigation(dt);
@@ -1167,6 +1226,7 @@ export class Game {
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position);
     this.updateSkills(dt, playing);
+    this.updateFever(dt);
     this.updateFear(dt, playing);
     this.updateClimate(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
@@ -1380,6 +1440,7 @@ export class Game {
       `Wetter     ${this.climate.weather.name} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
+      `Fieber     ${feverLabel(this.dayNight.day, this.dayNight.hour) || '–'} · Horde ${this.enemies.hordeCount} (N: Fiebernacht)`,
       `Furcht     ${(this.fear.value * 100).toFixed(0)} %${this.fear.hallucinating ? ' · Halluzinationen' : ''} · ${this.horror.activeWatchers} Gestalten`,
     ];
   }

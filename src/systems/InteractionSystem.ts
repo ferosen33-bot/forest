@@ -51,8 +51,8 @@ export interface InteractionDeps {
   audio: Audio;
   events: EventBus;
   config: GameConfig;
-  /** Darf gerade geschlafen werden (abends/nachts)? */
-  canSleep: () => boolean;
+  /** Darf gerade geschlafen werden? `true` oder der Grund, warum nicht. */
+  canSleep: () => true | string;
   /** Wird beim Schlafen im Unterstand aufgerufen. */
   onSleep: (shelter: Structure) => void;
   /** Item in der Hand (Schnellzugriff). */
@@ -256,9 +256,8 @@ export class InteractionSystem {
         if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
         if (s.def.interaction === 'snare') return s.armed ? { key: null, action: 'Gespannt', label } : { key: 'E', action: 'Neu spannen', label };
         if (s.def.interaction === 'sleep') {
-          return this.deps.canSleep()
-            ? { key: 'E', action: 'Schlafen', label }
-            : { key: null, action: 'Schlafen erst ab dem Abend', label };
+          const sleep = this.deps.canSleep();
+          return sleep === true ? { key: 'E', action: 'Schlafen', label } : { key: null, action: sleep, label };
         }
         return tool ? { key: 'LMB', action: 'Abreißen', label } : null;
       }

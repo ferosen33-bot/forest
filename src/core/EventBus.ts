@@ -43,6 +43,8 @@ export type GameEvents = {
   /** Stadt: Behälter durchsucht, Ort entdeckt. */
   'loot:searched': { kind: string; items: ItemId[] };
   'town:discovered': { name: string };
+  /** Eine Fiebernacht wurde überlebt. */
+  'fever:survived': { number: number };
   /** Eine Fertigkeit ist eine Stufe aufgestiegen. */
   'skill:levelUp': { id: SkillId; level: number };
   /** Eine Notiz wurde gelesen (`first`: zum ersten Mal). */

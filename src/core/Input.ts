@@ -43,6 +43,8 @@ export const KEY_BINDINGS = {
   skills: ['KeyK'],
   /** Debug: nächste Wetterlage (nur mit sichtbarer Debug-Anzeige). */
   weather: ['KeyY'],
+  /** Debug: die nächste Fiebernacht beginnt gleich (nur mit sichtbarer Debug-Anzeige). */
+  feverDebug: ['KeyN'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof KEY_BINDINGS;

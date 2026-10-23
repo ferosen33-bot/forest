@@ -85,6 +85,8 @@ export interface DirectorDeps {
 }
 
 const MAX_ENEMIES = 24;
+/** Zusätzliche Horden-Schrate in der Fiebernacht (gleichzeitig). */
+const MAX_HORDE = 14;
 
 /**
  * Regie über alle Schrate: Lager, Spawns, Wahrnehmungs-Kontext, Geräusche,
@@ -96,7 +98,7 @@ export class EnemyDirector {
   readonly enemies: Enemy[] = [];
   readonly camps: Camp[] = [];
 
-  private readonly renderer = new EnemyRenderer(MAX_ENEMIES);
+  private readonly renderer = new EnemyRenderer(MAX_ENEMIES + MAX_HORDE + 8);
   private readonly byCollider = new Map<number, { enemy: Enemy; zone: HitZone }>();
   private readonly ctx: EnemyContext;
   private readonly cfg: GameConfig['ai'];
@@ -113,6 +115,13 @@ export class EnemyDirector {
   private huntTimer = 40;
   private readonly tmp = new THREE.Vector3();
   private cave: CavePopulation | null = null;
+  /** Fiebernacht: Horden-Schrate (gehören zu keinem Lager, werden nicht gespeichert). */
+  private readonly horde = new Set<Enemy>();
+  private hordeActive = false;
+  private hordeTimer = 0;
+  private hordeEndedFor = 0;
+  /** Ein Horden-Schrat ist gefallen (Beute). */
+  onHordeKill: ((position: THREE.Vector3) => void) | null = null;
   private caveNoiseTimer = 0;
   /** Ein Höhlenbewohner ist gestorben (für die Wiederkehr nach einigen Tagen). */
   onCaveDwellerKilled: ((cave: number, slot: number) => void) | null = null;
@@ -402,6 +411,80 @@ export class EnemyDirector {
     this.cave = null;
   }
 
+  // ---------------------------------------------------------------------------
+  // Fiebernacht
+  // ---------------------------------------------------------------------------
+
+  /** Horden ab jetzt rasend auf den Spieler hetzen (Wellen schickt das Spiel mit `spawnHorde`). */
+  startHorde(): void {
+    this.hordeActive = true;
+    this.hordeEndedFor = 0;
+  }
+
+  /** Morgengrauen: Überlebende ziehen sich zurück und verschwinden außer Sicht. */
+  endHorde(): void {
+    this.hordeActive = false;
+    this.hordeEndedFor = 0;
+    for (const e of this.horde) e.calmDown();
+  }
+
+  get hordeCount(): number {
+    let n = 0;
+    for (const e of this.horde) if (!e.isDead) n++;
+    return n;
+  }
+
+  /**
+   * Eine Welle: `count` Schrate erscheinen 40–65 m um `around` (auf begehbarem Grund) und jagen los.
+   * Ab der zweiten Fiebernacht sind auch Kolosse dabei. @returns Anzahl erschienener.
+   */
+  spawnHorde(count: number, around: THREE.Vector3, fever: number): number {
+    let spawned = 0;
+    for (let n = 0; n < count && this.hordeCount < MAX_HORDE; n++) {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const a = this.rng() * Math.PI * 2;
+        const r = 40 + this.rng() * 25;
+        const x = around.x + Math.cos(a) * r;
+        const z = around.z + Math.sin(a) * r;
+        if (!this.nav.isWalkable(x, z)) continue;
+        const roll = this.rng();
+        const kind: EnemyKind = fever >= 2 && roll < 0.12 ? 'koloss' : roll < 0.4 ? 'spaeher' : 'schrat';
+        const pos = new THREE.Vector3(x, this.d.heightMap.heightAt(x, z), z);
+        const enemy = new Enemy(this.nextId++, this.d.physics, pos, around.clone(), this.cfg, Math.floor(this.rng() * 4), ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16), kind);
+        enemy.enrage();
+        enemy.alertedBy(this.d.player.position, this.ctx);
+        this.enemies.push(enemy);
+        this.horde.add(enemy);
+        this.byCollider.set(enemy.collider.handle, { enemy, zone: 'body' });
+        this.byCollider.set(enemy.headCollider.handle, { enemy, zone: 'head' });
+        spawned++;
+        break;
+      }
+    }
+    if (spawned > 0) for (let i = 0; i < 3; i++) this.playAt('scream', new THREE.Vector3(around.x + (this.rng() - 0.5) * 60, around.y, around.z + (this.rng() - 0.5) * 60));
+    return spawned;
+  }
+
+  /** Horden-Schrate verlieren nie die Witterung (außer der Spieler ist in einer Höhle). */
+  private updateHorde(dt: number): void {
+    if (this.horde.size === 0) return;
+    const player = this.d.player.position;
+    this.hordeTimer -= dt;
+    if (!this.hordeActive) this.hordeEndedFor += dt;
+    const tick = this.hordeTimer <= 0;
+    if (tick) this.hordeTimer = 2;
+    for (const e of [...this.horde]) {
+      if (e.isDead) continue;
+      const dist = e.feet.distanceTo(player);
+      if (!this.hordeActive) {
+        // Nach Sonnenaufgang: abseits des Spielers (oder spätestens nach einer Minute) verschwinden.
+        if (dist > 45 || this.hordeEndedFor > 60) this.removeEnemy(this.enemies.indexOf(e));
+        continue;
+      }
+      if (tick && !e.isAggressive && !this.d.playerHidden()) e.alertedBy(player, this.ctx);
+    }
+  }
+
   /** Lebende Bewohner der aktuellen Höhle. */
   get caveDwellers(): readonly Enemy[] {
     return this.cave?.enemies ?? [];
@@ -437,6 +520,7 @@ export class EnemyDirector {
       this.byCollider.delete(enemy.collider.handle);
       this.byCollider.delete(enemy.headCollider.handle);
       this.playAt('enemyDeath', enemy.feet);
+      if (this.horde.has(enemy)) this.onHordeKill?.(enemy.feet.clone());
       const slot = this.cave?.slots.get(enemy);
       if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);
     } else if (!wasAggressive) {
@@ -489,6 +573,7 @@ export class EnemyDirector {
 
     this.updateHunts(dt, night);
     this.updateCamps(dt);
+    this.updateHorde(dt);
 
     // Höhle: kurze Sicht (mit Fackel etwas weiter – Licht verrät), Schritte tragen im Fels weit.
     const cave = this.cave;
@@ -599,8 +684,10 @@ export class EnemyDirector {
   }
 
   private removeEnemy(index: number): void {
+    if (index < 0) return;
     const e = this.enemies[index];
     this.enemies.splice(index, 1);
+    this.horde.delete(e);
     e.dispose();
     this.byCollider.delete(e.collider.handle);
     this.byCollider.delete(e.headCollider.handle);

@@ -27,6 +27,11 @@ const SUN_DAY = new THREE.Color(0xfff1da);
 const SUN_DUSK = new THREE.Color(0xff8e45);
 const MOON = new THREE.Color(0x8da6dc);
 const UNDERWATER = new THREE.Color(0x0b3a46);
+/** Fiebernacht: blutroter Himmel, rötlicher Nebel und Mond. */
+const FEVER_SKY = new THREE.Color(0x3a0705);
+const FEVER_HORIZON = new THREE.Color(0x7a1a0e);
+const FEVER_FOG = new THREE.Color(0x2a0806);
+const FEVER_MOON = new THREE.Color(0xff5a3a);
 /** Höhle: fast schwarz, kaum Restlicht (Fackel nötig). */
 const CAVE_FOG = new THREE.Color(0x040506);
 const CAVE_SKY = new THREE.Color(0x2a313b);
@@ -75,6 +80,8 @@ export class DayNightCycle {
   linearOutput = false;
   /** 1 = in einer Höhle: Sonne/Mond aus, kaum Umgebungslicht, dichter dunkler Nebel. */
   underground = 0;
+  /** 1 = Fiebernacht: roter Himmel, roter Mond (vom Spiel weich ein- und ausgeblendet). */
+  fever = 0;
 
   private readonly sunDir = new THREE.Vector3();
   private readonly moonDir = new THREE.Vector3();
@@ -202,6 +209,17 @@ export class DayNightCycle {
     if (underwater) {
       density = 0.085;
       this.fog.color.lerp(UNDERWATER, 0.85);
+    }
+    const fever = this.fever * (1 - ambientT);
+    if (fever > 0) {
+      this.sky.uniforms.uZenith.value.lerp(FEVER_SKY, fever);
+      this.sky.uniforms.uHorizon.value.lerp(FEVER_HORIZON, fever);
+      this.fog.color.lerp(FEVER_FOG, fever);
+      this.hemi.color.lerp(FEVER_HORIZON, fever * 0.6);
+      if (!sunUp) {
+        this.light.color.lerp(FEVER_MOON, fever);
+        this.light.intensity *= 1 + 0.6 * fever;
+      }
     }
     const cave = this.underground;
     if (cave > 0) {

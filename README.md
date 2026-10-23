@@ -60,6 +60,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Nächste Schritte: Furcht & nächtlicher Horror, die Fiebernacht (Horden alle
 > sieben Tage), Zufallsereignisse, dann das Mehrspieler-Fundament.
 
+### Meilenstein 26 – Die Fiebernacht
+
+- **Jeden siebten Tag** (Tag 7, 14, 21 …) färbt sich ab 17 Uhr der Himmel rot und eine Warnung erscheint; von
+  **21 bis 5 Uhr** ist Fiebernacht: blutroter Himmel und Nebel, roter Mond, die Uhrzeile zeigt „FIEBERNACHT“ (am
+  Vortag „Fiebernacht morgen“).
+- **Horden in Wellen:** Alle 90 s (später schneller, bis 45 s) erscheinen 40–65 m entfernt neue Schrate und Späher –
+  ab der zweiten Fiebernacht auch Kolosse – mit einem Chor von Schreien. Sie sind **rasend** (scheuen kein Feuer),
+  verlieren nie die Witterung und schlagen sich durch Wände, die ihnen den Weg versperren. Jede Woche werden die
+  Wellen größer (3, 5, 7 … bis 9 Gegner, höchstens 14 zugleich). Wer in einer Höhle Zuflucht sucht, findet sie
+  am Eingang lauernd.
+- In der Fiebernacht kann niemand schlafen; die Furcht steigt zusätzlich. Gefallene Horden-Schrate lassen manchmal
+  Pfeile, Konserven, Schmerzmittel, Batterien, Feuerstein oder Fleisch fallen.
+- **Morgengrauen:** Die Überlebenden ziehen sich zurück; wer durchhält, bekommt Erfahrung (Überleben) und das
+  Tagebuch-Ziel „Eine Fiebernacht überleben“. Debug: `F3` + `N` springt kurz vor die nächste Fiebernacht.
+- `FeverNight.ts` ist der reine, getestete Zeitplan (Phasen, Nummer, Wellengröße und -abstand).
+
 ### Meilenstein 25 – Furcht & nächtlicher Horror
 
 - **Furcht** (0–100 %): steigt in der Dunkelheit ohne Licht (nachts, in Höhlen), stärker bei nahen oder
@@ -563,6 +579,7 @@ src/
 │   ├── Skills.ts           Fertigkeiten: Erfahrung, Stufen, Wirkungen (getestet)
 │   ├── Fear.ts             Furcht aus Dunkelheit, Bedrohung und Schreck (getestet)
 │   ├── Horror.ts           Nächtliche Schrecken: Gestalten, Klopfen, Schritte, Flüstern
+│   ├── FeverNight.ts       Zeitplan der Fiebernacht (getestet)
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -637,6 +654,6 @@ src/
 24. ~~Was geschah: Notizen, Briefe und Funkprotokolle~~ ✓
 25. ~~Fertigkeiten~~ ✓
 26. ~~Furcht & nächtlicher Horror~~ ✓
-27. Die Fiebernacht (Horden alle sieben Tage)
+27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. Zufallsereignisse
 29. Koop-Mehrspieler (Server, bis zu 50 Spieler)

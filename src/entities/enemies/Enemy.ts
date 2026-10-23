@@ -264,6 +264,11 @@ export class Enemy {
     return false;
   }
 
+  /** Fiebernacht: rasend – fürchtet kein Feuer mehr. */
+  enrage(): void {
+    this.provokedUntil = Infinity;
+  }
+
   /** Setzt den Gegner zurück ins Lager (z. B. nach dem Tod des Spielers). */
   calmDown(): void {
     if (this.isDead) return;
