@@ -44,6 +44,8 @@ import { JournalUI } from '../ui/JournalUI';
 import { NoteUI } from '../ui/NoteUI';
 import { SkillsUI } from '../ui/SkillsUI';
 import { getSkill, Skills, wireSkillEvents } from '../systems/Skills';
+import { Fear } from '../systems/Fear';
+import { Horror } from '../systems/Horror';
 import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
@@ -102,6 +104,12 @@ export class Game {
   readonly crafting = new Crafting(this.inventory);
   /** Fertigkeiten (wachsen durch Tun). */
   readonly skills = new Skills(this.events);
+  /** Furcht des Spielers und die nächtlichen Schrecken der Insel. */
+  readonly fear = new Fear();
+  horror!: Horror;
+  private heartbeatTimer = 0;
+  private fearVignette: HTMLDivElement | null = null;
+  private lastFilter = '';
 
   physics!: Physics;
   world!: World;
@@ -448,6 +456,9 @@ export class Game {
     });
     this.scene.add(this.fishing.group);
     this.fishTraps = new FishTraps(this.building, this.events);
+    this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
+    this.scene.add(this.horror.group);
+    this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
 
     // Tagebuch und Erkundung gehören zum Spielstand – sie müssen vor dem Laden existieren.
     this.journal = new Journal(this.events);
@@ -829,6 +840,73 @@ export class Game {
     }
   }
 
+  /**
+   * Furcht aus Dunkelheit und Bedrohung, ihre Folgen (Farbverlust, dunkler Rand, Herzschlag, langsamere
+   * Erholung) und die nächtlichen Schrecken.
+   */
+  private updateFear(dt: number, playing: boolean): void {
+    const p = this.player;
+    const inCave = !!this.caves.current;
+    const lit = !!this.heldLight() || this.building.structures.some((s) => s.lit && s.position.distanceTo(p.position) < 10);
+    let darkness = inCave ? 1 : 1 - this.dayNight.daylight;
+    if (lit) darkness *= 0.35;
+    let threat = 0;
+    for (const e of [...this.enemies.enemies, ...this.enemies.caveDwellers]) {
+      if (e.isDead) continue;
+      const d = e.feet.distanceTo(p.position);
+      if (e.isAggressive && d < 22) threat += 0.45;
+      else if (d < 9) threat = Math.max(threat, 0.35);
+    }
+    const resting = p.stats.isDead || this.sleepTimer > 0;
+    const fear = this.fear.update({ dt, darkness, threat: Math.min(1, threat), nearFire: p.stats.warm, resting });
+    // Große Angst lähmt: Ausdauer erholt sich langsamer.
+    p.stats.regenFactor *= 1 - 0.5 * Math.max(0, fear - 0.5);
+
+    this.horror.update({
+      dt,
+      darkness: inCave ? 1 : darkness / (lit ? 0.35 : 1),
+      inCave,
+      player: p.position,
+      eye: this.camera.position,
+      look: this.camera.getWorldDirection(this.tmpDir),
+      moving: Math.hypot(p.velocity.x, p.velocity.z) > 1,
+      paused: !playing || resting,
+    });
+
+    // Herzschlag ab spürbarer Angst – je größer, desto schneller und lauter.
+    this.heartbeatTimer -= dt;
+    let pulse = 0;
+    if (fear > 0.3 && this.heartbeatTimer <= 0 && !resting) {
+      this.heartbeatTimer = 1.3 - 0.8 * fear;
+      this.audio.play('heartbeat', Math.min(1, (fear - 0.3) * 1.6));
+      pulse = 1;
+    }
+    this.applyFearLook(fear, pulse);
+  }
+
+  /** Bild entsättigen, Rand abdunkeln (pulsiert mit dem Herzschlag). */
+  private applyFearLook(fear: number, pulse: number): void {
+    if (!this.fearVignette) {
+      this.fearVignette = document.createElement('div');
+      this.fearVignette.className = 'fear-vignette';
+      this.opts.hudRoot.prepend(this.fearVignette);
+    }
+    const v = this.fearVignette;
+    const base = Math.max(0, fear - 0.15) * 1.1;
+    if (pulse) {
+      v.style.transition = 'none';
+      v.style.opacity = String(Math.min(1, base + 0.18));
+      void v.offsetWidth;
+      v.style.transition = 'opacity 0.45s ease-out';
+    }
+    v.style.opacity = String(Math.min(1, base));
+    const filter = fear > 0.05 ? `saturate(${(1 - 0.6 * fear).toFixed(2)}) contrast(${(1 + 0.12 * fear).toFixed(2)})` : '';
+    if (filter !== this.lastFilter) {
+      this.lastFilter = filter;
+      this.renderer.domElement.style.filter = filter;
+    }
+  }
+
   /** Notiz lesen: Leseansicht öffnen, beim ersten Mal ins Tagebuch übernehmen. */
   private readNote(id: string): void {
     const first = !this.journal.notes.has(id);
@@ -1089,6 +1167,7 @@ export class Game {
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position);
     this.updateSkills(dt, playing);
+    this.updateFear(dt, playing);
     this.updateClimate(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
     const chest = this.openChest;
@@ -1301,6 +1380,7 @@ export class Game {
       `Wetter     ${this.climate.weather.name} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
+      `Furcht     ${(this.fear.value * 100).toFixed(0)} %${this.fear.hallucinating ? ' · Halluzinationen' : ''} · ${this.horror.activeWatchers} Gestalten`,
     ];
   }
 

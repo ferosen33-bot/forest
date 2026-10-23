@@ -343,6 +343,14 @@ html, body {
 .journal__chapter ul { margin: 0; padding-left: 4px; list-style: none; font-size: 15px; line-height: 1.6; }
 .journal__chapter li.is-done { opacity: 0.55; }
 
+.fear-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(12, 0, 0, 0.55) 72%, rgba(0, 0, 0, 0.92) 100%);
+}
+
 #skills {
   position: fixed;
   inset: 0;

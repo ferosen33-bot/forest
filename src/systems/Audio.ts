@@ -48,7 +48,11 @@ export type SoundId =
   | 'cast'
   | 'splash'
   | 'reel'
-  | 'drip';
+  | 'drip'
+  | 'heartbeat'
+  | 'whisper'
+  | 'knock'
+  | 'twig';
 
 export interface PlayOptions {
   volume?: number;
@@ -358,6 +362,30 @@ export class Audio {
       case 'drip':
         this.tone(t, 'sine', 1900 * pitch, 900, 0.07, 0.3);
         this.tone(t + 0.09, 'sine', 1500 * pitch, 800, 0.12, 0.08);
+        break;
+      // Herzschlag: zwei dumpfe Schläge ("ba-bumm").
+      case 'heartbeat':
+        this.tone(t, 'sine', 62, 38, 0.16, 0.9);
+        this.tone(t + 0.19, 'sine', 55, 34, 0.2, 0.65);
+        break;
+      // Flüstern: zischelndes Rauschen mit wanderndem Formant, in kurzen Silben.
+      case 'whisper':
+        for (let i = 0; i < 5; i++) {
+          const at = t + i * 0.17 + Math.random() * 0.05;
+          this.noise(at, 0.16, 'bandpass', 2200 + Math.random() * 1400, 3.5, 0.22, 1300 + Math.random() * 800);
+        }
+        this.noise(t, 1.0, 'highpass', 5200, 0.7, 0.06);
+        break;
+      // Klopfen: Holz auf Holz, trocken und hohl.
+      case 'knock':
+        this.tone(t, 'triangle', 210 * pitch, 140, 0.09, 0.8, 900);
+        this.noise(t, 0.06, 'bandpass', 650, 1.6, 0.7);
+        break;
+      // Ein Ast knackt unter einem Fuß.
+      case 'twig':
+        this.noise(t, 0.03, 'highpass', 2600, 0.8, 0.9);
+        this.noise(t + 0.035, 0.05, 'bandpass', 1500, 2, 0.6);
+        this.tone(t, 'square', 900 * pitch, 260, 0.04, 0.12, 2500);
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

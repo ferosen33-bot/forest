@@ -60,6 +60,20 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Nächste Schritte: Furcht & nächtlicher Horror, die Fiebernacht (Horden alle
 > sieben Tage), Zufallsereignisse, dann das Mehrspieler-Fundament.
 
+### Meilenstein 25 – Furcht & nächtlicher Horror
+
+- **Furcht** (0–100 %): steigt in der Dunkelheit ohne Licht (nachts, in Höhlen), stärker bei nahen oder
+  jagenden Gegnern und durch Schreckmomente und Treffer; am Feuer, im Licht und bei Tag legt sie sich. Folgen:
+  Das Bild verliert Farbe, der Rand wird dunkel und pulsiert mit einem Herzschlag, der mit der Angst schneller und
+  lauter wird; bei großer Angst erholt sich die Ausdauer langsamer.
+- **Die Insel spielt Streiche** (nur im Dunkeln, häufiger je größer die Furcht, ab 60 % „Halluzinationen“ –
+  doppelt so oft): hagere **Gestalten mit glimmenden Augen** stehen am Rand des Blickfelds und verschwinden mit
+  einem Flüstern, sobald man hinsieht oder näher kommt; dreimaliges **Klopfen** aus dem Wald; ein **knackender
+  Ast** im Rücken; **Schreie** in der Ferne; **Schritte, die folgen** – und verstummen, wenn man stehen bleibt;
+  in Höhlen **Flüstern** dicht hinter einem.
+- `Fear.ts` (rein, getestet) berechnet die Furcht aus Dunkelheit, Bedrohung und Schreck; `Horror.ts` führt Regie
+  über die Ereignisse; neue Klänge: Herzschlag, Flüstern, Klopfen, knackender Ast. F3 zeigt Furcht und Gestalten.
+
 ### Meilenstein 24 – Fertigkeiten
 
 - **Acht Fertigkeiten, die durch Tun wachsen** (Stufe 0–10, Taste `K`): Holzfällen (Bäume treffen und fällen →
@@ -547,6 +561,8 @@ src/
 │   ├── Settlement.ts       Stadt zur Laufzeit: Kollision, Beutetabellen, Durchsuchen, Entdeckung
 │   ├── Notes.ts            Die Notizen der Geschichte und ihre Fundorte (getestet)
 │   ├── Skills.ts           Fertigkeiten: Erfahrung, Stufen, Wirkungen (getestet)
+│   ├── Fear.ts             Furcht aus Dunkelheit, Bedrohung und Schreck (getestet)
+│   ├── Horror.ts           Nächtliche Schrecken: Gestalten, Klopfen, Schritte, Flüstern
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
 │   ├── Climate.ts          Wetter ↔ Welt: Nässe, Dächer, Feuer im Regen, nasser Boden, Wind, Regenwasser
 │   ├── SaveGame.ts         Spielstand-Format, Prüfung, localStorage-Slot (getestet)
@@ -620,7 +636,7 @@ src/
 23. ~~Die verlassene Stadt~~ ✓
 24. ~~Was geschah: Notizen, Briefe und Funkprotokolle~~ ✓
 25. ~~Fertigkeiten~~ ✓
-26. Furcht & nächtlicher Horror
+26. ~~Furcht & nächtlicher Horror~~ ✓
 27. Die Fiebernacht (Horden alle sieben Tage)
 28. Zufallsereignisse
 29. Koop-Mehrspieler (Server, bis zu 50 Spieler)
