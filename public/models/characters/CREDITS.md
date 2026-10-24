@@ -8,3 +8,9 @@ Quaternius auf.
   `female_9` (unverändert)
 - `base-anims.glb`, `addon-anims.glb`: Auszug aus `human-base-animations.glb` und `human-addon-animations.glb`
   (nur benötigte Bewegungen, ohne Finger- und Skalierungsspuren), erzeugt mit `scripts/prepare-characters.mjs`
+
+## Hand in der Ich-Ansicht
+
+`fp_arm.glb`: rechter Unterarm mit Hand, ausgeschnitten aus dem MakeHuman-Avatar `mpfb.glb` des Projekts
+[TalkingHead](https://github.com/met4citizen/TalkingHead) („The avatar is licensed under CC0“), erstellt mit Blender
+und [MPFB](https://static.makehumancommunity.org/mpfb.html). Zuschnitt: `scripts/prepare-fp-arm.mjs`.

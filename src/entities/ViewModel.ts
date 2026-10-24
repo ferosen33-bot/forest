@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { ItemId } from './items/ItemDefs';
 import { createItemMesh } from './items/ItemMeshes';
 import { FireEffect } from './FireEffect';
+import type { FirstPersonArm } from './characters/FirstPersonArm';
 import { damp, smoothstep } from '../utils/math';
 
 /** Ruhepose eines gehaltenen Items relativ zur Kamera. */
@@ -46,6 +47,10 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
 };
+
+/** Versatz aller Halte-Posen, sobald die echte Hand sichtbar ist. */
+const HAND_LIFT = new THREE.Vector3(-0.025, 0.13, 0.04);
+const ZERO = new THREE.Vector3();
 
 /** Schlag-Keyframes (horizontaler Hieb von rechts nach links): Positions- und Rotationsversatz. */
 const SWING_KEYS: { t: number; pos: [number, number, number]; rot: [number, number, number] }[] = [
@@ -115,6 +120,8 @@ export class ViewModel {
   private readonly root = new THREE.Group(); // folgt der Kamera-Pose (inkl. Sway/Bob)
   private readonly pose = new THREE.Group(); // Ruhepose + Animationsversatz
   private readonly arm: THREE.Group;
+  /** Echter Unterarm mit Hand (ersetzt den Quader-Arm, sobald die Figuren geladen sind). */
+  private fpArm: FirstPersonArm | null = null;
   private model: THREE.Object3D | null = null;
   private currentId: ItemId | null = null;
   private pendingId: ItemId | null = null;
@@ -166,6 +173,15 @@ export class ViewModel {
     this.arm = this.createArm();
     this.pose.add(this.arm);
     this.arm.visible = false;
+  }
+
+  /** Echten Arm einsetzen (statt des einfachen Quader-Arms). */
+  setArm(arm: FirstPersonArm): void {
+    this.fpArm = arm;
+    this.arm.clear();
+    this.arm.add(arm.object);
+    const pose = this.currentId ? POSES[this.currentId] : undefined;
+    if (pose) arm.align(new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation));
   }
 
   get busy(): boolean {
@@ -348,10 +364,12 @@ export class ViewModel {
     const bobY = Math.abs(Math.sin(bob.phase)) * 0.025 * bob.amount;
     const lowered = 1 - smoothstep(0, 1, this.raise);
 
+    // Mit echter Hand etwas höher und näher halten, damit Faust und Handgelenk im Bild sind.
+    const lift = this.fpArm ? HAND_LIFT : ZERO;
     this.root.position.set(
-      this.swayX * 0.4 + bobX,
-      breathe - bobY - lowered * 0.55 - this.swayY * 0.3,
-      this.recoil * 0.06,
+      this.swayX * 0.4 + bobX + lift.x,
+      breathe - bobY - lowered * 0.55 - this.swayY * 0.3 + lift.y,
+      this.recoil * 0.06 + lift.z,
     );
     this.root.rotation.set(-lowered * 0.6 + this.recoil * 0.12, this.swayX * 0.8, -this.swayX * 0.4);
 
@@ -414,6 +432,8 @@ export class ViewModel {
     this.model = grip;
     this.pose.add(grip);
     this.arm.visible = this.currentId !== 'log';
+    // Faust um den Stiel: Griffachse = Item-Längsachse nach der Ruhe-Drehung.
+    this.fpArm?.align(new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation));
   }
 
   /** Einfacher Unterarm mit Hand – hält das Item im Ursprung der Pose. */

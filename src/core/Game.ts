@@ -61,7 +61,9 @@ import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
 import { loadRockModels } from '../world/RockModels';
+import { loadItemModels } from '../entities/items/ItemModels';
 import { CharacterLibrary } from '../entities/characters/CharacterLibrary';
+import { FirstPersonArm } from '../entities/characters/FirstPersonArm';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -253,10 +255,13 @@ export class Game {
     this.physics.timestep = cfg.physics.timestep;
 
     this.menu.setLoading('Felsen werden geladen …');
-    const rocks = await loadRockModels().catch((e) => {
-      console.warn('[Felsen] Modelle fehlen, einfache Formen:', e);
-      return [];
-    });
+    const [rocks] = await Promise.all([
+      loadRockModels().catch((e) => {
+        console.warn('[Felsen] Modelle fehlen, einfache Formen:', e);
+        return [];
+      }),
+      loadItemModels().catch((e) => console.warn('[Gegenstände] Modelle fehlen, selbstgebaute Formen:', e)),
+    ]);
     this.menu.setLoading('Insel wird generiert …');
     await nextFrame();
     this.world = new World(this.scene, this.physics, cfg, rocks);
@@ -313,6 +318,9 @@ export class Game {
       console.warn('[Figuren] Modelle fehlen, einfache Körper:', e);
       return null;
     });
+    await FirstPersonArm.load()
+      .then((arm) => this.viewModel.setArm(arm))
+      .catch((e) => console.warn('[Hand] Modell fehlt, einfacher Arm:', e));
     const tEnemies = performance.now();
     this.enemies = new EnemyDirector({
       characters: this.characters,

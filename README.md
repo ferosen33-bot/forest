@@ -60,6 +60,25 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 33 – Horrorfilm-Optik (Teil 5: Hände und Werkzeuge)
+
+- **Echte Hand in der Ich-Ansicht:** ein realistischer rechter Unterarm mit Hand und Fingern.
+  - Er ist aus dem MakeHuman-Avatar des Projekts [TalkingHead](https://github.com/met4citizen/TalkingHead) (CC0)
+    ausgeschnitten: `scripts/prepare-fp-arm.mjs` macht aus 36 MB rund 370 KB.
+  - Die Faust wird prozedural geformt: Die Fingerglieder krümmen sich um die Knöchellinie, der Daumen legt sich
+    darüber.
+  - Für jedes Werkzeug dreht sich der Arm so, dass der Stiel quer durch die Faust läuft und der Unterarm zur
+    Kamera zeigt.
+  - Die Halte-Posen sitzen etwas höher, damit Hand und Handgelenk im Bild sind.
+- **Fotogescannte Werkzeuge und Gegenstände** von Poly Haven (CC0): Beil (die Notfallaxt), Machete, Taschenlampe,
+  Verbandskasten, rostige Konserve, Holzschale (mit Wasser).
+  - Sie erscheinen in der Hand, in der Welt und als Inventar-Symbole.
+  - Gegenstände ohne Scan (Fackel, Steinaxt, Stöcke, Steine, Speer …) bekommen Foto-Oberflächen aus Holz, Rinde und
+    Stein.
+- **Technik:** `entities/items/ItemModels.ts` bringt jeden Scan auf die Konvention der Item-Modelle: Längsachse +Y,
+  Ursprung in der Mitte, Größe wie zuvor, Lampenpunkt an der Linse. Fehlen die Dateien, bleiben die selbstgebauten
+  Modelle.
+
 ### Meilenstein 32 – Horrorfilm-Optik (Teil 4: echte Figuren)
 
 - **Schrate sind jetzt Gestalten aus einem Horrorfilm.** Die Figuren sind animiert und fotobasiert texturiert, im
@@ -800,7 +819,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · Teil 5: Gras, Tiere, Hände
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · Teil 6: Gras und Tiere
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

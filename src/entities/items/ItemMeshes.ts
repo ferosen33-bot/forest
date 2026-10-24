@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { ItemId } from './ItemDefs';
 import { RAPIER } from '../../core/Physics';
 import { jitter } from '../../world/VegetationGeometry';
+import { texturize } from '../../world/SurfaceTextures';
+import { getItemModel } from './ItemModels';
 
 /**
  * Prozedurale 3D-Modelle für Items. Werden für fallengelassene Items in der Welt,
@@ -61,6 +63,14 @@ const MATERIALS = {
   redCross: mat(0xb02a24, { roughness: 0.8 }),
 };
 
+// Holz, Rinde und Stein bekommen Foto-Oberflächen (dreiachsig projiziert, ohne UVs).
+texturize(MATERIALS.bark, 'bark', 0.4);
+texturize(MATERIALS.stick, 'bark', 0.4);
+texturize(MATERIALS.handle, 'planks', 0.3, 0.6);
+texturize(MATERIALS.lightWood, 'planks', 0.3, 0.6);
+texturize(MATERIALS.endWood, 'planks', 0.3, 0.6);
+texturize(MATERIALS.stone, 'mossyRock', 0.5);
+
 /** Splitter aus Feuerstein (für Item, Axtklinge und Felsadern). */
 export const FLINT_GEOMETRY = jitter(new THREE.OctahedronGeometry(1, 0), 0.25, 17);
 
@@ -92,6 +102,9 @@ export const LOG_RADIUS = 0.21;
 let cache: Partial<Record<ItemId, THREE.Object3D>> = {};
 
 function build(id: ItemId): THREE.Object3D {
+  // Fotogescannte Modelle (falls geladen) haben Vorrang.
+  const scanned = getItemModel(id);
+  if (scanned) return scanned.clone(true);
   const g = new THREE.Group();
   switch (id) {
     case 'log': {

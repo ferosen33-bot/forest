@@ -22,6 +22,7 @@ const CLIPS = {
   'human-base-animations.glb': [
     'Idle_A', 'Idle_Talking', 'Idle_Torch', 'Sitting_Idle', 'Jog', 'Sprint', 'Punch_Cross', 'Punch_Jab',
     'Melee_Hook', 'OverhandThrow', 'Hit_Chest', 'Hit_Head', 'Death_D', 'Crouch_Idle', 'Crouch_Walk', 'Interact',
+    'Idle_Sword',
   ],
   'human-addon-animations.glb': [
     'Zombie_Walk_2', 'Zombie Yell', 'Zombie_Idle_Crouch', 'Zombie_Rise', 'Crawl', 'Death_A', 'Death_B', 'Death_C',
@@ -39,7 +40,9 @@ for (const [file, keep] of Object.entries(CLIPS)) {
   for (const a of root.listAnimations()) {
     for (const c of a.listChannels()) {
       const node = c.getTargetNode();
-      if (node && (minor.test(node.getName()) || c.getTargetPath() === 'scale')) {
+      // Die Schwerthaltung behält ihre Finger: daraus entsteht die greifende Hand in der Ich-Ansicht.
+      const fingers = a.getName() === 'Idle_Sword' && !node?.getName().endsWith('_leaf');
+      if (node && !fingers && (minor.test(node.getName()) || c.getTargetPath() === 'scale')) {
         c.getSampler()?.dispose();
         c.dispose();
       }
