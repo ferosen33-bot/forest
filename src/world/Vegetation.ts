@@ -4,6 +4,25 @@ import type { HeightMap } from './HeightMap';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core/Physics';
 import { deriveSeed, mulberry32, randRange, type RandomFn } from '../utils/random';
 import { injectSeason } from './SeasonShader';
+import { injectSurface, surfaceLayer } from './SurfaceTextures';
+
+/** Bäume: Rinde an Stamm und Ästen (am fehlenden Grünanteil erkannt), feine Blattstruktur in den Kronen. */
+const TREE_SURFACE = /* glsl */ `
+#ifdef USE_COLOR
+  float treeLeaf = smoothstep(0.015, 0.08, vColor.g - vColor.r);
+#else
+  float treeLeaf = 1.0;
+#endif
+vec3 barkD = surfTriplanar(${surfaceLayer('bark')}, surfP, surfGeo, surfN, 1.0 - treeLeaf);
+vec3 leafD = surfTriplanar(${surfaceLayer('forestFloor')}, surfP * 1.8, surfGeo, surfN, treeLeaf * 0.5);
+diffuseColor.rgb = surfApply(surfBase, mix(barkD, leafD, treeLeaf), mix(0.45, 0.0, treeLeaf));
+`;
+
+/** Felsen: bemooster Stein, dreiachsig. */
+const ROCK_SURFACE = /* glsl */ `
+vec3 rockD = surfTriplanar(${surfaceLayer('mossyRock')}, surfP, surfGeo, surfN, 1.0);
+diffuseColor.rgb = surfApply(surfBase, rockD, 0.55);
+`;
 import { smoothstep } from '../utils/math';
 import {
   createBerryGeometry,
@@ -162,7 +181,10 @@ export class Vegetation {
     broadleaf.defines = { BROADLEAF: '' };
     this.injectWind(broadleaf);
     const rock = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
-    rock.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: 0.1 });
+    rock.onBeforeCompile = (shader) => {
+      injectSeason(shader, { snowBias: 0.1 });
+      injectSurface(shader, ROCK_SURFACE, 1.2);
+    };
     this.materials = { foliage, broadleaf, rock };
 
     const placements = this.scatter();
@@ -460,6 +482,7 @@ export class Vegetation {
   private injectWind(material: THREE.MeshStandardMaterial): void {
     material.onBeforeCompile = (shader) => {
       injectSeason(shader, { foliage: true });
+      injectSurface(shader, TREE_SURFACE, 1.0);
       shader.uniforms.uTime = this.windUniforms.uTime;
       shader.uniforms.uWind = this.windUniforms.uWind;
       shader.vertexShader = shader.vertexShader

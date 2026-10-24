@@ -60,6 +60,26 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 30 – Horrorfilm-Optik (Teil 2: Foto-Texturen)
+
+- **Echte Foto-Texturen** von [Poly Haven](https://polyhaven.com) (CC0, Quellen in `public/textures/CREDITS.md`):
+  - **Boden:** Waldboden mit Laub und Zweigen, Matsch, Felswände an steilen Hängen, Sand am Strand und unter Wasser.
+  - **Bäume und Felsen:** Kiefernrinde an Stämmen, feine Blattstruktur in den Kronen, bemooster Fels.
+  - **Stadt und Hafen:** rauer Putz an Wänden und Giebeln, Asphalt auf Straßen und Dächern, verwitterte Bretter.
+  - **Selbstgebautes und Höhlen:** Rinde, Schnittholz, Stein; die Höhlenwände sind aus echtem Fels.
+- Jede Oberfläche hat eine eigene Struktur (Normalen). Im Lichtkegel der Taschenlampe werfen Rinde, Steine und Laub
+  feine Schatten.
+- **Technik:** `world/SurfaceTextures.ts`
+  - Alle Oberflächen liegen als Ebenen in zwei Textur-Arrays (Farbe 1024 px, Normalen 512 px). Projiziert wird über
+    Weltkoordinaten: eben von oben fürs Gelände, dreiachsig für Hänge, Stämme und Wände. Gelände und Quader-Modelle
+    brauchen dafür keine UV-Koordinaten.
+  - Das Foto wird als Detail auf die bisherige Vertexfarbe gelegt (Textur ÷ Durchschnittsfarbe). Paletten,
+    Jahreszeiten und Schnee bleiben dadurch erhalten.
+  - Gegen sichtbare Kachelmuster wird eine zweite, gedrehte Abtastung eingemischt. In der Ferne blendet die Struktur
+    aus.
+  - Das Gelände speichert je Vertex die Anteile der Oberflächen (`splat`), die Stadtbauten eine Oberflächen-Kennung
+    (`surf`).
+
 ### Meilenstein 29 – Horrorfilm-Optik (Teil 1: Licht & Bild)
 
 - **Filmlook** in der Nachbearbeitung, je nach Lage überblendet (`systems/FilmLook.ts`, getestet):
@@ -75,8 +95,6 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   [@pmndrs/assets](https://github.com/pmndrs/assets)). Es ist am Tag dezent, nachts und in Höhlen aus.
 - **Taschenlampe mit Schattenwurf:** Gras, Bäume und Gestalten werfen im Lichtkegel lange Schatten.
 - Der Gegenstand in der Hand bekommt denselben Filmlook (aber keinen Nebel).
-- Teil 2 bringt echte Foto-Texturen für Boden, Rinde, Fels und Holz. Dafür müssen Poly Haven bzw. ambientCG in der
-  Netzwerk-Freigabe der Entwicklungsumgebung erlaubt sein.
 
 ### Meilenstein 28 – Die Nordbucht: Überlebende & Aufträge
 
@@ -596,6 +614,7 @@ src/
 │   ├── TownMeshes.ts       Gebäude, Möbel, Autos → verschmolzene Meshes, Kollider, Behälter, Türen
 │   ├── Harbor.ts           Nordbucht: Platzsuche, Leuchtturm, Steg, Bootshaus, Lager der Überlebenden
 │   ├── Environment.ts      Umgebungslicht aus einem HDR-Waldpanorama (CC0)
+│   ├── SurfaceTextures.ts  Foto-Texturen (Textur-Arrays, ebene/dreiachsige Projektion, Shader-Einbau)
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -730,7 +749,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · Teil 2: Foto-Texturen · Teil 3: realistische Modelle
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · Teil 3: realistische Modelle
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import type { HeightMap } from './HeightMap';
 import { injectSeason } from './SeasonShader';
-import { Builder, sign, type ColliderSpec } from './TownMeshes';
+import { Builder, injectBuildingSurface, registerSurfaceColors, sign, type ColliderSpec } from './TownMeshes';
 
 /**
  * Die Nordbucht: Leuchtturm, Steg, Bootshaus und das Lager der letzten Überlebenden.
@@ -140,6 +140,18 @@ const C = {
   iron: 0x55585a,
 };
 
+registerSurfaceColors([
+  [C.white, 'plaster'],
+  [C.red, 'plaster'],
+  [C.stone, 'mossyRock'],
+  [C.wood, 'planks'],
+  [C.plank, 'planks'],
+  [C.darkWood, 'planks'],
+  [C.crate, 'planks'],
+  [C.hull, 'planks'],
+  [C.hullRed, 'planks'],
+]);
+
 export function buildHarbor(h: HarborLayout): HarborModel {
   const origin = new THREE.Matrix4()
     .makeTranslation(h.center.x, h.center.y, h.center.z)
@@ -221,7 +233,11 @@ export function buildHarbor(h: HarborLayout): HarborModel {
 
   const material = (snow: boolean) => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true });
-    if (snow) m.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: 0.1 });
+    m.onBeforeCompile = (shader) => {
+      if (snow) injectSeason(shader, { snowBias: 0.1 });
+      injectBuildingSurface(shader);
+    };
+    m.customProgramCacheKey = () => (snow ? 'harbor-out' : 'harbor-in');
     return m;
   };
   const group = b.finish({ in: material(false), out: material(true) });

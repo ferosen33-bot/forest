@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { texturize } from '../world/SurfaceTextures';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core/Physics';
 import type { EventBus } from '../core/EventBus';
 import type { HeightMap } from '../world/HeightMap';
@@ -126,18 +127,19 @@ const mat = (color: number, extra: Partial<THREE.MeshStandardMaterialParameters>
 
 const ROCK = mat(0x6d6962);
 ROCK.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: 0.1 });
+texturize(ROCK, 'mossyRock', 0.5);
 const M = {
   rock: ROCK,
-  caveRock: mat(0x6a655e),
-  wood: mat(0x5b4430),
-  woodDark: mat(0x3f2f21),
+  caveRock: texturize(mat(0x6a655e), 'rockFace', 0.4),
+  wood: texturize(mat(0x5b4430), 'planks', 0.35),
+  woodDark: texturize(mat(0x3f2f21), 'planks', 0.35),
   iron: mat(0x4b4a48, { roughness: 0.6, metalness: 0.3 }),
   bone: mat(0xd9cfb8, { roughness: 0.8 }),
   dripstone: mat(0x8a8278, { roughness: 0.6 }),
   flint: mat(0x25272e, { roughness: 0.2, metalness: 0.25 }),
   dark: new THREE.MeshBasicMaterial({ color: 0x030303 }),
   paper: new THREE.MeshStandardMaterial({ color: 0xd9d1bc, roughness: 1 }),
-  interior: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true }),
+  interior: texturize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true }), 'rockFace', 0.4, 1.3),
 };
 const BOULDER = jitter(new THREE.IcosahedronGeometry(1, 1), 0.18, 41);
 const NUGGET = jitter(new THREE.IcosahedronGeometry(1, 0), 0.25, 43);

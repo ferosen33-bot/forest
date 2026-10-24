@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { texturize } from '../../world/SurfaceTextures';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../../core/Physics';
 import type { ItemCost } from '../../entities/items/ItemDefs';
@@ -74,10 +75,10 @@ export interface StructureDef {
 
 const mat = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, flatShading: true });
 const M = {
-  bark: mat(0x4f3823),
-  barkDark: mat(0x3e2c1b),
-  cut: mat(0xb08a5a),
-  stone: mat(0x7d7a73),
+  bark: texturize(mat(0x4f3823), 'bark', 0.4),
+  barkDark: texturize(mat(0x3e2c1b), 'bark', 0.4),
+  cut: texturize(mat(0xb08a5a), 'planks', 0.3, 0.6),
+  stone: texturize(mat(0x7d7a73), 'mossyRock', 0.5),
   ash: mat(0x2c2826),
   leaves: mat(0x3e5e2a),
   leavesDark: mat(0x2f4a22),

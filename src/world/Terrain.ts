@@ -4,6 +4,7 @@ import type { HeightMap } from './HeightMap';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { smoothstep } from '../utils/math';
 import { injectSeason } from './SeasonShader';
+import { injectSurface, surfaceLayer } from './SurfaceTextures';
 
 /** Farbpalette des Bodens (sRGB-Hex, wird automatisch in Linear umgerechnet). */
 const PALETTE = {
@@ -20,6 +21,27 @@ const PALETTE = {
 };
 
 const tmpColor = new THREE.Color();
+
+/** Anteile der Foto-Oberflächen je Vertex: Waldboden, Matsch, Fels, Sand. */
+type Splat = [number, number, number, number];
+const SPLAT_GROUND: Splat = [1, 0, 0, 0];
+const SPLAT_MUD: Splat = [0, 1, 0, 0];
+const SPLAT_ROCK: Splat = [0, 0, 1, 0];
+const SPLAT_SAND: Splat = [0, 0, 0, 1];
+const mixSplat = (w: Splat, to: Splat, t: number): void => {
+  for (let i = 0; i < 4; i++) w[i] += (to[i] - w[i]) * t;
+};
+
+/** Foto-Texturen im Gelände: Waldboden und Matsch eben projiziert, Fels dreiachsig, Sand am Strand. */
+const TERRAIN_SURFACE = /* glsl */ `
+vec4 sw = vSplat / max(1e-3, dot(vSplat, vec4(1.0)));
+vec3 sd = vec3(0.0);
+sd += sw.x * surfPlanar(${surfaceLayer('forestFloor')}, surfP, surfN, sw.x);
+sd += sw.y * surfPlanar(${surfaceLayer('mud')}, surfP, surfN, sw.y);
+sd += sw.z * surfTriplanar(${surfaceLayer('rockFace')}, surfP, surfGeo, surfN, sw.z);
+sd += sw.w * surfPlanar(${surfaceLayer('sand')}, surfP, surfN, sw.w);
+diffuseColor.rgb = surfApply(surfBase, sd, 0.6);
+`;
 
 /** Detailstufen: Schrittweite in Höhen-Samples und ab welcher Entfernung (m) sie gilt. */
 export const TERRAIN_LODS = [
@@ -75,8 +97,15 @@ export class Terrain {
       roughness: 0.96,
       metalness: 0,
     });
-    // Winter: Schnee auf flachen Flächen (steile Hänge bleiben felsig).
-    this.material.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: -0.25 });
+    // Winter: Schnee auf flachen Flächen (steile Hänge bleiben felsig). Die Foto-Texturen kommen vor dem Schnee.
+    this.material.onBeforeCompile = (shader) => {
+      injectSeason(shader, { snowBias: -0.25 });
+      injectSurface(shader, TERRAIN_SURFACE, 0.9);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute vec4 splat;\nvarying vec4 vSplat;')
+        .replace('#include <project_vertex>', 'vSplat = splat;\n#include <project_vertex>');
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vSplat;');
+    };
 
     this.chunksPerSide = Math.round(heightMap.size / chunkSize);
     for (let cz = 0; cz < this.chunksPerSide; cz++) {
@@ -124,8 +153,10 @@ export class Terrain {
     const heights = new Float32Array(verts * verts);
     const normals = new Float32Array(verts * verts * 3);
     const colors = new Float32Array(verts * verts * 3);
+    const splats = new Uint8Array(verts * verts * 4);
     const n: [number, number, number] = [0, 1, 0];
     const color = new THREE.Color();
+    const splat: Splat = [1, 0, 0, 0];
     for (let z = 0; z < verts; z++) {
       for (let x = 0; x < verts; x++) {
         const i = z * verts + x;
@@ -133,7 +164,8 @@ export class Terrain {
         hm.normalAtSample(ix0 + x, iz0 + z, n);
         heights[i] = h;
         normals.set(n, i * 3);
-        this.groundColor(originX + x * hm.cellSize, originZ + z * hm.cellSize, h, 1 - n[1], color);
+        this.groundColor(originX + x * hm.cellSize, originZ + z * hm.cellSize, h, 1 - n[1], color, splat);
+        for (let k = 0; k < 4; k++) splats[i * 4 + k] = Math.round(Math.max(0, Math.min(1, splat[k])) * 255);
         colors[i * 3] = color.r;
         colors[i * 3 + 1] = color.g;
         colors[i * 3 + 2] = color.b;
@@ -141,7 +173,7 @@ export class Terrain {
     }
 
     const levels = TERRAIN_LODS.map(({ step }, li) => {
-      const geometry = this.buildLevel(verts, step, heights, normals, colors);
+      const geometry = this.buildLevel(verts, step, heights, normals, colors, splats);
       const mesh = new THREE.Mesh(geometry, this.material);
       mesh.name = `TerrainChunk_${cx}_${cz}_L${li}`;
       mesh.position.set(originX, 0, originZ);
@@ -164,6 +196,7 @@ export class Terrain {
     heights: Float32Array,
     normals: Float32Array,
     colors: Float32Array,
+    splats: Uint8Array,
   ): THREE.BufferGeometry {
     const cell = this.heightMap.cellSize;
     const segs = (fullVerts - 1) / step;
@@ -173,6 +206,7 @@ export class Terrain {
     const pos = new Float32Array(total * 3);
     const nor = new Float32Array(total * 3);
     const col = new Float32Array(total * 3);
+    const spl = new Uint8Array(total * 4);
 
     const copyVertex = (dst: number, x: number, z: number, drop: number) => {
       const src = z * step * fullVerts + x * step;
@@ -181,6 +215,7 @@ export class Terrain {
       pos[dst * 3 + 2] = z * step * cell;
       nor.set(normals.subarray(src * 3, src * 3 + 3), dst * 3);
       col.set(colors.subarray(src * 3, src * 3 + 3), dst * 3);
+      spl.set(splats.subarray(src * 4, src * 4 + 4), dst * 4);
     };
     for (let z = 0; z < verts; z++) for (let x = 0; x < verts; x++) copyVertex(z * verts + x, x, z, 0);
 
@@ -218,6 +253,7 @@ export class Terrain {
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geometry.setAttribute('splat', new THREE.BufferAttribute(spl, 4, true));
     geometry.setIndex(indices);
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
@@ -225,7 +261,7 @@ export class Terrain {
   }
 
   /** Bestimmt die Bodenfarbe aus Höhe, Steilheit und etwas Rauschen. */
-  private groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color): void {
+  private groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color, splat: Splat): void {
     const water = this.heightMap.waterLevel;
     const n1 = this.colorNoise(x * 0.02, z * 0.02) * 0.5 + 0.5;
     const n2 = this.patchNoise(x * 0.045, z * 0.045);
@@ -234,12 +270,19 @@ export class Terrain {
     if (h < water - 0.4) {
       // Unter Wasser: Sand wird mit zunehmender Tiefe dunkel und grünlich.
       out.copy(PALETTE.seabed).lerp(PALETTE.seabedDeep, smoothstep(0, 14, water - h));
+      splat.splice(0, 4, ...SPLAT_SAND);
     } else {
       out.copy(PALETTE.grassDark).lerp(PALETTE.grassLight, n1);
-      if (n2 > 0.45) out.lerp(PALETTE.dirt, smoothstep(0.45, 0.8, n2) * 0.8);
+      splat.splice(0, 4, ...SPLAT_GROUND);
+      if (n2 > 0.45) {
+        const t = smoothstep(0.45, 0.8, n2) * 0.8;
+        out.lerp(PALETTE.dirt, t);
+        mixSplat(splat, SPLAT_MUD, t);
+      }
       // Strand: knapp über dem Wasserspiegel sandig, direkt am Wasser feucht/dunkel.
       const beach = 1 - smoothstep(water + 0.9, water + 2.4, h + n2 * 0.6);
       out.lerp(PALETTE.sand, beach);
+      mixSplat(splat, SPLAT_SAND, beach);
       out.lerp(PALETTE.wetSand, 1 - smoothstep(water - 0.4, water + 0.5, h));
     }
 
@@ -247,10 +290,14 @@ export class Terrain {
     const rockT = Math.max(smoothstep(0.28, 0.45, slope + n2 * 0.05), smoothstep(42, 55, h + n2 * 4));
     if (rockT > 0) {
       out.lerp(tmpColor.copy(PALETTE.rock).lerp(PALETTE.rockDark, n1), rockT);
+      mixSplat(splat, SPLAT_ROCK, rockT);
     }
 
     const u = this.urban?.(x, z) ?? 0;
-    if (u > 0) out.lerp(tmpColor.copy(PALETTE.urban).lerp(PALETTE.dirt, n1 * 0.5), u * 0.8);
+    if (u > 0) {
+      out.lerp(tmpColor.copy(PALETTE.urban).lerp(PALETTE.dirt, n1 * 0.5), u * 0.8);
+      mixSplat(splat, SPLAT_MUD, u * 0.8);
+    }
 
     out.multiplyScalar(1 + fine);
   }

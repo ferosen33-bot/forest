@@ -59,6 +59,7 @@ import { Footsteps } from '../systems/Footsteps';
 import { PostFX } from '../systems/PostFX';
 import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
+import { loadSurfaceTextures } from '../world/SurfaceTextures';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -614,7 +615,10 @@ export class Game {
     this.menu.setLoading('Shader werden kompiliert …');
     await nextFrame();
     // Umgebungslicht vor dem Kompilieren laden, sonst übersetzt jedes Material seine Shader später noch einmal.
-    await loadForestEnvironment(this.renderer, this.scene).catch((e) => console.warn('[Env] Umgebungslicht fehlt:', e));
+    await Promise.all([
+      loadForestEnvironment(this.renderer, this.scene).catch((e) => console.warn('[Env] Umgebungslicht fehlt:', e)),
+      loadSurfaceTextures().catch((e) => console.warn('[Texturen] Foto-Texturen fehlen:', e)),
+    ]);
     await this.renderer.compileAsync(this.scene, this.camera);
 
     this.wireEvents();

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { injectSeason } from './SeasonShader';
+import { injectSurface, surfaceLayer, type SurfaceId } from './SurfaceTextures';
 import { buildingRng, type TownBuilding, type TownLayout, type TownProp } from './Town';
 import type { RandomFn } from '../utils/random';
 import { TOWN_NOTES } from '../systems/Notes';
@@ -74,6 +75,8 @@ export interface BoxOpts {
   container?: LootKind;
   /** Nur Kollision, keine Geometrie (z. B. Quader in einem runden Turm). */
   invisible?: boolean;
+  /** Foto-Oberfläche; ohne Angabe nach der Farbe (Asphalt, Holz, Beton …), sonst keine. */
+  surface?: SurfaceId | null;
 }
 
 interface Opening {
@@ -108,7 +111,7 @@ export class Builder {
     this.building = building;
   }
 
-  private add(geometry: THREE.BufferGeometry, bucket: Bucket, color: number): void {
+  private add(geometry: THREE.BufferGeometry, bucket: Bucket, color: number, surface?: SurfaceId | null): void {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     g.applyMatrix4(this.world);
     g.deleteAttribute('uv');
@@ -117,6 +120,9 @@ export class Builder {
     const colors = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) colors.set([this.color.r, this.color.g, this.color.b], i * 3);
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    // Oberfläche als Ebenen-Index + 1 (0 = glatt, ohne Foto-Textur).
+    const s = surface === undefined ? SURFACE_BY_COLOR.get(color) : surface;
+    g.setAttribute('surf', new THREE.BufferAttribute(new Float32Array(n).fill(s ? surfaceLayer(s) + 1 : 0), 1));
     this.parts[bucket].push(g);
   }
 
@@ -125,7 +131,7 @@ export class Builder {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx ?? 0, o.ry ?? 0, o.rz ?? 0));
     this.local.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     this.world.multiplyMatrices(this.base, this.local);
-    if (!o.invisible) this.add(new THREE.BoxGeometry(w, h, d), o.bucket ?? 'in', o.color);
+    if (!o.invisible) this.add(new THREE.BoxGeometry(w, h, d), o.bucket ?? 'in', o.color, o.surface);
     if (!o.collide && !o.container) return;
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
@@ -156,10 +162,10 @@ export class Builder {
   }
 
   /** Beliebige Geometrie (ohne Kollision), z. B. Dreiecksgiebel oder Räder. */
-  mesh(geometry: THREE.BufferGeometry, x: number, y: number, z: number, color: number, bucket: Bucket = 'in', rx = 0, ry = 0, rz = 0): void {
+  mesh(geometry: THREE.BufferGeometry, x: number, y: number, z: number, color: number, bucket: Bucket = 'in', rx = 0, ry = 0, rz = 0, surface?: SurfaceId | null): void {
     this.local.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
     this.world.multiplyMatrices(this.base, this.local);
-    this.add(geometry, bucket, color);
+    this.add(geometry, bucket, color, surface);
   }
 
   /**
@@ -185,8 +191,9 @@ export class Builder {
       const h = y1 - y0;
       if (len < 0.02 || h < 0.02) continue;
       const y = FLOOR + y0 + h / 2;
-      if (alongX) this.box(len, h, WALL, cx + mid, y, cz, { color, collide: true, nav: true });
-      else this.box(WALL, h, len, cx, y, cz + mid, { color, collide: true, nav: true });
+      const surface = color === C.char ? 'planks' : 'plaster';
+      if (alongX) this.box(len, h, WALL, cx + mid, y, cz, { color, collide: true, nav: true, surface });
+      else this.box(WALL, h, len, cx, y, cz + mid, { color, collide: true, nav: true, surface });
     }
   }
 
@@ -243,6 +250,44 @@ const C = {
   tire: 0x1e1e1e,
   green: 0x3f5240,
 };
+
+/** Oberflächen nach Farbe (für Quader ohne eigene Angabe). */
+const SURFACE_BY_COLOR = new Map<number, SurfaceId>([
+  [C.asphalt, 'asphalt'],
+  [C.roofTile, 'asphalt'],
+  [C.roofGrey, 'asphalt'],
+  [C.paving, 'plaster'],
+  [C.concrete, 'plaster'],
+  [0x8f8c84, 'plaster'],
+  [0xc9c4b8, 'plaster'],
+  [C.floorWood, 'planks'],
+  [C.wood, 'planks'],
+  [C.darkWood, 'planks'],
+  [C.rust, 'mossyRock'],
+]);
+
+/** Weitere Farben einer Oberfläche zuordnen (z. B. die Palette des Hafens). */
+export function registerSurfaceColors(entries: [number, SurfaceId][]): void {
+  for (const [c, s] of entries) SURFACE_BY_COLOR.set(c, s);
+}
+
+/** Foto-Texturen für die Quader-Bauten: Putz, Asphalt, Bretter (Kennung im Attribut `surf`). */
+export const BUILDING_SURFACE = /* glsl */ `
+float surfL = vSurf - 1.0;
+float surfHas = step(-0.5, surfL);
+int surfI = int(max(surfL, 0.0) + 0.5);
+vec3 bD = surfTriplanar(surfI, surfP, surfGeo, surfN, surfHas);
+diffuseColor.rgb = surfApply(surfBase, mix(vec3(1.0), bD, surfHas), 0.3);
+`;
+
+/** Bindet die Foto-Texturen in ein Bau-Material ein (Attribut `surf` → Varying). */
+export function injectBuildingSurface(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  injectSurface(shader, BUILDING_SURFACE, 1.0);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float surf;\nvarying float vSurf;')
+    .replace('#include <project_vertex>', 'vSurf = surf;\n#include <project_vertex>');
+  shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vSurf;');
+}
 
 function gable(width: number, height: number): THREE.BufferGeometry {
   const s = new THREE.Shape();
@@ -326,7 +371,7 @@ function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean, note?:
   for (const s of [-1, 1]) {
     b.box(w + 0.5, 0.14, len, 0, FLOOR + H + rise / 2 + 0.05, (s * run) / 2, { color: roof, bucket: 'out', rx: s * slope, collide: true });
   }
-  for (const s of [-1, 1]) b.mesh(gable(d, rise), s * (w / 2 - WALL / 2), FLOOR + H, 0, color, 'in', 0, Math.PI / 2);
+  for (const s of [-1, 1]) b.mesh(gable(d, rise), s * (w / 2 - WALL / 2), FLOOR + H, 0, color, 'in', 0, Math.PI / 2, 0, 'plaster');
 
   // Möbel: Küchenzeile + Kühlschrank, Tisch mit Stühlen (vorne); Bett + Kleiderschrank (hinten).
   const front0 = split + WALL / 2;
@@ -529,7 +574,12 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
 
   const material = (snow: boolean) => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true });
-    if (snow) m.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: 0.1 });
+    m.onBeforeCompile = (shader) => {
+      if (snow) injectSeason(shader, { snowBias: 0.1 });
+      injectBuildingSurface(shader);
+    };
+    // Gleicher Quelltext für beide Varianten → Programme über einen eigenen Schlüssel trennen.
+    m.customProgramCacheKey = () => (snow ? 'town-out' : 'town-in');
     return m;
   };
   const group = b.finish({ in: material(false), out: material(true) });
