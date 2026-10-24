@@ -61,6 +61,7 @@ import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
 import { loadRockModels } from '../world/RockModels';
+import { CharacterLibrary } from '../entities/characters/CharacterLibrary';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -111,6 +112,8 @@ export class Game {
   readonly viewModel = new ViewModel();
   readonly inventory = new Inventory(30, 6);
   readonly postFX: PostFX;
+  /** Animierte Figuren für Schrate und Überlebende (null = einfache Körper). */
+  private characters: CharacterLibrary | null = null;
   /** Filmlook des letzten Bildes (wird jedes Bild wiederverwendet). */
   private look: Look | null = null;
   readonly crafting = new Crafting(this.inventory);
@@ -306,8 +309,13 @@ export class Game {
     this.scene.add(this.building.group);
     this.menu.setLoading('Schrate erwachen …');
     await nextFrame();
+    this.characters = await CharacterLibrary.load().catch((e) => {
+      console.warn('[Figuren] Modelle fehlen, einfache Körper:', e);
+      return null;
+    });
     const tEnemies = performance.now();
     this.enemies = new EnemyDirector({
+      characters: this.characters,
       physics: this.physics,
       heightMap: this.world.heightMap,
       vegetation: this.world.vegetation,
@@ -466,6 +474,7 @@ export class Game {
     this.quests = new Quests(this.events);
     if (this.world.harbor) {
       this.survivors = new Survivors({
+        characters: this.characters,
         physics: this.physics,
         layout: this.world.harbor,
         quests: this.quests,

@@ -196,6 +196,11 @@ export class EnemyRig {
     if (club) this.parts.push({ type: 'club', bone: this.hand });
   }
 
+  /** Abklingender Treffer-Impuls 0..1 (für die Figuren-Darstellung). */
+  get hitPulse(): number {
+    return this.hitDecay;
+  }
+
   /** Weltposition der Kopfmitte (für Sichtlinien). */
   headPosition(out: THREE.Vector3): THREE.Vector3 {
     this.root.updateMatrixWorld(true);

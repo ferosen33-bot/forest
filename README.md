@@ -60,6 +60,37 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 32 – Horrorfilm-Optik (Teil 4: echte Figuren)
+
+- **Schrate sind jetzt Gestalten aus einem Horrorfilm.** Die Figuren sind animiert und fotobasiert texturiert, im
+  Stil früher Silent-Hill- und Resident-Evil-Spiele. Sie stammen aus [Mesh2Motion](https://github.com/mesh2motion/mesh2motion-app)
+  (CC0). Alle teilen ein Skelett und ca. 30 Bewegungen.
+  - **Schrat:** gesichtslose, verweste, bandagierte und bleiche Gestalten (zufällig je Schrat, selten ein Clown).
+    Sie schleichen im Zombie-Gang, rennen, schlagen zu und schreien, wenn sie dich entdecken.
+  - **Späher:** eine bleiche Frau mit langem schwarzem Haar, die geduckt schleicht und mit Steinen wirft.
+  - **Koloss:** ein Schlachter mit Schweinemaske, schwerer Gang, Faustschlag.
+  - **Kriecher** (Höhlen): ein Skelettwesen, das auf allen vieren kriecht.
+- Die Bewegungen hängen direkt an der KI:
+  - Gehen, Laufen und Ruhe werden nach Tempo überblendet, mit Schrittgeschwindigkeit passend zum Boden.
+  - Der Angriff folgt genau dem Ausholen der KI, der Treffer kommt im richtigen Moment.
+  - Dazu kommen Zusammenzucken bei Treffern, ein Warnschrei und vier verschiedene Tode.
+  - Horden laufen nicht im Gleichschritt.
+- **Leuchtende Augen** sitzen am Kopfknochen. Nachts sieht man oft zuerst nur sie, am Tag schimmern sie kaum.
+- **Die Überlebenden** sind echte Menschen:
+  - Jonas mit Stoppelbart und Polohemd.
+  - Dr. Albers im gelben Schutzanzug (sie erforscht die Seuche).
+  - Mia kauert zitternd am Feuer.
+
+  Wer spricht, gestikuliert mit einer Gesprächsbewegung, und alle drehen den Kopf zu dir.
+- **Leistung:**
+  - Eine Figur hat nur 900–1.600 Dreiecke, auch volle Horden bleiben also leicht.
+  - Ferne Figuren rechnen ihre Bewegung seltener (ab 35 m und ab 70 m).
+- **Technik:**
+  - `entities/characters/CharacterLibrary.ts` lädt die Figuren, passt die Bewegungen je Figur an ihre Knochen an und
+    normiert die Größe. Die Augen werden über die inverse Bind-Matrix des Kopfknochens gesetzt.
+  - `EnemyAvatars.ts` übersetzt den KI-Zustand in überblendete Bewegungen.
+  - Das alte Prozedur-Skelett läuft unsichtbar weiter: Es liefert Sichtlinien, Schritte und Trefferzonen.
+
 ### Meilenstein 31 – Horrorfilm-Optik (Teil 3: realistische Bäume, Büsche und Felsen)
 
 - **Echte Bäume statt Klötzchen:** Kiefern mit Nadelzweigen, Eichen mit Ästen und Foto-Blättern, Sträucher mit
@@ -648,6 +679,7 @@ src/
 │   ├── PlayerStats.ts      Gesundheit, Ausdauer, Hunger, Durst
 │   ├── ViewModel.ts        Gegenstand in der Hand + Animationen (eigene Szene/Kamera)
 │   ├── FireEffect.ts       Flackernde Flamme (Lagerfeuer, Fackel)
+│   ├── characters/         Animierte Figuren (Mesh2Motion, CC0): Bibliothek und Steuerung der Schrate
 │   ├── RigRenderer.ts      Instanziertes Zeichnen prozeduraler Skelette (Gegner & Tiere)
 │   ├── animals/
 │   │   ├── Animal.ts       Wildtier: Character Controller, Flucht-KI, Tod/Leiche (getestet)
@@ -768,7 +800,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · Teil 4: Figuren und Gras
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · Teil 5: Gras, Tiere, Hände
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

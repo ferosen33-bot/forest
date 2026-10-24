@@ -9,6 +9,8 @@ import type { Player } from '../../entities/Player';
 import { Enemy, type EnemyContext, type PlayerTarget } from '../../entities/enemies/Enemy';
 import { ENEMY_KINDS, isEnemyKind, SNEAK_MULTIPLIER, type EnemyKind } from '../../entities/enemies/EnemyKinds';
 import { EnemyRenderer } from '../../entities/enemies/EnemyRenderer';
+import { EnemyAvatars } from '../../entities/characters/EnemyAvatars';
+import { setEyeGlow, type CharacterLibrary } from '../../entities/characters/CharacterLibrary';
 import { FireEffect } from '../../entities/FireEffect';
 import type { BuildingSystem } from '../building/BuildingSystem';
 import { getStructure } from '../building/StructureDefs';
@@ -82,6 +84,8 @@ export interface DirectorDeps {
   isPlayerFire: () => boolean;
   /** Die verlassene Stadt: Plünderer haben sich auf dem Marktplatz eingerichtet. */
   town?: { center: THREE.Vector3; radius: number; plaza: THREE.Vector3 } | null;
+  /** Animierte Figuren (fehlen sie, zeigt der Director die einfachen Prozedur-Körper). */
+  characters?: CharacterLibrary | null;
   /** Das Lager der Überlebenden: kein Schratlager in der Nähe, sein Feuer schreckt sie ab. */
   harbor?: { center: THREE.Vector3; radius: number } | null;
 }
@@ -101,6 +105,7 @@ export class EnemyDirector {
   readonly camps: Camp[] = [];
 
   private readonly renderer = new EnemyRenderer(MAX_ENEMIES + MAX_HORDE + 8);
+  private readonly avatars: EnemyAvatars | null;
   private readonly byCollider = new Map<number, { enemy: Enemy; zone: HitZone }>();
   private readonly ctx: EnemyContext;
   private readonly cfg: GameConfig['ai'];
@@ -132,7 +137,8 @@ export class EnemyDirector {
     this.cfg = d.config.ai;
     this.rng = mulberry32(deriveSeed(d.config.seed, 'enemies'));
     this.group.name = 'EnemyDirector';
-    this.group.add(this.renderer.group);
+    this.avatars = d.characters ? new EnemyAvatars(d.characters) : null;
+    this.group.add(this.avatars ? this.avatars.group : this.renderer.group);
 
     this.nav = new NavGrid(d.heightMap);
     this.markVegetation();
@@ -646,7 +652,7 @@ export class EnemyDirector {
     }
 
     // LOD, Leichen, Darstellung
-    const visible: { rig: Enemy['rig']; tone: number; kind: EnemyKind }[] = [];
+    const visible: { rig: Enemy['rig']; tone: number; kind: EnemyKind; enemy: Enemy }[] = [];
     if (cave) {
       for (let i = cave.enemies.length - 1; i >= 0; i--) {
         const e = cave.enemies[i];
@@ -661,7 +667,7 @@ export class EnemyDirector {
           this.stepCounts.set(e, e.rig.steps);
           this.onEnemyStep?.(e.position, e.rig.anim.speed);
         }
-        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind });
+        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind, enemy: e });
       }
     }
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -679,10 +685,17 @@ export class EnemyDirector {
           this.stepCounts.set(e, e.rig.steps);
           if (dist < 35) this.onEnemyStep?.(e.position, e.rig.anim.speed);
         }
-        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind });
+        visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind, enemy: e });
       }
     }
-    this.renderer.render(visible);
+    if (this.avatars) {
+      setEyeGlow(d.playerHidden() ? 1 : 1 - d.dayNight.daylight * 0.9);
+      this.avatars.render(
+        visible.map((v) => ({ id: v.enemy.id, rig: v.rig, kind: v.kind, tone: v.tone, ranged: !!v.enemy.kind.ranged, dead: v.enemy.isDead })),
+        dt,
+        d.camera.position,
+      );
+    } else this.renderer.render(visible);
   }
 
   private updateCamps(dt: number): void {

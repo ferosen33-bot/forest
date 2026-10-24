@@ -10,6 +10,7 @@ import type { ItemService } from './ItemService';
 import type { Skills } from './Skills';
 import type { LightPool, LightRequest } from './LightPool';
 import type { Audio } from './Audio';
+import type { Avatar, CharacterId, CharacterLibrary } from '../entities/characters/CharacterLibrary';
 
 /**
  * Die letzten Überlebenden in der Nordbucht: Lager am Fuß des Leuchtturms mit wärmendem Feuer
@@ -28,6 +29,8 @@ export interface NpcDef {
   first: string;
   hello: string;
   look: { shirt: number; pants: number; skin: number; hair: number; scale: number; hat?: number };
+  /** Animierte Figur (Mesh2Motion) und ihre Ruhebewegung. */
+  figure: { model: CharacterId; idle: string };
 }
 
 export const NPCS: NpcDef[] = [
@@ -39,6 +42,7 @@ export const NPCS: NpcDef[] = [
     first: 'Bleib, wo du bist! … Du bist keiner von denen. Bei Gott – ein Mensch. Komm ans Feuer.',
     hello: 'Da bist du ja wieder. Das Feuer brennt, solange ich lebe.',
     look: { shirt: 0x4f5f6e, pants: 0x3a3f44, skin: 0xc49a7c, hair: 0x6b5a48, scale: 1.02, hat: 0x7a3f2a },
+    figure: { model: 'male_10', idle: 'Idle_A' },
   },
   {
     id: 'albers',
@@ -48,6 +52,7 @@ export const NPCS: NpcDef[] = [
     first: 'Oh. Sie sind gesund? Lassen Sie sich ansehen … Keine Erweiterung der Pupillen. Gut. Sehr gut.',
     hello: 'Wie geht es Ihnen? Kein Fieber, keine Kopfschmerzen? Gut.',
     look: { shirt: 0xd8d6cf, pants: 0x4a4d55, skin: 0xd8b49a, hair: 0x9a9690, scale: 0.97 },
+    figure: { model: 'hazmat_female', idle: 'Idle_Subtle' },
   },
   {
     id: 'mia',
@@ -57,10 +62,13 @@ export const NPCS: NpcDef[] = [
     first: 'Hallo … Bist du auch vom Flugzeug? Jonas sagt, Flugzeuge kommen keine mehr.',
     hello: 'Hast du heute Schrate gesehen? Ich nicht. Ich bleib beim Feuer.',
     look: { shirt: 0xb85a4a, pants: 0x3e5a7a, skin: 0xe0b89c, hair: 0x5a3a24, scale: 0.68 },
+    figure: { model: 'female_9', idle: 'Shivering' },
   },
 ];
 
 const NPC_BY_ID = new Map(NPCS.map((n) => [n.id, n]));
+/** Bewegung beim Reden. */
+const TALK = 'Idle_Talking';
 
 /** Eine Wahl im Gespräch. */
 export interface DialogueOption {
@@ -91,16 +99,25 @@ export interface SurvivorsDeps {
   audio: Audio;
   events: EventBus;
   markObstacle: (x: number, z: number, yaw: number, halfX: number, halfZ: number) => void;
+  /** Animierte Figuren (fehlen sie, bleiben die Quader-Figuren). */
+  characters?: CharacterLibrary | null;
 }
 
 interface Npc {
   def: NpcDef;
-  root: THREE.Group;
+  root: THREE.Object3D;
   head: THREE.Object3D;
   arm: THREE.Object3D;
   yaw: number;
   talking: number;
   phase: number;
+  /** Animierte Figur (falls geladen) mit Halsknochen und dessen lokaler Hochachse für den Blick. */
+  avatar?: Avatar;
+  neck?: THREE.Bone;
+  neckAxis?: THREE.Vector3;
+  neckRest?: THREE.Quaternion;
+  lookYaw: number;
+  talkWeight: number;
 }
 
 const skinMat = (c: number) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, flatShading: true });
@@ -176,6 +193,7 @@ export class Survivors {
   private time = 0;
   private emberTimer = 0;
   private readonly tmp = new THREE.Vector3();
+  private readonly tmpQ = new THREE.Quaternion();
 
   constructor(private readonly d: SurvivorsDeps) {
     this.layout = d.layout;
@@ -200,13 +218,28 @@ export class Survivors {
 
     NPCS.forEach((def, i) => {
       const spot = this.model.spots[i];
-      const m = npcModel(def);
-      m.root.position.copy(spot.position);
-      m.root.rotation.y = spot.yaw;
-      this.group.add(m.root);
-      const npc: Npc = { def, root: m.root, head: m.head, arm: m.arm, yaw: spot.yaw, talking: 0, phase: i * 2.1 };
-      this.npcs.push(npc);
       const h = 1.7 * def.look.scale;
+      let npc: Npc;
+      if (d.characters?.has(def.figure.model)) {
+        const avatar = d.characters.create(def.figure.model, h + 0.05);
+        avatar.object.position.copy(spot.position);
+        avatar.object.rotation.y = spot.yaw;
+        this.group.add(avatar.object);
+        for (const name of [def.figure.idle, TALK]) avatar.action(name)?.play();
+        avatar.action(TALK)?.setEffectiveWeight(0);
+        avatar.mixer.update(i * 0.9);
+        avatar.object.updateMatrixWorld(true);
+        const neck = avatar.bones.get('neck_01');
+        const neckAxis = neck ? new THREE.Vector3(0, 1, 0).applyQuaternion(neck.getWorldQuaternion(new THREE.Quaternion()).invert()) : undefined;
+        npc = { def, root: avatar.object, head: avatar.object, arm: avatar.object, yaw: spot.yaw, talking: 0, phase: i * 2.1, avatar, neck, neckAxis, neckRest: neck?.quaternion.clone(), lookYaw: 0, talkWeight: 0 };
+      } else {
+        const m = npcModel(def);
+        m.root.position.copy(spot.position);
+        m.root.rotation.y = spot.yaw;
+        this.group.add(m.root);
+        npc = { def, root: m.root, head: m.head, arm: m.arm, yaw: spot.yaw, talking: 0, phase: i * 2.1, lookYaw: 0, talkWeight: 0 };
+      }
+      this.npcs.push(npc);
       const c = d.physics.world.createCollider(
         RAPIER.ColliderDesc.capsule(h / 2 - 0.25, 0.25)
           .setTranslation(spot.position.x, spot.position.y + h / 2, spot.position.z)
@@ -258,9 +291,20 @@ export class Survivors {
       const near = viewer.distanceTo(n.root.position) < 7;
       let look = near ? toPlayer - n.yaw : 0;
       look = Math.atan2(Math.sin(look), Math.cos(look));
+      n.talking = Math.max(0, n.talking - dt);
+      if (n.avatar) {
+        // Ruhebewegung ↔ Gesprächsbewegung überblenden, danach den Hals zum Spieler drehen.
+        n.talkWeight += ((n.talking > 0 ? 1 : 0) - n.talkWeight) * Math.min(1, dt * 3);
+        n.avatar.action(n.def.figure.idle)?.setEffectiveWeight(1 - n.talkWeight);
+        n.avatar.action(TALK)?.setEffectiveWeight(n.talkWeight);
+        if (n.neck && n.neckRest) n.neck.quaternion.copy(n.neckRest);
+        n.avatar.mixer.update(dt);
+        n.lookYaw += (THREE.MathUtils.clamp(look, -1.0, 1.0) - n.lookYaw) * Math.min(1, dt * 4);
+        if (n.neck && n.neckAxis) n.neck.quaternion.multiply(this.tmpQ.setFromAxisAngle(n.neckAxis, n.lookYaw));
+        continue;
+      }
       n.head.rotation.y += (THREE.MathUtils.clamp(look, -1.1, 1.1) - n.head.rotation.y) * Math.min(1, dt * 4);
       n.root.children[0].position.y = Math.sin(n.phase * 1.5) * 0.008;
-      n.talking = Math.max(0, n.talking - dt);
       n.arm.rotation.x = n.talking > 0 ? -0.6 - Math.sin(n.phase * 5) * 0.25 : -0.05;
     }
     if (!this.found && dist < (night > 0.5 ? 220 : 70)) {

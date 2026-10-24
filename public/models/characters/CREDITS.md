@@ -1,0 +1,10 @@
+# Figuren und Bewegungen
+
+Aus [Mesh2Motion](https://github.com/mesh2motion/mesh2motion-app) von Scott Petrovic: „All 3d models, blend files,
+rigs, animations“ stehen unter **CC0 1.0** (siehe `LICENSE-CC0.md`). Die Bewegungen bauen auf den CC0-Animationen von
+Quaternius auf.
+
+- Figuren: `monster`, `monster_3`, `monster_4`, `monster_5`, `killer_4` … `killer_7`, `male_10`, `hazmat_female`,
+  `female_9` (unverändert)
+- `base-anims.glb`, `addon-anims.glb`: Auszug aus `human-base-animations.glb` und `human-addon-animations.glb`
+  (nur benötigte Bewegungen, ohne Finger- und Skalierungsspuren), erzeugt mit `scripts/prepare-characters.mjs`
