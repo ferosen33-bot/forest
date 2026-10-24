@@ -60,6 +60,24 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 29 – Horrorfilm-Optik (Teil 1: Licht & Bild)
+
+- **Filmlook** in der Nachbearbeitung, je nach Lage überblendet (`systems/FilmLook.ts`, getestet):
+  - kühl-entsättigter Tag, blaustichige Nacht, grünlich-fahle Höhle, blutrote Fiebernacht, Unterwasser;
+  - Filmkorn, Vignette und leichte Farbsäume am Bildrand;
+  - Angst verstärkt Korn, Vignette und Farbsäume und nimmt Farbe aus dem Bild;
+  - Flammen und Lampen behalten ihre warme Farbe.
+- **Bodennebel**, der dem Gelände folgt und in Senken hängt: dicht im Morgengrauen, nachts und im Regen, dünn am
+  hellen Tag. Er wird aus der Tiefe berechnet (exponentieller Höhennebel), der Horizont verschwimmt im Dunst.
+- **Umgebungsverdeckung** mit [n8ao](https://github.com/N8python/n8ao): Ecken, Spalten und Bodenkontakt werden dunkel.
+  Auf „Niedrig“ ist sie aus.
+- **Umgebungslicht** aus einem HDR-Waldpanorama (Poly Haven, CC0, über
+  [@pmndrs/assets](https://github.com/pmndrs/assets)). Es ist am Tag dezent, nachts und in Höhlen aus.
+- **Taschenlampe mit Schattenwurf:** Gras, Bäume und Gestalten werfen im Lichtkegel lange Schatten.
+- Der Gegenstand in der Hand bekommt denselben Filmlook (aber keinen Nebel).
+- Teil 2 bringt echte Foto-Texturen für Boden, Rinde, Fels und Holz. Dafür müssen Poly Haven bzw. ambientCG in der
+  Netzwerk-Freigabe der Entwicklungsumgebung erlaubt sein.
+
 ### Meilenstein 28 – Die Nordbucht: Überlebende & Aufträge
 
 - Im Norden der Insel steht ein **Leuchtturm** an einer Bucht, mit Steg, Bootshaus („NORDBUCHT“) und einem
@@ -577,6 +595,7 @@ src/
 │   ├── Town.ts             Stadtplan: Bauplatz, Straßen, Gebäude, Requisiten, Stadtfaktor (getestet)
 │   ├── TownMeshes.ts       Gebäude, Möbel, Autos → verschmolzene Meshes, Kollider, Behälter, Türen
 │   ├── Harbor.ts           Nordbucht: Platzsuche, Leuchtturm, Steg, Bootshaus, Lager der Überlebenden
+│   ├── Environment.ts      Umgebungslicht aus einem HDR-Waldpanorama (CC0)
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -617,7 +636,7 @@ src/
 │   ├── Audio.ts            Prozedurale Soundeffekte, Busse, 3D-Panner, Unterwasser-Filter
 │   ├── Ambience.ts         Wind, Brandung, Vögel, Grillen, Eulen
 │   ├── Footsteps.ts        Schritte je Untergrund (Spieler & Schrate)
-│   ├── PostFX.ts           Lichtstrahlen, Bloom, Vignette, Tone Mapping
+│   ├── PostFX.ts           Umgebungsverdeckung, Bodennebel, Lichtstrahlen, Bloom, Filmlook, Tone Mapping
 │   ├── AnimalDirector.ts   Wild: Verteilung, Rudel-Warnung, Treffer, Ausnehmen, Nachwachsen
 │   ├── Projectiles.ts      Wurfgeschosse (ballistisch, Segment-Raycast, Steckenbleiben)
 │   ├── Cooking.ts          Bratspieß am Lagerfeuer (Fleisch, Fisch)
@@ -630,6 +649,7 @@ src/
 │   ├── Horror.ts           Nächtliche Schrecken: Gestalten, Klopfen, Schritte, Flüstern
 │   ├── FeverNight.ts       Zeitplan der Fiebernacht (getestet)
 │   ├── WorldEvents.ts      Zufallsereignisse: Versorgungsabwurf, Schrat-Ritual, verlassenes Lager
+│   ├── FilmLook.ts         Farbstimmung und Bodennebel je nach Tageszeit, Ort und Angst (getestet)
 │   ├── Quests.ts           Aufträge: Zustände, Fortschritt, Abgabe (getestet)
 │   ├── Survivors.ts        Die Überlebenden: Figuren, Lagerfeuer, Leuchtfeuer, Gespräche
 │   ├── Weather.ts          Wetterlagen als Zustandsautomat, Blitz & Donner (getestet)
@@ -710,8 +730,9 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. Das Fieber: Infektion, Heilmittel, Forschungsstation
-31. Wölfe & Winter: Rudel, Spuren im Schnee
-32. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
-33. Neue Schrecken: neue Gegner, ein Boss in der Mine
-34. Koop-Mehrspieler (Server, bis zu 50 Spieler)
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · Teil 2: Foto-Texturen · Teil 3: realistische Modelle
+31. Das Fieber: Infektion, Heilmittel, Forschungsstation
+32. Wölfe & Winter: Rudel, Spuren im Schnee
+33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
+34. Neue Schrecken: neue Gegner, ein Boss in der Mine
+35. Koop-Mehrspieler (Server, bis zu 50 Spieler)

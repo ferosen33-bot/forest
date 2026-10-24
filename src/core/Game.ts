@@ -57,6 +57,8 @@ import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
 import { PostFX } from '../systems/PostFX';
+import { filmLook, type Look } from '../systems/FilmLook';
+import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -107,6 +109,8 @@ export class Game {
   readonly viewModel = new ViewModel();
   readonly inventory = new Inventory(30, 6);
   readonly postFX: PostFX;
+  /** Filmlook des letzten Bildes (wird jedes Bild wiederverwendet). */
+  private look: Look | null = null;
   readonly crafting = new Crafting(this.inventory);
   /** Fertigkeiten (wachsen durch Tun). */
   readonly skills = new Skills(this.events);
@@ -193,6 +197,8 @@ export class Game {
     intensity: 0,
     distance: 0,
   };
+  /** Kegel der Taschenlampe – mit Schattenwurf (Bäume und Gestalten werfen lange Schatten). */
+  private readonly flashlight = new THREE.SpotLight(0xf4f1e6, 0, 38, 0.42, 0.6, 1.6);
 
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
@@ -271,6 +277,14 @@ export class Game {
     );
     this.scene.add(this.harvest.group);
     this.lights = new LightPool(this.scene, 4);
+    this.flashlight.castShadow = true;
+    this.flashlight.shadow.mapSize.set(1024, 1024);
+    this.flashlight.shadow.camera.near = 0.25;
+    this.flashlight.shadow.camera.far = 38;
+    this.flashlight.shadow.bias = -0.0004;
+    this.flashlight.shadow.normalBias = 0.03;
+    this.flashlight.visible = false;
+    this.scene.add(this.flashlight, this.flashlight.target);
     this.building = new BuildingSystem(
       this.physics,
       this.world.heightMap,
@@ -599,6 +613,8 @@ export class Game {
     this.applySettings();
     this.menu.setLoading('Shader werden kompiliert …');
     await nextFrame();
+    // Umgebungslicht vor dem Kompilieren laden, sonst übersetzt jedes Material seine Shader später noch einmal.
+    await loadForestEnvironment(this.renderer, this.scene).catch((e) => console.warn('[Env] Umgebungslicht fehlt:', e));
     await this.renderer.compileAsync(this.scene, this.camera);
 
     this.wireEvents();
@@ -1339,6 +1355,7 @@ export class Game {
     if (chest && (!this.building.structures.includes(chest) || chest.position.distanceTo(player.position) > 4.5)) this.closeInventory();
 
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
+    this.scene.environmentIntensity = environmentIntensity(this.dayNight.daylight, this.dayNight.underground, this.climate.look.clouds);
     this.world.update(dt, this.elapsed, player.position);
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
     this.updateFishing(dt, playing && !building);
@@ -1350,12 +1367,21 @@ export class Game {
       this.torchLight.intensity = light.intensity * this.viewModel.flameFlicker;
       this.torchLight.distance = light.distance;
       this.lights.request(this.torchLight);
-    } else if (light && this.viewModel.getLampPosition(this.torchLight.position)) {
+    }
+    // Taschenlampe: schattenwerfender Lichtkegel aus der Lampe, dazu ein schwacher Streulichtschein.
+    const lamp = !!light && !!this.viewModel.getLampPosition(this.flashlight.position);
+    this.flashlight.visible = lamp;
+    if (lamp) {
       this.camera.getWorldDirection(this.tmpDir);
-      this.torchLight.position.addScaledVector(this.tmpDir, 2.2);
-      this.torchLight.color.set(light.color);
-      this.torchLight.intensity = light.intensity;
-      this.torchLight.distance = light.distance;
+      this.flashlight.color.set(light!.color);
+      this.flashlight.intensity = light!.intensity * 4;
+      this.flashlight.distance = light!.distance * 1.5;
+      this.flashlight.target.position.copy(this.flashlight.position).addScaledVector(this.tmpDir, 10);
+      this.flashlight.target.updateMatrixWorld();
+      this.torchLight.position.copy(this.flashlight.position).addScaledVector(this.tmpDir, 1.2);
+      this.torchLight.color.set(light!.color);
+      this.torchLight.intensity = light!.intensity * 0.12;
+      this.torchLight.distance = 7;
       this.lights.request(this.torchLight);
     }
     this.lights.update(this.camera.position);
@@ -1507,19 +1533,39 @@ export class Game {
 
   private render(): void {
     this.renderer.info.reset();
+    const overlay = this.viewModel.visible && this.mode !== 'dead' ? this.viewModel : null;
     if (this.postFX.enabled) {
+      const look = (this.look = filmLook(
+        {
+          daylight: this.dayNight.daylight,
+          hour: this.dayNight.hour,
+          fever: this.dayNight.fever,
+          cave: this.dayNight.underground > 0.5,
+          underwater: this.player.headUnderwater,
+          fear: this.fear?.value ?? 0,
+          rain: this.climate?.weather.rain ?? 0,
+          cameraY: this.camera.position.y,
+          fogColor: this.dayNight.fog.color,
+        },
+        this.look ?? undefined,
+      ));
       this.postFX.render(this.renderer, this.scene, this.camera, {
         lightDir: this.dayNight.lightDirection(this.tmpDir),
         lightColor: this.dayNight.light.color,
         rays: this.dayNight.rayStrength,
         bloom: this.dayNight.daylight > 0.5 ? 0.45 : 0.8,
         underwater: this.player.headUnderwater,
+        grade: look.grade,
+        mist: look.mist,
+        time: this.elapsed,
+        // Der Gegenstand in der Hand bekommt denselben Filmlook (Korn, Farbstimmung), aber keinen Nebel.
+        overlay,
       });
-    } else {
-      this.renderer.render(this.scene, this.camera);
+      return;
     }
+    this.renderer.render(this.scene, this.camera);
     // ViewModel in eigenem Durchgang über die Welt legen (Tiefenpuffer geleert).
-    if (this.viewModel.visible && this.mode !== 'dead') {
+    if (overlay) {
       this.renderer.autoClear = false;
       this.renderer.clearDepth();
       this.renderer.render(this.viewModel.scene, this.viewModel.camera);
@@ -1571,6 +1617,7 @@ export class Game {
     }
     // Umschalten der Nachbearbeitung kompiliert die Shader einmal neu (kurzer Ruckler).
     this.postFX.enabled = s.postProcessing;
+    this.postFX.ao = s.quality !== 'low';
     if (this.dayNight) this.dayNight.linearOutput = s.postProcessing;
 
     const q = QUALITY[s.quality];
