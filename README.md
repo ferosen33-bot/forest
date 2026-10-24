@@ -60,6 +60,18 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 34 – Horrorfilm-Optik (Teil 6: Gras)
+
+- **Echtes Gras:** Statt grüner Dreiecke stehen fotografierte Grasbüschel (Poly Haven „Grass Medium 01“, CC0) als
+  zwei gekreuzte Karten je Büschel.
+  - Fünf verschiedene Büschel, zufällig gedreht und in der Größe variiert.
+  - Die Breite folgt dem Seitenverhältnis des Bildes.
+  - Unten sind sie dunkler (Eigenschatten), oben wiegen sie im Wind und biegen sich weg, wenn man durchläuft.
+- **Jahreszeiten:** Im Herbst und unter Schnee wird zur Trockengras-Textur überblendet. Auch im Sommer sind einzelne
+  Büschel schon trocken.
+- Der Atlas ist freigestellt und neu gepackt (`scripts/prepare-grass.py`): nur das jeweilige Büschel, ohne Fremdteile,
+  mit ausgebluteten Rändern gegen helle Säume beim Verkleinern.
+
 ### Meilenstein 33 – Horrorfilm-Optik (Teil 5: Hände und Werkzeuge)
 
 - **Echte Hand in der Ich-Ansicht:** ein realistischer rechter Unterarm mit Hand und Fingern.
@@ -819,7 +831,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · Teil 6: Gras und Tiere
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · Teil 7: Tiere
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

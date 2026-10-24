@@ -32,30 +32,30 @@ export function grassDensity(hm: HeightMap, ix: number, iz: number, noise: (x: n
   return dry * flat * low * (0.25 + 0.75 * patches);
 }
 
-/** Ein Büschel aus drei sich kreuzenden, gebogenen Halmen (Ursprung am Boden). */
+/**
+ * Ein Büschel aus zwei gekreuzten Karten (Ursprung am Boden, Breite 1, Höhe 1). Darauf liegt ein
+ * fotografiertes Grasbüschel (Poly Haven „Grass Medium 01“, CC0); Breite und Bildausschnitt
+ * wählt der Shader je Büschel.
+ */
 function createClumpGeometry(): THREE.BufferGeometry {
   const positions: number[] = [];
+  const uvs: number[] = [];
   const heights: number[] = [];
-  const H = 0.5;
-  const W = 0.045;
-  for (let b = 0; b < 3; b++) {
-    const a = (b / 3) * Math.PI;
-    const cx = Math.cos(a);
-    const cz = Math.sin(a);
-    const lean = 0.06 * (b - 1);
-    // Halm: unten breit, Mitte, Spitze – 3 Dreiecke
-    const p = (sx: number, y: number) => [sx * W * cx + lean * y, y * H, sx * W * cz + lean * y * 0.5];
-    const v = [p(-1, 0), p(1, 0), p(-0.7, 0.5), p(0.7, 0.5), p(0, 1)];
-    const tris = [
-      [0, 1, 2],
-      [1, 3, 2],
-      [2, 3, 4],
+  for (let c = 0; c < 2; c++) {
+    const a = (c / 2) * Math.PI + 0.35;
+    const dx = Math.cos(a) * 0.5;
+    const dz = Math.sin(a) * 0.5;
+    const quad = [
+      [-dx, 0, -dz, 0, 0],
+      [dx, 0, dz, 1, 0],
+      [dx, 1, dz, 1, 1],
+      [-dx, 1, -dz, 0, 1],
     ];
-    for (const t of tris) {
-      for (const i of t) {
-        positions.push(...v[i]);
-        heights.push(v[i][1] / H);
-      }
+    for (const i of [0, 1, 2, 0, 2, 3]) {
+      const [x, y, z, u, v] = quad[i];
+      positions.push(x, y, z);
+      uvs.push(u, v);
+      heights.push(y);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -64,8 +64,26 @@ function createClumpGeometry(): THREE.BufferGeometry {
   const normals = new Float32Array(positions.length);
   for (let i = 1; i < normals.length; i += 3) normals[i] = 1;
   g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setAttribute('aHeight', new THREE.Float32BufferAttribute(heights, 1));
   return g;
+}
+
+/** Ausschnitte der Büschel im Atlas: u0, v0, u1, v1, Seitenverhältnis (Breite / Höhe). */
+const CLUMPS: [number, number, number, number, number][] = [
+  [0.0029, 0.0234, 0.1797, 0.6289, 2.3355],
+  [0.1826, 0.0234, 0.3477, 0.4219, 3.3137],
+  [0.3506, 0.0234, 0.439, 0.5391, 1.3712],
+  [0.4419, 0.0234, 0.5483, 0.5625, 1.5797],
+  [0.5513, 0.0234, 0.6821, 0.4414, 2.5047],
+];
+
+function grassTexture(file: string): THREE.Texture {
+  if (typeof document === 'undefined') return new THREE.Texture();
+  const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/grass/${file}`);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
 }
 
 /**
@@ -86,7 +104,7 @@ export class Grass {
 
   constructor(hm: HeightMap, opts: GrassOptions) {
     const radius = opts.radius ?? 36;
-    this.spacing = opts.spacing ?? 0.55;
+    this.spacing = opts.spacing ?? 0.7;
 
     // Höhen-Textur (Float, Nearest – im Shader wird selbst interpoliert)
     const heightTex = new THREE.DataTexture(hm.heights, hm.samples, hm.samples, THREE.RedFormat, THREE.FloatType);
@@ -126,6 +144,7 @@ export class Grass {
     geometry.setAttribute('position', base.getAttribute('position'));
     geometry.setAttribute('normal', base.getAttribute('normal'));
     geometry.setAttribute('aHeight', base.getAttribute('aHeight'));
+    geometry.setAttribute('uv', base.getAttribute('uv'));
     geometry.setAttribute('aOffset', new THREE.InstancedBufferAttribute(new Float32Array(offsets), 2));
     geometry.instanceCount = this.count;
     // Riesige Bounding-Sphere: Positionen entstehen erst im Shader.
@@ -136,6 +155,11 @@ export class Grass {
       uWindAmp: { value: 1 },
       uGrassTint: { value: new THREE.Color(1, 1, 1) },
       uGrassSnow: { value: 0 },
+      uGrassDry: { value: 0 },
+      uGrassGreen: { value: grassTexture('grass_green.png') },
+      uGrassDryTex: { value: grassTexture('grass_dry.png') },
+      uClumps: { value: CLUMPS.map((c) => new THREE.Vector4(c[0], c[1], c[2], c[3])) },
+      uClumpAspect: { value: CLUMPS.map((c) => c[4]) },
       uCenter: { value: new THREE.Vector2() },
       uPlayer: { value: new THREE.Vector3() },
       uRadius: { value: radius },
@@ -147,7 +171,7 @@ export class Grass {
       uHalf: { value: hm.half },
     };
 
-    const material = new THREE.MeshLambertMaterial({ color: 0x4d6a2b, side: THREE.DoubleSide });
+    const material = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms);
       shader.vertexShader = shader.vertexShader
@@ -160,8 +184,11 @@ uniform float uTime, uRadius, uSpacing, uSamples, uCellSize, uHalf, uWindAmp, uG
 uniform vec2 uCenter;
 uniform vec3 uPlayer;
 uniform sampler2D uHeightTex, uMaskTex;
+uniform vec4 uClumps[${CLUMPS.length}];
+uniform float uClumpAspect[${CLUMPS.length}];
 varying float vGrassH;
 varying float vGrassR;
+varying vec2 vGrassUv;
 
 float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
@@ -197,11 +224,16 @@ float density = texture2D(uMaskTex, ((worldXZ + uHalf) / uCellSize + 0.5) / uSam
 float dist = length(worldXZ - uPlayer.xz);
 float fade = 1.0 - smoothstep(uRadius * 0.65, uRadius, dist);
 // Im Winter liegt Schnee: nur noch kurze Spitzen ragen heraus.
-float size = (0.55 + 0.9 * r2) * step(r1, density) * fade * (1.0 - 0.55 * uGrassSnow);
+float size = (0.32 + 0.38 * r2) * step(r1, density) * fade * (1.0 - 0.55 * uGrassSnow);
+// Bildausschnitt je Büschel; Breite nach dessen Seitenverhältnis
+int clump = int(floor(gHash(cellIndex + 5.1) * ${CLUMPS.length}.0));
+vec4 rect = uClumps[clump];
+vGrassUv = mix(rect.xy, rect.zw, uv);
 
 // Zufällige Drehung um Y
 float ang = r1 * 6.2831;
 vec3 p = position;
+p.xz *= uClumpAspect[clump];
 p.xz = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * p.xz;
 p *= size;
 
@@ -222,17 +254,26 @@ vGrassH = aHeight;
 vGrassR = r2;`,
         );
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vGrassH;\nvarying float vGrassR;\nuniform vec3 uGrassTint;\nuniform float uGrassSnow;')
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying float vGrassH;\nvarying float vGrassR;\nvarying vec2 vGrassUv;\nuniform vec3 uGrassTint;\nuniform float uGrassSnow, uGrassDry;\nuniform sampler2D uGrassGreen, uGrassDryTex;',
+        )
         // Beide Halmseiten wie die Oberseite beleuchten (kein Umdrehen der Normale für Rückseiten).
         .replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0;\nvec3 normal = normalize(vNormal);\nvec3 nonPerturbedNormal = normal;')
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
-// Dunkler Grund, hellere Spitzen, etwas Farbvariation (frisch ↔ trocken)
-diffuseColor.rgb *= mix(0.45, 1.15, vGrassH);
-diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.25, 1.1, 0.7), smoothstep(0.75, 1.0, vGrassR) * 0.6);
-// Jahreszeit: Herbst gelblich, Frühling frisch; Schnee auf den Spitzen
-diffuseColor.rgb *= uGrassTint;
+// Foto-Büschel: grün ↔ trocken (Herbst, Winter; einzelne Büschel auch im Sommer)
+vec4 gGreen = texture2D(uGrassGreen, vGrassUv);
+vec4 gDry = texture2D(uGrassDryTex, vGrassUv);
+float dryness = clamp(uGrassDry + smoothstep(0.82, 1.0, vGrassR) * 0.5, 0.0, 1.0);
+vec4 gTex = mix(gGreen, gDry, dryness);
+if (gTex.a < 0.45) discard;
+diffuseColor.rgb *= gTex.rgb;
+// Dunkler Grund (Eigenschatten im Büschel), hellere Spitzen
+diffuseColor.rgb *= mix(0.5, 1.05, vGrassH);
+// Jahreszeit: leichter Farbstich (die Trockengras-Textur trägt den Großteil)
+diffuseColor.rgb *= mix(vec3(1.0), uGrassTint, 0.25);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.91, 0.95), uGrassSnow * (0.35 + 0.65 * vGrassH));`,
         );
     };
@@ -258,6 +299,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.91, 0.95), uGrassSnow * (0
   setSeason(tint: [number, number, number], snow: number): void {
     this.uniforms.uGrassTint.value.setRGB(...tint);
     this.uniforms.uGrassSnow.value = snow;
+    // Herbstfärbung (viel Rot, wenig Blau) bzw. Schnee → trockenes Gras
+    this.uniforms.uGrassDry.value = Math.max(Math.min(1, Math.max(0, (tint[0] - tint[2]) / 1.1)), snow);
   }
 
   /** Windstärke 0..1 */
