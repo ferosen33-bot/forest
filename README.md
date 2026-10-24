@@ -60,6 +60,29 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 35 – Horrorfilm-Optik (Teil 7: Tiere)
+
+- **Echte Tiere:** Statt kantiger Körper laufen Hirsch, Hirschkuh und Hase als fertig modellierte, texturierte Tiere
+  mit Skelett über die Insel (OpenGameArt, „created for the wonderful world of Kelgar“, CC0).
+  - Hirsche mit Geweih, Hirschkühe ohne. Jedes Tier hat einen leicht anderen Fellton.
+  - Der Hase hat ein Fell aus Haarkarten und eine Normalen-Karte.
+- **Bewegungen aus der KI:** Grasen (Kopf am Boden, kauen), Sichern (Umschauen), Ruhen, Gehen und Flucht im Galopp
+  gehen weich ineinander über. Das Tempo der Beine folgt der Geschwindigkeit.
+  - Erlegte Tiere brechen zusammen und bleiben liegen, bis man sie ausnimmt.
+  - Auch aus einem Spielstand geladene Tiere liegen gleich am Boden.
+- **Gang für das Rotwild:** Dem Modell fehlte ein Schritt. `scripts/prepare-animals.py` erzeugt ihn in Blender über
+  die Fuß-IK des Skeletts:
+  - Kreuzgang: hinten links, vorne links, hinten rechts, vorne rechts.
+  - Die Hufe heben sich und knicken in der Schwungphase ein.
+  - Rumpf und Kopf nicken mit.
+- **Aufbereitung:** `scripts/prepare-animals.py` (Blender als Python-Modul) übernimmt diese Schritte:
+  - Szene säubern und Materialien aus den eingepackten Texturen neu aufbauen.
+  - Bewegungen auswählen und benennen.
+  - Den falsch benannten Vorderfuß der Hirschkuh reparieren (ihr linkes Vorderbein war in allen Bewegungen steif).
+
+  `scripts/compress-animals.mjs` verkleinert danach die Texturen (zusammen gut 3 MB).
+- Fehlen die Modelle, bleiben die bisherigen einfachen Körper.
+
 ### Meilenstein 34 – Horrorfilm-Optik (Teil 6: Gras)
 
 - **Echtes Gras:** Statt grüner Dreiecke stehen fotografierte Grasbüschel (Poly Haven „Grass Medium 01“, CC0) als
@@ -831,7 +854,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · Teil 7: Tiere
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · ~~Teil 7: Tiere~~ ✓
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

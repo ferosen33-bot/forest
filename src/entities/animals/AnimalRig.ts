@@ -180,7 +180,7 @@ export class AnimalRig {
   constructor(
     readonly species: Species,
     readonly scale: number,
-    antlers: boolean,
+    readonly antlers: boolean,
   ) {
     const s = (this.shape = SHAPES[species]);
     this.root.add(this.body);

@@ -64,6 +64,7 @@ import { loadRockModels } from '../world/RockModels';
 import { loadItemModels } from '../entities/items/ItemModels';
 import { CharacterLibrary } from '../entities/characters/CharacterLibrary';
 import { FirstPersonArm } from '../entities/characters/FirstPersonArm';
+import { AnimalModels } from '../entities/animals/AnimalAvatars';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -314,10 +315,17 @@ export class Game {
     this.scene.add(this.building.group);
     this.menu.setLoading('Schrate erwachen …');
     await nextFrame();
-    this.characters = await CharacterLibrary.load().catch((e) => {
-      console.warn('[Figuren] Modelle fehlen, einfache Körper:', e);
-      return null;
-    });
+    const [characters, animalModels] = await Promise.all([
+      CharacterLibrary.load().catch((e) => {
+        console.warn('[Figuren] Modelle fehlen, einfache Körper:', e);
+        return null;
+      }),
+      AnimalModels.load().catch((e) => {
+        console.warn('[Tiere] Modelle fehlen, einfache Körper:', e);
+        return null;
+      }),
+    ]);
+    this.characters = characters;
     await FirstPersonArm.load()
       .then((arm) => this.viewModel.setArm(arm))
       .catch((e) => console.warn('[Hand] Modell fehlt, einfacher Arm:', e));
@@ -358,6 +366,7 @@ export class Game {
       `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
     );
     this.animals = new AnimalDirector({
+      models: animalModels,
       physics: this.physics,
       heightMap: this.world.heightMap,
       nav: this.enemies.nav,

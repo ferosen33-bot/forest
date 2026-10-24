@@ -7,6 +7,7 @@ import type { Player } from '../entities/Player';
 import { Animal, type AnimalContext } from '../entities/animals/Animal';
 import { ANIMAL_GEOMETRY, type AnimalPart, type Species } from '../entities/animals/AnimalRig';
 import { RigRenderer } from '../entities/RigRenderer';
+import { AnimalAvatars, type AnimalModels, type AnimalTarget } from '../entities/animals/AnimalAvatars';
 import type { NavGrid } from './ai/NavGrid';
 import type { Particles } from './Particles';
 import type { Audio, SoundId } from './Audio';
@@ -14,6 +15,8 @@ import type { ItemService } from './ItemService';
 import { deriveSeed, mulberry32 } from '../utils/random';
 
 export interface AnimalDeps {
+  /** Realistische Tiermodelle (fehlen sie, bleiben die einfachen Körper). */
+  models: AnimalModels | null;
   physics: Physics;
   heightMap: HeightMap;
   nav: NavGrid;
@@ -65,6 +68,9 @@ const TINTS: Record<Species, THREE.Color[]> = {
   rabbit: [0x8b7b66, 0x7a6d5d, 0x9a8b74, 0x6e6458].map((c) => new THREE.Color(c)),
 };
 
+/** Feine Fellvariation auf den Texturen der Modelle. */
+const MODEL_TINTS = [0xffffff, 0xeae2da, 0xfff4ea, 0xd8d0c8].map((c) => new THREE.Color(c));
+
 const MAX_PER_SPECIES = 32;
 
 /**
@@ -76,6 +82,7 @@ export class AnimalDirector {
   readonly group = new THREE.Group();
   readonly animals: Animal[] = [];
   private readonly renderers: Record<Species, RigRenderer<AnimalPart>>;
+  private readonly avatars: AnimalAvatars | null;
   private readonly byCollider = new Map<number, Animal>();
   private readonly ctx: AnimalContext;
   private readonly cfg: GameConfig['animals'];
@@ -102,6 +109,11 @@ export class AnimalDirector {
     };
     const legs = { body: 1, neck: 1, head: 1, upperLeg: 4, lowerLeg: 4, tail: 1 };
     this.renderers = { deer: make('deer', { ...legs, antlers: 1 }), rabbit: make('rabbit', { ...legs, antlers: 0 }) };
+    this.avatars = d.models ? new AnimalAvatars(d.models) : null;
+    if (this.avatars) {
+      for (const r of Object.values(this.renderers)) r.group.removeFromParent();
+      this.group.add(this.avatars.group);
+    }
 
     const player = d.player;
     this.ctx = {
@@ -267,6 +279,7 @@ export class AnimalDirector {
   update(dt: number, alpha: number): void {
     const player = this.d.player.position;
     const visible: Record<Species, { parts: Animal['rig']['parts']; tint: THREE.Color }[]> = { deer: [], rabbit: [] };
+    const targets: AnimalTarget[] = [];
     for (let i = this.animals.length - 1; i >= 0; i--) {
       const a = this.animals[i];
       const dist = a.feet.distanceTo(player);
@@ -275,16 +288,26 @@ export class AnimalDirector {
         this.remove(a);
         continue;
       }
-      if (dist > 200) continue;
+      // Hasen sind auf 80 m kaum ein Pixel groß.
+      if (dist > (a.species === 'rabbit' ? 80 : 200)) continue;
       a.updateVisual(dt, alpha);
       if (a.species === 'deer' && a.rig.steps !== (this.stepCounts.get(a) ?? 0)) {
         this.stepCounts.set(a, a.rig.steps);
         if (dist < 30) this.playAt('hoof', a.feet, Math.min(1, a.rig.anim.speed / 6), 0.2);
       }
-      visible[a.species].push({ parts: a.rig.parts, tint: TINTS[a.species][a.tint % 4] });
+      if (this.avatars) {
+        const model = a.species === 'rabbit' ? 'rabbit' : a.rig.antlers ? 'stag' : 'doe';
+        targets.push({ id: a.id, rig: a.rig, model, tint: MODEL_TINTS[a.tint % 4] });
+      } else {
+        visible[a.species].push({ parts: a.rig.parts, tint: TINTS[a.species][a.tint % 4] });
+      }
     }
-    this.renderers.deer.render(visible.deer);
-    this.renderers.rabbit.render(visible.rabbit);
+    if (this.avatars) {
+      this.avatars.render(targets, dt, player);
+    } else {
+      this.renderers.deer.render(visible.deer);
+      this.renderers.rabbit.render(visible.rabbit);
+    }
 
     this.updateSnares(dt);
 

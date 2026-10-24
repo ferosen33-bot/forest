@@ -117,7 +117,7 @@ export class Animal {
   }
 
   get name(): string {
-    return this.stats.name;
+    return this.species === 'deer' && !this.rig.antlers ? 'Hirschkuh' : this.stats.name;
   }
 
   /** Köder: ruhige Tiere laufen gemächlich dorthin (Schlingfalle). @returns true, wenn es folgt. */
