@@ -60,6 +60,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 31 – Horrorfilm-Optik (Teil 3: realistische Bäume, Büsche und Felsen)
+
+- **Echte Bäume statt Klötzchen:** Kiefern mit Nadelzweigen, Eichen mit Ästen und Foto-Blättern, Sträucher mit
+  Blattwerk – erzeugt mit einer Fassung des Baumgenerators [EZ-Tree](https://github.com/dgreenheck/ez-tree)
+  (MIT, `world/trees/TreeGenerator.ts`). Je Art gibt es zwei Varianten. Sie bewegen sich im Wind, verfärben sich im
+  Herbst, tragen im Winter Schnee und werfen durchbrochene Blattschatten.
+- **Nah und fern:** Realistische Bäume erscheinen im Umkreis des Spielers. Auf „Hoch“ sind das 60 m, auf „Mittel“
+  32 m, auf „Niedrig“ ist es aus. Weiter weg und im Nebel bleiben die einfachen Formen.
+  - Ein Baum hat 4.000–5.000 Dreiecke, ein Strauch etwa 2.000.
+  - Bei rund 300 Bäumen und Büschen in der Nähe ergibt das etwa 3 Mio. Dreiecke je Bild.
+- **Fotogescannte Felsen** (Poly Haven, CC0): zwei Felsen und ein Findling für die großen Brocken. Sie wurden mit
+  [meshoptimizer](https://github.com/zeux/meshoptimizer) von bis zu 66.000 auf 1.400–4.800 Dreiecke vereinfacht
+  (`scripts/prepare-rocks.mjs`). Die Kollisionshülle stammt aus derselben Form.
+- **Fällen:** Der fallende Baum ist das realistische Modell. Beim Aufprall trudeln flache Blätter bzw. Nadeln herab.
+- **Beeren** hängen als kleine runde Trauben im Strauch.
+- **Quellen:** `public/models/rocks/CREDITS.md` und `public/textures/trees/CREDITS.md`.
+
 ### Meilenstein 30 – Horrorfilm-Optik (Teil 2: Foto-Texturen)
 
 - **Echte Foto-Texturen** von [Poly Haven](https://polyhaven.com) (CC0, Quellen in `public/textures/CREDITS.md`):
@@ -615,6 +632,8 @@ src/
 │   ├── Harbor.ts           Nordbucht: Platzsuche, Leuchtturm, Steg, Bootshaus, Lager der Überlebenden
 │   ├── Environment.ts      Umgebungslicht aus einem HDR-Waldpanorama (CC0)
 │   ├── SurfaceTextures.ts  Foto-Texturen (Textur-Arrays, ebene/dreiachsige Projektion, Shader-Einbau)
+│   ├── RockModels.ts       Fotogescannte Felsen laden (Mesh + Kollisionshülle)
+│   ├── trees/              Baumgenerator (nach EZ-Tree, MIT) und Modelle für Bäume und Sträucher
 │   ├── Terrain.ts          Chunk-Meshes mit Vertex-Farben, 4 LOD-Stufen + Schürzen
 │   ├── Water.ts            Wasserfläche mit Wellen-Normalen
 │   ├── Vegetation.ts       Platzierung, Instancing, Collider, Entfernen (für Fällen)
@@ -749,7 +768,7 @@ src/
 27. ~~Die Fiebernacht (Horden alle sieben Tage)~~ ✓
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
-30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · Teil 3: realistische Modelle
+30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · Teil 4: Figuren und Gras
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
 32. Wölfe & Winter: Rudel, Spuren im Schnee
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen

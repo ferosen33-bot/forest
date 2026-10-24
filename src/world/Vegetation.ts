@@ -5,6 +5,18 @@ import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core
 import { deriveSeed, mulberry32, randRange, type RandomFn } from '../utils/random';
 import { injectSeason } from './SeasonShader';
 import { injectSurface, surfaceLayer } from './SurfaceTextures';
+import { smoothstep } from '../utils/math';
+import {
+  createBerryGeometry,
+  createBroadleafGeometry,
+  createBushGeometry,
+  createPebbleGeometry,
+  createPineGeometry,
+  createRockGeometry,
+  createStickGeometry,
+} from './VegetationGeometry';
+import type { RockModel } from './RockModels';
+import { createBarkMaterial, createLeafMaterial, createTreeModel, type TreeKind, type TreeModel } from './trees/TreeModels';
 
 /** Bäume: Rinde an Stamm und Ästen (am fehlenden Grünanteil erkannt), feine Blattstruktur in den Kronen. */
 const TREE_SURFACE = /* glsl */ `
@@ -23,16 +35,6 @@ const ROCK_SURFACE = /* glsl */ `
 vec3 rockD = surfTriplanar(${surfaceLayer('mossyRock')}, surfP, surfGeo, surfN, 1.0);
 diffuseColor.rgb = surfApply(surfBase, rockD, 0.55);
 `;
-import { smoothstep } from '../utils/math';
-import {
-  createBerryGeometry,
-  createBroadleafGeometry,
-  createBushGeometry,
-  createPebbleGeometry,
-  createPineGeometry,
-  createRockGeometry,
-  createStickGeometry,
-} from './VegetationGeometry';
 
 /**
  * - `pine`, `broadleaf`: fällbare Bäume
@@ -59,6 +61,10 @@ export interface VegetationInstance {
   alive: boolean;
   /** Nur Büsche: zugehörige Beeren-Instanz (null = Busch ohne Beeren). */
   berries: VegetationInstance | null;
+  /** Bäume: dieselbe Instanz in den realistischen Nah-Meshes (Rinde, Blätter). */
+  near: { mesh: THREE.InstancedMesh; slot: number }[];
+  /** Felsen: Index des fotogescannten Modells. */
+  readonly variant: number;
 }
 
 export interface VegetationSave {
@@ -75,6 +81,8 @@ export interface VegetationOptions {
   cullDistance: number;
   /** Bereiche, die frei bleiben sollen (z. B. Spawnpunkt). */
   clearings: { x: number; z: number; radius: number }[];
+  /** Fotogescannte Felsen (fehlen sie, bleiben die einfachen Formen). */
+  rocks?: RockModel[];
 }
 
 interface Placement {
@@ -96,6 +104,9 @@ const CASTS_SHADOW = new Set<VegetationKind>(['pine', 'broadleaf', 'rock']);
 const DETAIL_KINDS = new Set<VegetationKind>(['berries', 'stick', 'pebble']);
 const DETAIL_DISTANCE = 90;
 
+/** Varianten der realistischen Nahbäume je Art. */
+const TREE_VARIANTS = 2;
+
 /** Nachwachszeit für Beeren in Spielsekunden. */
 const BERRY_REGROW_TIME = 360;
 
@@ -104,6 +115,9 @@ interface VegetationCell {
   group: THREE.Group;
   /** Meshes kleiner Details (Beeren, Äste, Steinchen) mit kürzerer Sichtweite. */
   details: THREE.InstancedMesh[];
+  /** Bäume: einfache Fernformen bzw. realistische Nahmodelle (Rinde + Blätter). */
+  farTrees: THREE.InstancedMesh[];
+  nearTrees: THREE.InstancedMesh[];
   centerX: number;
   centerZ: number;
 }
@@ -146,7 +160,13 @@ export class Vegetation {
     broadleaf: THREE.MeshStandardMaterial;
     rock: THREE.MeshStandardMaterial;
   };
+  /** Realistische Nahbäume: Varianten je Art und ihre Materialien. */
+  private readonly treeModels: Record<TreeKind, TreeModel[]>;
+  private readonly treeMaterials: Record<TreeKind, { bark: THREE.MeshStandardMaterial; leaves: THREE.MeshStandardMaterial }>;
+  /** Bis zu dieser Entfernung (zum Zellrand) zeigen Zellen die realistischen Bäume; 0 = aus. */
+  nearTreeDistance = 60;
   private readonly rockHull: Float32Array;
+  private readonly rocks: RockModel[];
   private readonly shakes: Shake[] = [];
   private readonly regrowQueue: { bush: VegetationInstance; at: number }[] = [];
   private elapsed = 0;
@@ -173,11 +193,13 @@ export class Vegetation {
       pebble: createPebbleGeometry(),
     };
     this.rockHull = this.geometries.rock.getAttribute('position').array as Float32Array;
+    this.rocks = opts.rocks ?? [];
 
-    const foliage = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
+    // Fernformen etwas dunkler, damit sie zu den realistischen Nahbäumen (Foto-Laub) passen.
+    const foliage = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, color: 0xa8b0a0 });
     this.injectWind(foliage);
     // Laubbäume: eigenes Material, damit nur sie sich im Herbst verfärben und im Winter kahl werden.
-    const broadleaf = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
+    const broadleaf = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, color: 0xa8b0a0 });
     broadleaf.defines = { BROADLEAF: '' };
     this.injectWind(broadleaf);
     const rock = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 });
@@ -186,6 +208,23 @@ export class Vegetation {
       injectSurface(shader, ROCK_SURFACE, 1.2);
     };
     this.materials = { foliage, broadleaf, rock };
+
+    this.treeModels = {
+      pine: Array.from({ length: TREE_VARIANTS }, (_, v) => createTreeModel('pine', v)),
+      broadleaf: Array.from({ length: TREE_VARIANTS }, (_, v) => createTreeModel('broadleaf', v)),
+      bush: Array.from({ length: TREE_VARIANTS }, (_, v) => createTreeModel('bush', v)),
+    };
+    const treeMaterials = (kind: TreeKind) => {
+      const bark = createBarkMaterial(kind);
+      const leaves = createLeafMaterial(kind);
+      if (kind !== 'pine') leaves.defines = { BROADLEAF: '' };
+      this.injectWind(bark, false);
+      this.injectWind(leaves, false);
+      bark.customProgramCacheKey = () => `tree-bark-${kind}`;
+      leaves.customProgramCacheKey = () => `tree-leaves-${kind}`;
+      return { bark, leaves };
+    };
+    this.treeMaterials = { pine: treeMaterials('pine'), broadleaf: treeMaterials('broadleaf'), bush: treeMaterials('bush') };
 
     const placements = this.scatter();
     this.build(placements);
@@ -350,6 +389,8 @@ export class Vegetation {
       const cell: VegetationCell = {
         group: new THREE.Group(),
         details: [],
+        farTrees: [],
+        nearTrees: [],
         centerX: ((index % cellsPerSide) + 0.5) * size - this.heightMap.half,
         centerZ: (Math.floor(index / cellsPerSide) + 0.5) * size - this.heightMap.half,
       };
@@ -360,57 +401,113 @@ export class Vegetation {
       const built = new Map<Placement, VegetationInstance>();
 
       for (const kind of KINDS) {
-        const list = placements.filter((p) => p.kind === kind);
-        if (list.length === 0) continue;
+        const all = placements.filter((p) => p.kind === kind);
+        if (all.length === 0) continue;
+        // Fotogescannte Felsen: ein Mesh je Modell (die seltenen, sehr großen Felsen werden Findlinge).
+        const groups = kind === 'rock' && this.rocks.length > 0 ? this.rockGroups(all) : [{ list: all, variant: 0 }];
+        for (const { list, variant } of groups) {
+          const rockModel = kind === 'rock' ? this.rocks[variant] : undefined;
+          const mesh = new THREE.InstancedMesh(
+            rockModel?.geometry ?? this.geometries[kind],
+            rockModel?.material ?? this.materialFor(kind),
+            list.length,
+          );
+          mesh.name = `Vegetation_${kind}_${index}`;
+          mesh.castShadow = CASTS_SHADOW.has(kind);
+          mesh.receiveShadow = true;
+          mesh.matrixAutoUpdate = false;
 
-        const mesh = new THREE.InstancedMesh(
-          this.geometries[kind],
-          this.materialFor(kind),
-          list.length,
-        );
-        mesh.name = `Vegetation_${kind}_${index}`;
-        mesh.castShadow = CASTS_SHADOW.has(kind);
+          list.forEach((p, slot) => {
+            const instance: VegetationInstance = {
+              id: this.instances.length,
+              kind,
+              position: p.position,
+              scale: p.scale,
+              rotationY: p.rotationY,
+              tilt: p.tilt,
+              mesh,
+              slot,
+              collider: null,
+              alive: true,
+              berries: null,
+              near: [],
+              variant,
+            };
+            mesh.setMatrixAt(slot, this.composeMatrix(instance, this.tmpMatrix));
+
+            // Leichte Farbvariation pro Instanz (multipliziert mit den Vertex-Farben).
+            // Beeren behalten die Farbe ihres Busches nicht – sie sollen leuchten.
+            const v = kind === 'berries' ? 1 : 0.82 + colorRng() * 0.3;
+            tint.setRGB(v * (0.95 + colorRng() * 0.1), v, v * (0.9 + colorRng() * 0.1));
+            mesh.setColorAt(slot, tint);
+
+            if (p.parent) {
+              const bush = built.get(p.parent);
+              if (bush) bush.berries = instance;
+            }
+            instance.collider = this.createCollider(instance, p.kind === 'bush' && placements.some((o) => o.parent === p));
+            if (instance.collider) this.byCollider.set(instance.collider.handle, instance);
+            built.set(p, instance);
+            this.instances.push(instance);
+            this.counts[kind]++;
+          });
+
+          mesh.instanceMatrix.needsUpdate = true;
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+          mesh.computeBoundingSphere();
+          cell.group.add(mesh);
+          if (DETAIL_KINDS.has(kind)) cell.details.push(mesh);
+          if (isTree(kind) || kind === 'bush') {
+            cell.farTrees.push(mesh);
+            this.buildNearTrees(kind, cell, this.instances.slice(this.instances.length - list.length));
+          }
+        }
+      }
+    });
+  }
+
+  /** Felsen auf die Modelle verteilen: große → Findling, sonst abwechselnd die kleineren Scans. */
+  private rockGroups(list: Placement[]): { list: Placement[]; variant: number }[] {
+    const small = this.rocks.map((r, i) => (r.boulder ? -1 : i)).filter((i) => i >= 0);
+    const boulder = this.rocks.findIndex((r) => r.boulder);
+    const groups = this.rocks.map((_, variant) => ({ list: [] as Placement[], variant }));
+    list.forEach((p, i) => {
+      const v = p.scale.x > 1.7 && boulder >= 0 ? boulder : small[i % small.length];
+      groups[v].list.push(p);
+    });
+    return groups.filter((g) => g.list.length > 0);
+  }
+
+  /** Realistische Nahbäume einer Zelle: je Variante ein Rinden- und ein Blatt-Mesh mit denselben Matrizen. */
+  private buildNearTrees(kind: TreeKind, cell: VegetationCell, trees: VegetationInstance[]): void {
+    const models = this.treeModels[kind];
+    const mats = this.treeMaterials[kind];
+    models.forEach((model, variant) => {
+      const own = trees.filter((t) => t.id % models.length === variant);
+      if (own.length === 0) return;
+      for (const [geometry, material] of [
+        [model.bark, mats.bark],
+        [model.leaves, mats.leaves],
+      ] as const) {
+        const mesh = new THREE.InstancedMesh(geometry, material, own.length);
+        mesh.name = `Vegetation_${kind}_near${variant}`;
+        // Büsche sind klein und zahlreich – ihre Schatten kosten mehr, als sie bringen.
+        mesh.castShadow = kind !== 'bush';
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
-
-        list.forEach((p, slot) => {
-          const instance: VegetationInstance = {
-            id: this.instances.length,
-            kind,
-            position: p.position,
-            scale: p.scale,
-            rotationY: p.rotationY,
-            tilt: p.tilt,
-            mesh,
-            slot,
-            collider: null,
-            alive: true,
-            berries: null,
-          };
-          mesh.setMatrixAt(slot, this.composeMatrix(instance, this.tmpMatrix));
-
-          // Leichte Farbvariation pro Instanz (multipliziert mit den Vertex-Farben).
-          // Beeren behalten die Farbe ihres Busches nicht – sie sollen leuchten.
-          const v = kind === 'berries' ? 1 : 0.82 + colorRng() * 0.3;
-          tint.setRGB(v * (0.95 + colorRng() * 0.1), v, v * (0.9 + colorRng() * 0.1));
-          mesh.setColorAt(slot, tint);
-
-          if (p.parent) {
-            const bush = built.get(p.parent);
-            if (bush) bush.berries = instance;
-          }
-          instance.collider = this.createCollider(instance, p.kind === 'bush' && placements.some((o) => o.parent === p));
-          if (instance.collider) this.byCollider.set(instance.collider.handle, instance);
-          built.set(p, instance);
-          this.instances.push(instance);
-          this.counts[kind]++;
+        mesh.visible = false;
+        own.forEach((t, slot) => {
+          mesh.setMatrixAt(slot, this.composeMatrix(t, this.tmpMatrix));
+          const c = new THREE.Color();
+          t.mesh.getColorAt(t.slot, c);
+          mesh.setColorAt(slot, c);
+          t.near.push({ mesh, slot });
         });
-
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         mesh.computeBoundingSphere();
         cell.group.add(mesh);
-        if (DETAIL_KINDS.has(kind)) cell.details.push(mesh);
+        cell.nearTrees.push(mesh);
       }
     });
   }
@@ -442,12 +539,13 @@ export class Vegetation {
       }
       case 'rock': {
         // Konvexe Hülle der tatsächlich gerenderten (skalierten, rotierten) Form.
-        const pts = new Float32Array(this.rockHull.length);
+        const hull = this.rocks[inst.variant]?.hull ?? this.rockHull;
+        const pts = new Float32Array(hull.length);
         const v = new THREE.Vector3();
         this.tmpEuler.set(inst.tilt.x, inst.rotationY, inst.tilt.z, 'YXZ');
         const q = this.tmpQuat.setFromEuler(this.tmpEuler);
         for (let i = 0; i < pts.length; i += 3) {
-          v.set(this.rockHull[i], this.rockHull[i + 1], this.rockHull[i + 2]).multiply(s).applyQuaternion(q);
+          v.set(hull[i], hull[i + 1], hull[i + 2]).multiply(s).applyQuaternion(q);
           pts[i] = v.x;
           pts[i + 1] = v.y;
           pts[i + 2] = v.z;
@@ -479,10 +577,10 @@ export class Vegetation {
   }
 
   /** Wind: Kronen schwanken abhängig von Höhe über dem Boden und Instanzposition. */
-  private injectWind(material: THREE.MeshStandardMaterial): void {
+  private injectWind(material: THREE.MeshStandardMaterial, surface = true): void {
     material.onBeforeCompile = (shader) => {
       injectSeason(shader, { foliage: true });
-      injectSurface(shader, TREE_SURFACE, 1.0);
+      if (surface) injectSurface(shader, TREE_SURFACE, 1.0);
       shader.uniforms.uTime = this.windUniforms.uTime;
       shader.uniforms.uWind = this.windUniforms.uWind;
       shader.vertexShader = shader.vertexShader
@@ -510,12 +608,21 @@ export class Vegetation {
     return this.byCollider.get(collider.handle);
   }
 
-  /** Geometrie und Material einer Art – z. B. für einen fallenden Baum als Einzel-Mesh. */
-  getRenderData(kind: VegetationKind): { geometry: THREE.BufferGeometry; material: THREE.Material } {
-    return {
-      geometry: this.geometries[kind],
-      material: this.materialFor(kind),
-    };
+  /**
+   * Geometrien und Materialien eines Objekts – z. B. für einen fallenden Baum als Einzel-Mesh.
+   * Bäume liefern ihr realistisches Modell (Rinde und Blätter).
+   */
+  getRenderData(kind: VegetationKind, instance?: VegetationInstance): { geometry: THREE.BufferGeometry; material: THREE.Material }[] {
+    if (isTree(kind) && this.nearTreeDistance > 0) {
+      const models = this.treeModels[kind];
+      const model = models[(instance?.id ?? 0) % models.length];
+      const mats = this.treeMaterials[kind];
+      return [
+        { geometry: model.bark, material: mats.bark },
+        { geometry: model.leaves, material: mats.leaves },
+      ];
+    }
+    return [{ geometry: this.geometries[kind], material: this.materialFor(kind) }];
   }
 
   private materialFor(kind: VegetationKind): THREE.MeshStandardMaterial {
@@ -581,13 +688,21 @@ export class Vegetation {
   }
 
   private hide(instance: VegetationInstance): void {
-    instance.mesh.setMatrixAt(instance.slot, this.tmpMatrix.makeScale(0, 0, 0));
-    instance.mesh.instanceMatrix.needsUpdate = true;
+    this.writeMatrix(instance, this.tmpMatrix.makeScale(0, 0, 0));
   }
 
   private restore(instance: VegetationInstance, extra?: THREE.Quaternion): void {
-    instance.mesh.setMatrixAt(instance.slot, this.composeMatrix(instance, this.tmpMatrix, extra));
+    this.writeMatrix(instance, this.composeMatrix(instance, this.tmpMatrix, extra));
+  }
+
+  /** Matrix in alle Darstellungen einer Instanz schreiben (Fernform und Nahmodelle). */
+  private writeMatrix(instance: VegetationInstance, m: THREE.Matrix4): void {
+    instance.mesh.setMatrixAt(instance.slot, m);
     instance.mesh.instanceMatrix.needsUpdate = true;
+    for (const n of instance.near) {
+      n.mesh.setMatrixAt(n.slot, m);
+      n.mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   update(dt: number, elapsed: number, focus: THREE.Vector3): void {
@@ -605,6 +720,11 @@ export class Vegetation {
       cell.group.visible = distSq < maxDistSq;
       const details = distSq < detailDistSq;
       for (const mesh of cell.details) mesh.visible = details;
+      // Nah: realistische Bäume; Abstand zum Zellrand, damit auch Bäume knapp hinter der Grenze passen.
+      const edge = Math.max(0, Math.hypot(Math.max(0, Math.abs(dx) - this.opts.cellSize / 2), Math.max(0, Math.abs(dz) - this.opts.cellSize / 2)));
+      const near = edge < this.nearTreeDistance;
+      for (const mesh of cell.nearTrees) mesh.visible = near;
+      for (const mesh of cell.farTrees) mesh.visible = !near || cell.nearTrees.length === 0;
     }
 
     // Treffer-Wackeln: gedämpfte Schwingung um die Kippachse.

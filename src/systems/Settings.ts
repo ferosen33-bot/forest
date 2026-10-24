@@ -26,12 +26,14 @@ export interface QualityPreset {
   vegetationDistance: number;
   /** Höchstes Pixelverhältnis (hochauflösende Displays). */
   maxPixelRatio: number;
+  /** Bis zu dieser Entfernung (m) erscheinen die realistischen Bäume; 0 = nur einfache Formen. */
+  nearTrees: number;
 }
 
 export const QUALITY: Record<Quality, QualityPreset> = {
-  low: { label: 'Niedrig', shadowMapSize: 1024, grassRadius: 0, viewDistance: 320, vegetationDistance: 190, maxPixelRatio: 1 },
-  medium: { label: 'Mittel', shadowMapSize: 2048, grassRadius: 24, viewDistance: 400, vegetationDistance: 240, maxPixelRatio: 1.5 },
-  high: { label: 'Hoch', shadowMapSize: 2048, grassRadius: 36, viewDistance: 450, vegetationDistance: 280, maxPixelRatio: 2 },
+  low: { label: 'Niedrig', shadowMapSize: 1024, grassRadius: 0, viewDistance: 320, vegetationDistance: 190, maxPixelRatio: 1, nearTrees: 0 },
+  medium: { label: 'Mittel', shadowMapSize: 2048, grassRadius: 24, viewDistance: 400, vegetationDistance: 240, maxPixelRatio: 1.5, nearTrees: 32 },
+  high: { label: 'Hoch', shadowMapSize: 2048, grassRadius: 36, viewDistance: 450, vegetationDistance: 280, maxPixelRatio: 2, nearTrees: 60 },
 };
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -161,14 +161,15 @@ export class HarvestSystem {
     const axis = new THREE.Vector3().crossVectors(this.up, fallDir).normalize();
     body.setAngvel({ x: axis.x * 0.7, y: 0, z: axis.z * 0.7 }, true);
 
-    const { geometry, material } = this.vegetation.getRenderData(kind);
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.scale.copy(this.tmpScale);
-    mesh.position.set(0, -cut, 0);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
     const object = new THREE.Group();
-    object.add(mesh);
+    for (const { geometry, material } of this.vegetation.getRenderData(kind, tree)) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.scale.copy(this.tmpScale);
+      mesh.position.set(0, -cut, 0);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      object.add(mesh);
+    }
     object.position.copy(base);
     object.quaternion.copy(this.tmpQuat);
     this.group.add(object);
@@ -219,14 +220,16 @@ export class HarvestSystem {
         rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, Math.random() * 6, 0)),
       });
     }
+    // Herabtrudelnde Blätter bzw. Nadeln
     this.particles.burst(crown, {
-      count: 30,
-      color: f.kind === 'pine' ? 0x2c4a2c : 0x4a6a2a,
-      speed: 4,
-      spread: 1.2,
-      size: 0.09,
-      life: 1.6,
-      gravity: 3,
+      count: 40,
+      color: f.kind === 'pine' ? 0x2c3f26 : 0x3f5a26,
+      speed: 3.5,
+      spread: 1.4,
+      size: f.kind === 'pine' ? 0.05 : 0.08,
+      life: 2.6,
+      gravity: 1.1,
+      flat: true,
     });
 
     this.physics.world.removeRigidBody(f.body);

@@ -60,6 +60,7 @@ import { PostFX } from '../systems/PostFX';
 import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
+import { loadRockModels } from '../world/RockModels';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -248,9 +249,14 @@ export class Game {
     this.physics = await Physics.create();
     this.physics.timestep = cfg.physics.timestep;
 
+    this.menu.setLoading('Felsen werden geladen …');
+    const rocks = await loadRockModels().catch((e) => {
+      console.warn('[Felsen] Modelle fehlen, einfache Formen:', e);
+      return [];
+    });
     this.menu.setLoading('Insel wird generiert …');
     await nextFrame();
-    this.world = new World(this.scene, this.physics, cfg);
+    this.world = new World(this.scene, this.physics, cfg, rocks);
     this.dayNight = new DayNightCycle(this.scene, {
       dayLength: cfg.time.dayLength,
       startHour: cfg.time.startHour,
@@ -1628,6 +1634,7 @@ export class Game {
     this.dayNight?.setShadowMapSize(q.shadowMapSize);
     this.world?.grass?.setRadius(q.grassRadius);
     this.world?.vegetation.setCullDistance(q.vegetationDistance);
+    if (this.world) this.world.vegetation.nearTreeDistance = q.nearTrees;
     if (this.camera.far !== q.viewDistance) {
       this.camera.far = q.viewDistance;
       this.camera.updateProjectionMatrix();

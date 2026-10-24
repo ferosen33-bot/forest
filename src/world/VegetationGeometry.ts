@@ -138,23 +138,26 @@ export function createRockGeometry(): THREE.BufferGeometry {
   return merge([paint(ico, COLORS.rock)]);
 }
 
-/** Beeren-Traube, die auf einem Busch sitzt (gleiche Skalierung wie der Busch). */
+/**
+ * Beeren-Trauben, die im Strauch hängen (gleiche Skalierung wie der Busch). Der realistische
+ * Strauch ist vasenförmig (≈ 1,5 m hoch, oben breiter) – die Trauben sitzen am Rand seiner Krone.
+ */
 export function createBerryGeometry(): THREE.BufferGeometry {
   const rng = mulberry32(77);
   const parts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 16; i++) {
-    const blob = BUSH_BLOBS[i % BUSH_BLOBS.length];
-    // Zufällige Richtung auf der oberen Halbkugel des Blätterballs.
+  for (let i = 0; i < 18; i++) {
     const theta = rng() * Math.PI * 2;
-    const y = 0.15 + rng() * 0.8;
-    const r = Math.sqrt(1 - y * y);
-    const berry = new THREE.IcosahedronGeometry(0.055, 0);
-    berry.translate(
-      blob.x + Math.cos(theta) * r * blob.r * 0.98,
-      blob.y + y * blob.r * 0.98,
-      blob.z + Math.sin(theta) * r * blob.r * 0.98,
-    );
-    parts.push(paint(berry, i % 3 === 0 ? COLORS.berryDark : COLORS.berry));
+    const y = 0.55 + rng() * 0.75;
+    const r = (0.25 + (y - 0.4) * 0.55) * (0.75 + rng() * 0.3);
+    const cx = Math.cos(theta) * r;
+    const cz = Math.sin(theta) * r;
+    // Je Traube zwei bis vier kleine, runde Beeren
+    const n = 2 + Math.floor(rng() * 3);
+    for (let k = 0; k < n; k++) {
+      const berry = new THREE.IcosahedronGeometry(0.026 + rng() * 0.008, 1);
+      berry.translate(cx + (rng() - 0.5) * 0.07, y - k * 0.035, cz + (rng() - 0.5) * 0.07);
+      parts.push(paint(berry, (i + k) % 3 === 0 ? COLORS.berryDark : COLORS.berry));
+    }
   }
   return merge(parts);
 }

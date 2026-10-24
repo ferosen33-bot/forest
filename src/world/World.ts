@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { RockModel } from './RockModels';
 import { HeightMap } from './HeightMap';
 import { Terrain } from './Terrain';
 import { Water } from './Water';
@@ -25,7 +26,8 @@ export class World {
   /** Die Nordbucht mit Leuchtturm und dem Lager der Überlebenden. */
   readonly harbor: HarborLayout | null;
 
-  constructor(scene: THREE.Scene, physics: Physics, config: GameConfig) {
+  /** @param rocks fotogescannte Felsen (vorab geladen, da ihre Form die Kollision bestimmt). */
+  constructor(scene: THREE.Scene, physics: Physics, config: GameConfig, rocks: RockModel[] = []) {
     const { world, seed } = config;
 
     let t = performance.now();
@@ -64,6 +66,7 @@ export class World {
       seed,
       cellSize: world.vegetationCellSize,
       cullDistance: config.graphics.vegetationDistance,
+      rocks,
       clearings: [
         { x: spawn.x, z: spawn.z, radius: 7 },
         ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),

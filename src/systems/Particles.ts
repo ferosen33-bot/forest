@@ -9,6 +9,8 @@ interface Particle {
   maxLife: number;
   size: number;
   gravity: number;
+  /** Dicke relativ zur Größe (0,5 = Span, 0,06 = flaches Blatt). */
+  thickness: number;
 }
 
 export interface BurstOptions {
@@ -21,6 +23,8 @@ export interface BurstOptions {
   size?: number;
   life?: number;
   gravity?: number;
+  /** Flache Plättchen statt Späne (z. B. Blätter, die herabtrudeln). */
+  flat?: boolean;
 }
 
 /**
@@ -64,6 +68,7 @@ export class Particles {
         maxLife: 1,
         size: 0.05,
         gravity: 9.81,
+        thickness: 0.5,
       });
     }
   }
@@ -87,6 +92,7 @@ export class Particles {
       p.maxLife = p.life = (opts.life ?? 0.9) * (0.7 + Math.random() * 0.6);
       p.size = (opts.size ?? 0.05) * (0.6 + Math.random() * 0.8);
       p.gravity = opts.gravity ?? 9.81;
+      p.thickness = opts.flat ? 0.06 : 0.5;
       // Farbe leicht variieren, damit Späne nicht wie Klone aussehen.
       this.slotColors[this.active.length].copy(color).multiplyScalar(0.8 + Math.random() * 0.4);
       this.active.push(p);
@@ -119,7 +125,7 @@ export class Particles {
 
       const fade = Math.min(1, p.life / (p.maxLife * 0.3)); // am Ende schrumpfen
       this.quat.setFromEuler(p.rotation);
-      this.scale.set(p.size, p.size * 0.5, p.size * 1.6).multiplyScalar(fade);
+      this.scale.set(p.size, p.size * p.thickness, p.size * 1.6).multiplyScalar(fade);
       this.matrix.compose(p.position, this.quat, this.scale);
       this.mesh.setMatrixAt(n, this.matrix);
       this.mesh.setColorAt(n, this.slotColors[i]);
