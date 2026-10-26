@@ -37,6 +37,8 @@ const LOOT: Record<PlaceLootKind, LootTable> = {
   spares: { rolls: [1, 1], table: [['lampOil', 3, 1, 2], ['battery', 1, 1, 1]] },
   safe: { rolls: [1, 1], table: [['battery', 2, 2, 3], ['medkit', 1, 1, 1]] },
   sacristy: { rolls: [1, 2], table: [['lampOil', 2, 1, 1], ['painkillers', 1, 1, 1], ['bottle', 2, 1, 1], ['cannedFood', 1, 1, 1]] },
+  stash: { rolls: [2, 3], table: [['medkit', 2, 1, 1], ['fireArrow', 2, 3, 6], ['cannedFood', 2, 2, 3], ['battery', 1, 1, 2], ['painkillers', 1, 1, 2]] },
+  oilstore: { rolls: [1, 1], table: [['lampOil', 3, 2, 3], ['bottle', 1, 1, 2]] },
 };
 
 /** Garantierte Fundstücke (damit sich der Weg lohnt). */
@@ -47,6 +49,9 @@ const GUARANTEED: Partial<Record<PlaceLootKind, [ItemId, number][]>> = {
   // Was die Geschichte braucht, liegt sicher dort.
   spares: [['enginePart', 1]],
   safe: [['documents', 1]],
+  // Wer übers Meer kommt, wird belohnt.
+  stash: [['molotov', 2]],
+  oilstore: [['lampOil', 3]],
 };
 
 export interface PlaceContainer {
@@ -65,6 +70,8 @@ interface PlaceRuntime {
   fires: FireEffect[];
   lights: (LightRequest & { base: number; mode: PlaceLight['mode']; phase: number })[];
   beacons: THREE.Mesh[];
+  spinners: { object: THREE.Object3D; speed: number }[];
+  beams: THREE.Mesh[];
 }
 
 export interface PlacesSave {
@@ -176,7 +183,7 @@ export class Places {
         mode: l.mode,
         phase: i * 1.7,
       }));
-      this.places.push({ site, group: g, discovered: false, fires, lights, beacons: model.beacons });
+      this.places.push({ site, group: g, discovered: false, fires, lights, beacons: model.beacons, spinners: model.spinners, beams: model.beams });
     }
     console.info(`[Orte] ${this.places.map((p) => p.site.name).join(', ')} · ${this.containers.length} Behälter`);
   }
@@ -255,6 +262,13 @@ export class Places {
       // Warnlicht am Mast: kurzes, kräftiges Blinken alle 1,6 s (von weit her zu sehen).
       const blink = (this.time % 1.6) < 0.18 ? 1 : 0;
       for (const b of p.beacons) (b.material as THREE.MeshStandardMaterial).emissiveIntensity = blink * (isNight ? 40 : 12);
+      // Leuchtfeuer: dreht sich immer, der Strahl ist nur in der Dämmerung und nachts zu sehen – auch von drüben.
+      for (const s of p.spinners) s.object.rotation.y += s.speed * dt;
+      for (const beam of p.beams) {
+        const u = (beam.material as THREE.ShaderMaterial).uniforms.uOpacity;
+        u.value = THREE.MathUtils.damp(u.value, isNight && !underground ? 0.8 : 0, 1.5, dt);
+        beam.visible = u.value > 0.005;
+      }
       if (!near || underground) continue;
       for (const l of p.lights) {
         if (l.mode === 'lamp') l.intensity = isNight ? l.base * (0.9 + 0.1 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1)) : 0;
@@ -284,6 +298,8 @@ export class Places {
         chapel: 'Eine Kapelle mit Friedhof. Einige Gräber sind offen – von innen.',
         lab: 'Eine Forschungsstation, hoch über der Zeche. Daneben ein leerer Landeplatz.',
         stones: 'Ein Kreis aus aufgerichteten Steinen. Auf dem Altar in der Mitte leuchtet etwas.',
+        lighthouse: 'Ein Leuchtturm. Sein Feuer dreht sich noch – jemand hat es lange am Brennen gehalten.',
+        smugglers: 'Kisten unter einer Plane, ein Boot kieloben. Hier hat jemand Ware versteckt.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });

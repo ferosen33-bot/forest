@@ -12,7 +12,7 @@ import { deriveSeed, mulberry32 } from '../utils/random';
  * des Ortes); `systems/Places` setzt es in die Welt und erzeugt Kollision, Behälter und Notizen.
  */
 
-export type PlaceLootKind = 'suitcase' | 'cockpit' | 'medbox' | 'locker' | 'toolbox' | 'crate' | 'chest' | 'shelf' | 'desk' | 'spares' | 'safe' | 'sacristy';
+export type PlaceLootKind = 'suitcase' | 'cockpit' | 'medbox' | 'locker' | 'toolbox' | 'crate' | 'chest' | 'shelf' | 'desk' | 'spares' | 'safe' | 'sacristy' | 'stash' | 'oilstore';
 
 export const PLACE_LOOT_LABELS: Record<PlaceLootKind, string> = {
   suitcase: 'Koffer',
@@ -27,6 +27,8 @@ export const PLACE_LOOT_LABELS: Record<PlaceLootKind, string> = {
   spares: 'Ersatzteilkiste',
   safe: 'Tresor',
   sacristy: 'Sakristeischrank',
+  stash: 'Schmugglerkiste',
+  oilstore: 'Ölschuppen',
 };
 
 export interface PlaceCollider {
@@ -58,6 +60,10 @@ export interface PlaceModel {
   beacons: THREE.Mesh[];
   /** Benutzbare Dinge (Funkgerät …). */
   uses: { id: string; position: THREE.Vector3 }[];
+  /** Drehende Teile (Leuchtfeuer): Umdrehungen pro Sekunde in Radiant. */
+  spinners: { object: THREE.Object3D; speed: number }[];
+  /** Lichtkegel, die nur nachts sichtbar sind. */
+  beams: THREE.Mesh[];
 }
 
 /** Brandfleck: dunkel in der Mitte, zum Rand hin ausgefranst. */
@@ -135,7 +141,7 @@ class Builder {
     readonly ground: (x: number, z: number) => number,
   ) {
     this.group.name = name;
-    this.model = { group: this.group, colliders: [], containers: [], notes: [], lights: [], fires: [], beacons: [], uses: [] };
+    this.model = { group: this.group, colliders: [], containers: [], notes: [], lights: [], fires: [], beacons: [], uses: [], spinners: [], beams: [] };
   }
 
   /** Folgende Teile in einem gedrehten/verschobenen Rahmen bauen (null = wieder im Ortsraum). */
@@ -925,6 +931,159 @@ function buildStones(b: Builder, rng: () => number): void {
  * @param ground Geländehöhe an einer Weltposition
  * @param origin Bauplatz, `yaw` Ausrichtung
  */
+// ---------------------------------------------------------------------------
+// Leuchtturm
+// ---------------------------------------------------------------------------
+
+/** Lichtkegel des Leuchtfeuers: additiv, zur Spitze hin heller, nach außen verblassend. */
+function beamMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uOpacity: { value: 0 }, uColor: { value: new THREE.Color(1, 0.86, 0.62) } },
+    vertexShader: /* glsl */ `
+      varying float vAlong;
+      varying vec3 vNormalV;
+      varying vec3 vViewDir;
+      void main() {
+        vAlong = uv.y;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormalV = normalize(normalMatrix * normal);
+        vViewDir = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uOpacity;
+      uniform vec3 uColor;
+      varying float vAlong;
+      varying vec3 vNormalV;
+      varying vec3 vViewDir;
+      void main() {
+        // uv.y = 1 an der Spitze (Lampe), 0 am weiten Ende.
+        float along = pow(vAlong, 2.2);
+        // Hell in der Achse, weich zu den Rändern: Flächen, auf die man frontal sieht, liegen in der Kegelmitte.
+        float core = pow(abs(dot(normalize(vNormalV), normalize(vViewDir))), 1.8);
+        float a = uOpacity * along * core;
+        gl_FragColor = vec4(uColor * a, 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+}
+
+function buildLighthouse(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const y = g(0, 0);
+  const H = 15;
+  const white = std(0xe8e4da, { roughness: 0.7 });
+  // Turm: weiß mit zwei roten Bändern, nach oben schlanker.
+  b.cyl(white, 1.7, 2.3, H, [0, y + H / 2, 0], [0, 0, 0], 20);
+  for (const h of [4.5, 10]) b.cyl(M.redPaint, 2.3 - (h / H) * 0.6 + 0.02, 2.3 - ((h + 1.6) / H) * 0.6 + 0.02, 1.6, [0, y + h + 0.8, 0], [0, 0, 0], 20, false);
+  // Sockel und Tür (zur Hauptinsel, +Z)
+  b.cyl(M.concrete, 2.8, 3.0, 0.6, [0, y + 0.3, 0], [0, 0, 0], 20, false);
+  b.box(M.oldPlanks, [1.0, 2.0, 0.1], [0, y + 1.6, 2.2], [0.06, 0, 0], false);
+  // Umgang mit Geländer
+  b.cyl(M.metal, 2.4, 2.4, 0.2, [0, y + H + 0.1, 0], [0, 0, 0], 20, false);
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    b.box(M.metal, [0.05, 1.0, 0.05], [Math.cos(a) * 2.3, y + H + 0.7, Math.sin(a) * 2.3], [0, 0, 0], false);
+  }
+  const rail = b.add(new THREE.TorusGeometry(2.3, 0.04, 4, 32), M.metal, [0, y + H + 1.2, 0], [Math.PI / 2, 0, 0], false);
+  rail.castShadow = false;
+  // Laternenraum: Glas, Lampe, Kuppel
+  b.cyl(M.glass, 1.25, 1.25, 2.0, [0, y + H + 1.2, 0], [0, 0, 0], 14, false, false);
+  b.add(new THREE.SphereGeometry(0.45, 14, 10), M.lamp, [0, y + H + 1.2, 0], [0, 0, 0], false);
+  b.add(new THREE.ConeGeometry(1.5, 1.2, 14), M.redPaint, [0, y + H + 2.8, 0], [0, 0, 0]);
+  b.add(new THREE.SphereGeometry(0.16, 8, 6), M.metal, [0, y + H + 3.45, 0], [0, 0, 0], false);
+  b.light([0, y + H + 1.2, 0], 0xffd9a0, 40, 60, 'lamp');
+  // Drehendes Leuchtfeuer: zwei gegenüberliegende Lichtkegel, 90 m lang.
+  const spin = new THREE.Group();
+  spin.position.set(0, y + H + 1.2, 0);
+  const L = 90;
+  for (const dir of [1, -1]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(9, L, 24, 1, true), beamMaterial());
+    // Spitze an der Lampe, Kegel waagerecht (leicht abwärts) nach außen.
+    cone.rotation.z = dir * (Math.PI / 2 + 0.03);
+    cone.position.x = dir * L / 2;
+    cone.renderOrder = 3;
+    cone.frustumCulled = false;
+    spin.add(cone);
+    b.model.beams.push(cone);
+  }
+  b.group.add(spin);
+  b.model.spinners.push({ object: spin, speed: 0.55 });
+
+  // Wärterhaus neben dem Turm, Tür zum Turm hin
+  const hx = -6.5;
+  const hz = 1;
+  const hy = g(hx, hz);
+  const W = 4.4;
+  const D = 3.6;
+  const Hh = 2.5;
+  b.box(M.planks, [W, 0.15, D], [hx, hy + 0.08, hz], [0, 0, 0], true, false);
+  b.box(white, [W, Hh, 0.15], [hx, hy + Hh / 2, hz - D / 2]);
+  b.box(white, [0.15, Hh, D], [hx - W / 2, hy + Hh / 2, hz]);
+  b.box(white, [1.3, Hh, 0.15], [hx + 0.2, hy + Hh / 2, hz + D / 2]);
+  b.box(white, [0.15, Hh, 1.1], [hx + W / 2, hy + Hh / 2, hz - 1.25]);
+  b.box(white, [0.15, Hh, 1.1], [hx + W / 2, hy + Hh / 2, hz + 1.25]);
+  b.box(M.glass, [0.9, 0.7, 0.17], [hx - 1.3, hy + 1.5, hz + D / 2], [0, 0, 0], false);
+  b.box(white, [1.4, Hh, 0.15], [hx - 1.5, hy + Hh / 2, hz + D / 2]);
+  b.box(M.redPaint, [W + 0.5, 0.15, D + 0.6], [hx, hy + Hh + 0.3, hz], [0, 0, 0.12]);
+  // Einrichtung: Pult mit Logbuch, Spind, Bett
+  b.box(M.planks, [1.3, 0.06, 0.7], [hx - 1.2, hy + 0.85, hz - 1.2]);
+  b.box(M.planks, [1.2, 0.8, 0.6], [hx - 1.2, hy + 0.42, hz - 1.2], [0, 0, 0], true, false);
+  b.container('desk', [hx - 1.6, hy + 0.95, hz - 1.15]);
+  b.note('leuchtfeuer', [hx - 0.9, hy + 0.89, hz - 1.2], 0.2);
+  b.box(M.metal, [0.6, 1.8, 0.5], [hx + 1.6, hy + 0.95, hz - 1.4]);
+  b.container('locker', [hx + 1.6, hy + 1.2, hz - 1.15]);
+  b.box(M.fabric, [0.9, 0.35, 1.9], [hx - 1.6, hy + 0.3, hz + 0.6], [0, 0, 0], true, false);
+  b.lantern([hx + W / 2 + 0.3, hy + 2.1, hz]);
+  // Ölschuppen: Fässer unter einem Vordach
+  const sx = 5.5;
+  const sz = -4;
+  const sy = g(sx, sz);
+  for (const [ox, oz] of [[0, 0], [0.7, 0.3], [-0.6, 0.5]]) b.cyl(rng() < 0.5 ? M.rust : M.redPaint, 0.3, 0.3, 0.9, [sx + ox, sy + 0.45, sz + oz]);
+  for (const px of [-1, 1]) b.box(M.oldPlanks, [0.12, 1.9, 0.12], [sx + px * 1.1, sy + 0.95, sz + 1.0], [0, 0, 0], false);
+  b.box(M.oldPlanks, [2.6, 0.08, 1.8], [sx, sy + 1.95, sz + 0.2], [0.15, 0, 0], false);
+  b.container('oilstore', [sx, sy + 0.95, sz + 0.2]);
+}
+
+// ---------------------------------------------------------------------------
+// Schmugglerbucht
+// ---------------------------------------------------------------------------
+
+function buildSmugglers(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const y = g(0, 0);
+  // Plane zwischen vier Pfählen, darunter Kisten und Fässer; ein umgedrehtes Ruderboot.
+  for (const [x, z] of [[-2.2, -1.6], [2.2, -1.6], [-2.2, 1.6], [2.2, 1.6]]) b.box(M.oldPlanks, [0.14, 2.2, 0.14], [x, g(x, z) + 1.0, z], [0, 0, (rng() - 0.5) * 0.08], false);
+  const tarp = std(0x3d4a36, { roughness: 0.95, side: THREE.DoubleSide });
+  b.add(new THREE.PlaneGeometry(5.2, 3.9, 6, 4), tarp, [0, y + 2.05, 0], [-Math.PI / 2 + 0.12, 0, 0]);
+  for (let i = 0; i < 5; i++) {
+    const x = -1.5 + (i % 3) * 1.0;
+    const z = -0.9 + Math.floor(i / 3) * 1.0;
+    const h = 0.6 + rng() * 0.2;
+    b.box(i % 2 ? M.planks : M.oldPlanks, [0.8, h, 0.7], [x, g(x, z) + h / 2, z], [0, rng() * 0.3, 0]);
+  }
+  b.container('stash', [-0.5, g(-0.5, -0.9) + 0.75, -0.9]);
+  b.container('crate', [1.2, g(1.2, 0.6) + 0.5, 0.6]);
+  b.cyl(M.rust, 0.3, 0.3, 0.9, [1.8, g(1.8, -1.0) + 0.45, -1.0]);
+  b.note('schmuggler', [0.5, g(0.5, -0.9) + 0.72, -0.9], 0.4);
+  // Ruderboot kieloben am Strand (Richtung Wasser, +Z)
+  const bz = 5.5;
+  const hull = b.add(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), std(0x5a6a72, { roughness: 0.7 }), [0, g(0, bz) - 0.05, bz], [0, 0.3, 0]);
+  hull.scale.set(0.75, 0.45, 2.1);
+  b.collider([0.7, 0.4, 2.0], [0, g(0, bz) + 0.3, bz], [0, 0.3, 0]);
+  // Feuerstelle mit kalter Asche, Treibholz
+  b.add(new THREE.CylinderGeometry(0.5, 0.55, 0.05, 10), M.coal, [-3.2, g(-3.2, 2.5) + 0.03, 2.5], [0, 0, 0], false);
+  for (let i = 0; i < 4; i++) {
+    const x = -5 + rng() * 10;
+    const z = 3 + rng() * 4;
+    b.cyl(M.oldPlanks, 0.12, 0.14, 1.6 + rng(), [x, g(x, z) + 0.12, z], [Math.PI / 2, rng() * 3, 0], 7, false);
+  }
+  b.lantern([2.1, y + 1.7, 1.45]);
+}
+
 export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3, yaw: number, hm: HeightMap): PlaceModel {
   const rng = mulberry32(deriveSeed(seed, `place-${kind}`));
   const c = Math.cos(yaw);
@@ -939,6 +1098,8 @@ export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3,
   else if (kind === 'ferry') buildFerry(b, rng);
   else if (kind === 'chapel') buildChapel(b, rng);
   else if (kind === 'lab') buildLab(b, rng);
+  else if (kind === 'lighthouse') buildLighthouse(b, rng);
+  else if (kind === 'smugglers') buildSmugglers(b, rng);
   else buildStones(b, rng);
   return b.model;
 }

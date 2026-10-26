@@ -131,7 +131,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 22 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 24 },
     ],
   },
   {
@@ -170,6 +170,18 @@ export const CHAPTERS: Chapter[] = [
       { id: 'ferry', text: 'Das Wrack der Fähre finden', trigger: { on: 'place', kind: 'ferry' } },
       { id: 'anne', text: 'Annes Brief an Mia finden', trigger: { on: 'note', id: 'anne' } },
       { id: 'depart', text: 'Mit der Möwe ablegen', trigger: { on: 'ending' } },
+    ],
+  },
+  {
+    title: 'Jenseits der Küste',
+    intro: 'Draußen auf dem Meer liegen zwei kleine Inseln. Nachts dreht sich dort ein Licht.',
+    objectives: [
+      { id: 'workbench', text: 'Eine Werkbank bauen', trigger: { on: 'build', structure: 'workbench' } },
+      { id: 'raft', text: 'Ein Floß bauen', trigger: { on: 'build', structure: 'raft' } },
+      { id: 'lighthouse', text: 'Den Leuchtturm erreichen', trigger: { on: 'place', kind: 'lighthouse' } },
+      { id: 'keeper', text: 'Das Logbuch des Wärters lesen', trigger: { on: 'note', id: 'leuchtfeuer' } },
+      { id: 'smugglers', text: 'Die Schmugglerbucht finden', trigger: { on: 'place', kind: 'smugglers' } },
+      { id: 'rope', text: 'Ein Kletterseil an einer Steilkante anbringen', trigger: { on: 'build', structure: 'climbRope' } },
     ],
   },
 ];

@@ -13,12 +13,14 @@ import { deriveSeed, mulberry32 } from '../utils/random';
  * - **Kapelle** (Wald bei Altwasser): Kirche mit Glockenturm und einem Friedhof voller offener Gräber.
  * - **Labor Nordwand** (Gebirge): Forschungsstation der Betriebsleitung, Landeplatz, Tresor mit der Akte.
  * - **Steinkreis** (Kuppe im Wald): Ritualplatz der Schrate mit Altar, bewacht von einem Lager.
+ * - **Leuchtturm** (erste Nachbarinsel): Turm mit drehendem Leuchtfeuer und Wärterhaus.
+ * - **Schmugglerbucht** (zweite Nachbarinsel): Versteck unter einer Plane am Strand, zur Hauptinsel gewandt.
  *
  * Hier werden nur die Bauplätze gesucht und eingeebnet (vor Gelände und Physik); Modelle, Beute und
  * Notizen baut `systems/Places`.
  */
 
-export type PlaceKind = 'crash' | 'mine' | 'hut' | 'radio' | 'ferry' | 'chapel' | 'lab' | 'stones';
+export type PlaceKind = 'crash' | 'mine' | 'hut' | 'radio' | 'ferry' | 'chapel' | 'lab' | 'stones' | 'lighthouse' | 'smugglers';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -40,6 +42,8 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   chapel: 'Kapelle St. Brigid',
   lab: 'Labor Nordwand',
   stones: 'Steinkreis',
+  lighthouse: 'Leuchtturm Kaltenhuk',
+  smugglers: 'Schmugglerbucht',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -246,6 +250,28 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: {
     hm.flatten(stones.x, stones.z, 9, 7, stones.y!);
     sites.push({ kind: 'stones', name: PLACE_NAMES.stones, position: new THREE.Vector3(stones.x, stones.y!, stones.z), yaw: stones.yaw, radius: 26 });
   }
+
+  // Nachbarinseln: Leuchtturm auf dem Hügel der ersten, Versteck am Strand der zweiten (beide zur Hauptinsel hin).
+  const [first, second] = hm.islets;
+  if (first) {
+    const y = hm.heightAt(first.x, first.z);
+    hm.flatten(first.x, first.z, 11, 14, y);
+    sites.push({ kind: 'lighthouse', name: PLACE_NAMES.lighthouse, position: new THREE.Vector3(first.x, y, first.z), yaw: Math.atan2(-first.x, -first.z), radius: 30 });
+  }
+  if (second) {
+    const yaw = Math.atan2(-second.x, -second.z);
+    // Vom Hügel Richtung Hauptinsel bis kurz vor den Strand.
+    let d = 0;
+    for (let k = 0; k < second.radius * 1.3; k += 2) {
+      if (hm.heightAt(second.x + Math.sin(yaw) * k, second.z + Math.cos(yaw) * k) < water + 2.2) break;
+      d = k;
+    }
+    const x = second.x + Math.sin(yaw) * d;
+    const z = second.z + Math.cos(yaw) * d;
+    const y = hm.heightAt(x, z);
+    hm.flatten(x, z, 7, 6, y);
+    sites.push({ kind: 'smugglers', name: PLACE_NAMES.smugglers, position: new THREE.Vector3(x, y, z), yaw, radius: 24 });
+  }
   return sites;
 }
 
@@ -258,6 +284,8 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
     else if (s.kind === 'radio' || s.kind === 'lab') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 9, 14));
     else if (s.kind === 'stones') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 4, 10)) * 0.8);
     else if (s.kind === 'chapel') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 9)) * 0.6);
+    else if (s.kind === 'lighthouse') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 12)) * 0.7);
+    else if (s.kind === 'smugglers') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 3, 7)) * 0.5);
     else if (s.kind === 'mine') {
       const yx = s.position.x - Math.sin(s.yaw) * 12;
       const yz = s.position.z - Math.cos(s.yaw) * 12;

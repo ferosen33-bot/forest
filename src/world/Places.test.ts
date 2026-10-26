@@ -27,7 +27,7 @@ describe('Gebiete und Orte der großen Insel', () => {
 
   it('findet alle Orte an passenden Stellen', () => {
     const kinds = sites.map((s) => s.kind).sort();
-    expect(kinds).toEqual(['chapel', 'crash', 'ferry', 'hut', 'lab', 'mine', 'radio', 'stones']);
+    expect(kinds).toEqual(['chapel', 'crash', 'ferry', 'hut', 'lab', 'lighthouse', 'mine', 'radio', 'smugglers', 'stones']);
     // Fähre im flachen Wasser, Labor hoch im Gebirge, Steinkreis auf einer Kuppe.
     const ferry = sites.find((s) => s.kind === 'ferry')!;
     expect(hm.heightAt(ferry.position.x, ferry.position.z)).toBeLessThan(hm.waterLevel - 1);
@@ -43,8 +43,10 @@ describe('Gebiete und Orte der großen Insel', () => {
     expect(hm.heightAt(mine.position.x + Math.sin(mine.yaw) * 8, mine.position.z + Math.cos(mine.yaw) * 8)).toBeGreaterThan(mine.position.y + 3);
     // Funkstation: hoch über dem Meer.
     expect(at('radio').position.y).toBeGreaterThan(15);
-    // Die Orte der Geschichte liegen auf der Hauptinsel.
-    for (const site of sites) for (const islet of hm.islets) expect(Math.hypot(site.position.x - islet.x, site.position.z - islet.z)).toBeGreaterThan(islet.radius + 40);
+    // Die Orte der Geschichte liegen auf der Hauptinsel, Leuchtturm und Schmugglerbucht auf den Nachbarinseln.
+    for (const k of ['lighthouse', 'smugglers']) expect(hm.islets.some((i) => Math.hypot(at(k).position.x - i.x, at(k).position.z - i.z) < i.radius)).toBe(true);
+    expect(at('smugglers').position.y).toBeGreaterThan(hm.waterLevel + 0.5);
+    for (const site of sites.filter((s) => s.kind !== 'lighthouse' && s.kind !== 'smugglers')) for (const islet of hm.islets) expect(Math.hypot(site.position.x - islet.x, site.position.z - islet.z)).toBeGreaterThan(islet.radius + 40);
     // Orte liegen weit auseinander.
     for (const a of sites) for (const b of sites) if (a !== b) expect(a.position.distanceTo(b.position)).toBeGreaterThan(150);
   });

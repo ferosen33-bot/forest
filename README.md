@@ -76,6 +76,13 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   dreht sich von selbst zur Kante. Das Seil hängt der Wand entlang bis zum Grund (3,5 bis 45 m). Oben seilt `E`
   dich ab, unten am Seilende klettert `E` wieder hinauf (das kostet Ausdauer). So werden Klippen und Gebirgsstufen
   zu Abkürzungen.
+- **Leuchtturm Kaltenhuk** (erste Nachbarinsel): ein weiß-rot gestreifter Turm mit Umgang, Laternenraum und
+  **drehendem Leuchtfeuer** – zwei weiche, warme Lichtkegel, die nachts über das Meer streichen und schon von der
+  Hauptinsel zu sehen sind. Daneben das Wärterhaus (Pult, Spind, Bett, Logbuch) und ein Ölschuppen mit Lampenöl.
+- **Schmugglerbucht** (zweite Nachbarinsel): Kisten unter einer Plane, ein Ruderboot kieloben am Strand. Die
+  Schmugglerkiste lohnt die Überfahrt (Brandflaschen, Brandpfeile, Verbandszeug).
+- Zwei neue Notizen (24 insgesamt) und ein neues Tagebuch-Kapitel **„Jenseits der Küste“**: Werkbank und Floß
+  bauen, Leuchtturm und Schmugglerbucht finden, das Logbuch lesen, ein Kletterseil anbringen.
 
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 2: Lager ausbauen)
 

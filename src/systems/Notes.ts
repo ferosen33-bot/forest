@@ -221,6 +221,24 @@ export const NOTES: NoteDef[] = [
       'Einer hat die Hände auf den Stein gelegt und zum Berg geschaut, als würde dort jemand rufen.\n\nIch gehe nicht wieder hin.',
   },
   {
+    id: 'leuchtfeuer',
+    title: 'Logbuch des Leuchtturmwärters',
+    style: 'paper',
+    text:
+      '3. Juni. Seit dem Unglück im Stollen kommt kein Schiff mehr. Ich halte das Feuer trotzdem am Brennen – irgendwer muss sehen, dass hier noch einer lebt.\n\n' +
+      '9. Juni. Sie stehen nachts drüben am Strand und starren ins Licht. Herüber kommen sie nicht. Das tiefe Wasser meiden sie wie das Feuer.\n\n' +
+      '21. Juni. Das Öl wird knapp. Im Schuppen hinterm Turm stehen die letzten Fässer. Wer das liest: Lass das Feuer nicht ausgehen.',
+  },
+  {
+    id: 'schmuggler',
+    title: 'Zettel in einer Blechdose',
+    style: 'paper',
+    text:
+      'Ware für Brandt: zwei Kisten Konserven, Verbandszeug, Lampenöl, die Brandflaschen. Patronen nimmt er nicht mehr – sagt, gegen DIE hilft nur Feuer.\n\n' +
+      'Seit die Fähre auf dem Riff liegt, holt niemand mehr ab. Ich lasse alles hier und versuche es mit dem Ruderboot.\n\n' +
+      'Wer das findet: Nimm, was du brauchst. Und fahr nicht im Dunkeln übers offene Wasser.',
+  },
+  {
     id: 'funkspruch',
     title: 'Funkspruch ans Festland',
     style: 'radio',
@@ -246,7 +264,7 @@ export const TOWN_NOTES = {
 } as const;
 
 /** Notizen an den besonderen Orten (Absturzstelle, Zeche, Hütte im Moor, Funkstation). */
-export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehre', 'anne', 'pfarrer', 'labor1', 'labor2', 'steinkreis'] as const;
+export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehre', 'anne', 'pfarrer', 'labor1', 'labor2', 'steinkreis', 'leuchtfeuer', 'schmuggler'] as const;
 
 /** Notizen, die keine Fundstelle haben, sondern entstehen (Funkspruch an der Funkstation). */
 export const STORY_NOTES = ['funkspruch'] as const;

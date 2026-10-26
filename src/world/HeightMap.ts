@@ -179,7 +179,7 @@ export class HeightMap {
     if (d > 1.3) return -Infinity;
     const mask = 1 - smoothstep(0.45, 1.05, d);
     const hills = this.fbm(this.hillNoise, x * 0.02, z * 0.02, 3) * 0.5 + 0.5;
-    const crest = (1 - smoothstep(0, 0.55, d)) * 14;
+    const crest = (1 - smoothstep(0.05, 0.8, d)) * 10;
     let h = lerp(-22, 2.5 + hills * 6 + crest + this.detailNoise(x * 0.06, z * 0.06) * 0.35, mask);
     if (h > 0) h *= lerp(0.15, 1, smoothstep(0, 7, h));
     return h;
