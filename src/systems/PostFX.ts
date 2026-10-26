@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TERRAIN_GLSL, WAVE_GLSL } from '../world/Water';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { N8AOPass } from 'n8ao';
 
@@ -51,6 +52,15 @@ export interface PostFXParams {
   volumetric?: VolumetricLights | null;
   /** Feuer mit Hitzeflimmern (die nächsten zählen). */
   heat?: readonly HeatSource[];
+  /** Wasserspiegel und Geländehöhen für die Spiegelungen (null = keine). */
+  water?: WaterReflections | null;
+}
+
+export interface WaterReflections {
+  level: number;
+  heightTexture: THREE.Texture;
+  /** (halbe Weltgröße, Zellgröße, Stützstellen je Kante) */
+  heightMapping: THREE.Vector3;
 }
 
 /** Lichtquellen, deren Licht im Dunst sichtbar wird. */
@@ -140,7 +150,68 @@ uniform vec4 uHeat[${HEAT_SOURCES}];
 uniform float uHeatDist[${HEAT_SOURCES}];
 uniform int uHeatCount;
 uniform float uTime;
+uniform float uWaterOn;
+uniform float uWaterLevel;
+uniform sampler2D tHeight;
+uniform vec3 uHeightMap;
+uniform mat4 uViewProj;
 varying vec2 vUv;
+${WAVE_GLSL}
+${TERRAIN_GLSL}
+float viewDepth(float d) {
+  vec4 v = uProjInv * vec4(0.0, 0.0, d * 2.0 - 1.0, 1.0);
+  return -v.z / v.w;
+}
+/**
+ * Spiegelung auf dem Wasser (Screen Space): Der an der Welle gespiegelte Sehstrahl wird durch das Bild
+ * verfolgt, bis er hinter einer Oberfläche verschwindet – deren Farbe ist das Spiegelbild. Was nicht
+ * im Bild ist (Himmel, Dinge hinter der Kamera), liefert weiter die Umgebungskarte des Wassermaterials.
+ * @returns rgb = Spiegelbild, a = Deckung (0 = nichts getroffen)
+ */
+vec4 waterReflection(vec3 world, vec3 rd) {
+  vec2 g = waveGradient(world.xz, uTime) * 0.1;
+  vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
+  vec3 r = reflect(rd, n);
+  r.y = abs(r.y);
+  float stepLen = 0.35;
+  vec3 p = world + n * 0.05;
+  vec3 prev = p;
+  for (int i = 0; i < 36; i++) {
+    prev = p;
+    p += r * stepLen;
+    stepLen *= 1.13;
+    vec4 clip = uViewProj * vec4(p, 1.0);
+    if (clip.w <= 0.0) break;
+    vec3 ndc = clip.xyz / clip.w;
+    vec2 suv = ndc.xy * 0.5 + 0.5;
+    if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) break;
+    float sd = texture2D(tDepth, suv).r;
+    if (sd >= 0.99999) continue;
+    float rayZ = viewDepth(ndc.z * 0.5 + 0.5);
+    float sceneZ = viewDepth(sd);
+    if (rayZ > sceneZ && rayZ - sceneZ < stepLen * 1.5 + 0.3) {
+      // Treffer verfeinern (Halbierung zwischen letztem und aktuellem Punkt).
+      vec3 a = prev;
+      vec3 b = p;
+      for (int k = 0; k < 5; k++) {
+        vec3 m = (a + b) * 0.5;
+        vec4 mc = uViewProj * vec4(m, 1.0);
+        vec3 mn = mc.xyz / mc.w;
+        float mz = viewDepth(mn.z * 0.5 + 0.5);
+        float ms = viewDepth(texture2D(tDepth, mn.xy * 0.5 + 0.5).r);
+        if (mz > ms) b = m; else a = m;
+      }
+      vec4 bc = uViewProj * vec4(b, 1.0);
+      vec2 huv = bc.xy / bc.w * 0.5 + 0.5;
+      // Am Bildrand und bei langen Strahlen weich auslaufen lassen.
+      vec2 edge = smoothstep(0.0, 0.08, huv) * smoothstep(0.0, 0.08, 1.0 - huv);
+      float fade = edge.x * edge.y * (1.0 - float(i) / 36.0);
+      return vec4(texture2D(tColor, huv).rgb, fade);
+    }
+    if (rayZ > sceneZ) break;
+  }
+  return vec4(0.0);
+}
 void main() {
   float depth = texture2D(tDepth, vUv).r;
   vec4 view = uProjInv * vec4(vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
@@ -163,6 +234,13 @@ void main() {
     }
   }
   vec3 c = texture2D(tColor, uv).rgb;
+  // Wasser: Spiegelbild über die Fresnel-Reflexion legen.
+  if (uWaterOn > 0.5 && depth < 0.99999 && abs(world.y - uWaterLevel) < 0.3 && uCamPos.y > uWaterLevel
+      && terrainHeight(tHeight, uHeightMap, world.xz) < uWaterLevel - 0.05) {
+    vec4 refl = waterReflection(world, rd);
+    float fres = 0.04 + 0.96 * pow(1.0 - max(-rd.y, 0.0), 5.0);
+    c = mix(c, refl.rgb * vec3(0.78, 0.86, 0.88), refl.a * clamp(fres * 1.4 + 0.38, 0.0, 0.92));
+  }
   float b = uFalloff;
   float a = uDensity * exp(-b * (uCamPos.y - uBase));
   float k = b * rd.y;
@@ -475,6 +553,11 @@ export class PostFX {
         uHeatDist: { value: new Array<number>(HEAT_SOURCES).fill(0) },
         uHeatCount: { value: 0 },
         uTime: { value: 0 },
+        uWaterOn: { value: 0 },
+        uWaterLevel: { value: 0 },
+        tHeight: { value: null },
+        uHeightMap: { value: new THREE.Vector3(1, 1, 1) },
+        uViewProj: { value: new THREE.Matrix4() },
       }),
       volumetric: new THREE.ShaderMaterial({
         vertexShader: quadVertex,
@@ -613,6 +696,14 @@ export class PostFX {
     m.uBase.value = p.mist.base;
     m.uVolOn.value = this.renderVolumetric(renderer, camera, p) ? 1 : 0;
     m.uTime.value = p.time;
+    const w = p.water;
+    m.uWaterOn.value = w && !p.underwater ? 1 : 0;
+    if (w) {
+      m.uWaterLevel.value = w.level;
+      m.tHeight.value = w.heightTexture;
+      m.uHeightMap.value.copy(w.heightMapping);
+      m.uViewProj.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    }
     m.uHeatCount.value = p.underwater ? 0 : this.projectHeat(camera, p.heat ?? []);
     this.pass(renderer, this.mats.mist, this.lit);
 

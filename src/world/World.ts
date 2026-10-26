@@ -55,7 +55,7 @@ export class World {
     scene.add(this.terrain.group);
     const tTerrain = performance.now() - t;
 
-    this.water = new Water(world.waterLevel);
+    this.water = new Water(world.waterLevel, this.heightMap);
     scene.add(this.water.mesh);
 
     const spawn = this.findSpawn();

@@ -60,6 +60,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 42 – Wasser
+
+- **Spiegelungen:** Seen und Meer spiegeln Ufer, Bäume und Feuer.
+  - Die Spiegelbilder zittern mit den Wellen.
+  - Je flacher man über das Wasser blickt, desto stärker spiegelt es.
+- **Wassertiefe:** Flaches Wasser ist klar und grünlich, man sieht den Grund. Tiefes Wasser ist dunkel.
+- **Uferschaum:** Schaumkämme laufen aufs Ufer zu, an der Wasserlinie liegt ein ausgefranster Saum. Am Ufer
+  glätten sich die Wellen.
+- **Sonnenglitzern:** Bei tief stehender Sonne funkelt ein Teppich aus Lichtpunkten auf den Wellen. Nachts ist es
+  schwächer, im Mondlicht.
+- **Regenringe:** Bei Regen breiten sich überall kleine Kreise auf der Wasseroberfläche aus.
+- **Technik:**
+  - Die Spiegelungen sind Screen-Space-Reflexionen im Nebel-Durchgang. Das Wasser schreibt dafür Tiefe.
+  - Die Geländehöhen liegen als Textur vor. Daraus bestimmt der Wasser-Shader Tiefe und Schaum, und die
+    Spiegelung erkennt so Wasser und Strand.
+  - Bei Grafikqualität „niedrig“ und in Höhlen sind die Spiegelungen aus.
+
 ### Meilenstein 41 – Feuer & Rauch
 
 - **Echte Flammen:** Statt der starren Kegel züngeln die Flammen jetzt. Aufsteigendes Rauschen formt sie zu

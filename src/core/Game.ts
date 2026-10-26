@@ -225,6 +225,7 @@ export class Game {
   private readonly heat: HeatSource[] = [];
   private readonly fireAmbient = new THREE.Color();
   private readonly tmpScale = new THREE.Vector3();
+  private readonly tmpWaterDir = new THREE.Vector3();
 
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
@@ -1513,6 +1514,12 @@ export class Game {
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
     this.scene.environmentIntensity = environmentIntensity(this.dayNight.daylight, this.dayNight.underground, this.climate.look.clouds);
     this.world.update(dt, this.elapsed, player.position);
+    this.world.water.setEnvironment(
+      this.dayNight.lightDirection(this.tmpWaterDir),
+      this.dayNight.light.color,
+      this.dayNight.light.intensity,
+      this.climate.weather.rain * (1 - this.climate.season.snowfall),
+    );
     this.viewModel.update(dt, this.camera, player, player.headBob, this.dayNight);
     this.updateFishing(dt, playing && !building);
 
@@ -1737,6 +1744,7 @@ export class Game {
         overlay,
         volumetric: this.volumetric(),
         heat: this.heatSources(),
+        water: this.settings.quality === 'low' || this.caves.current ? null : this.world.water,
       });
       return;
     }
