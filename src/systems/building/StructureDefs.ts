@@ -27,7 +27,8 @@ export type StructureId =
   | 'rainBarrel'
   | 'gardenBed'
   | 'cookingPot'
-  | 'bed';
+  | 'bed'
+  | 'raft';
 
 /** Lager-Bauwerke mit eigenem Zustand (Camp-System). */
 export type CampKind = 'workbench' | 'rack' | 'barrel' | 'garden' | 'pot';
@@ -58,7 +59,7 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp';
+  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp' | 'raft';
   /** Art des Lager-Bauwerks (nur `interaction: 'camp'`). */
   camp?: CampKind;
   /** Bett: Schlaf heilt vollständig und kostet weniger Hunger und Durst. */
@@ -1022,6 +1023,50 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'CookingPot');
     },
     colliders: () => [RAPIER.ColliderDesc.cylinder(0.4, 0.55).setTranslation(0, 0.4, 0)],
+  },
+
+  raft: {
+    id: 'raft',
+    name: 'Floß',
+    description:
+      'Sechs Stämme, mit Lederriemen verzurrt, dazu ein Paddel. Wird im Wasser gebaut; E besteigt es, W/S paddeln, A/D lenken, E am Ufer steigt ab. Damit erreichst du die Nachbarinseln über das offene Meer.',
+    cost: [
+      { item: 'log', count: 6 },
+      { item: 'stick', count: 2 },
+      { item: 'hide', count: 2 },
+    ],
+    halfExtents: v(1.0, 0.25, 1.4),
+    maxStep: 12,
+    maxHealth: 120,
+    interaction: 'raft',
+    // Bewegt sich – kein festes Hindernis für die Wegfindung.
+    walkable: true,
+    inWater: { minDepth: 0.6, maxDepth: 1000, sink: 0.1 },
+    build() {
+      const g = new THREE.Group();
+      for (let i = 0; i < 6; i++) {
+        const x = -0.85 + i * 0.34;
+        const len = 1.35 + (i % 2) * 0.08;
+        g.add(log(v(x, 0.04, -len), v(x, 0.04, len), 0.16, i % 2 ? M.bark : M.barkDark));
+      }
+      for (const z of [-0.95, 0, 0.95]) g.add(log(v(-1.02, 0.2, z), v(1.02, 0.2, z), 0.045, M.barkDark));
+      for (const z of [-0.95, 0.95]) {
+        for (let i = 0; i < 6; i++) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.012, 3, 10), M.rope);
+          ring.position.set(-0.85 + i * 0.34, 0.06, z);
+          ring.rotation.y = Math.PI / 2;
+          g.add(ring);
+        }
+      }
+      // Paddel quer über dem Deck
+      g.add(log(v(-0.7, 0.27, 0.5), v(0.75, 0.27, 0.62), 0.025, M.cut));
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.16), M.cut);
+      blade.position.set(0.88, 0.27, 0.63);
+      blade.rotation.y = -0.08;
+      g.add(blade);
+      return finish(g, 'Raft');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(1.0, 0.16, 1.4).setTranslation(0, 0.06, 0)],
   },
 
   bed: {

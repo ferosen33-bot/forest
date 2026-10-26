@@ -24,6 +24,7 @@ import { getNote } from './Notes';
 import type { EventTarget, WorldEvents } from './WorldEvents';
 import type { NpcDef, Survivors } from './Survivors';
 import type { Camp } from './Camp';
+import type { Rafts } from './Rafts';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -53,6 +54,7 @@ export interface InteractionDeps {
   animals: AnimalDirector;
   cooking: Cooking;
   camp: Camp;
+  rafts: Rafts;
   caves: Caves;
   settlement: Settlement | null;
   places?: Places | null;
@@ -219,6 +221,13 @@ export class InteractionSystem {
    * @param tool Werkzeug in der Hand (oder undefined) – bestimmt, welche Aktion angeboten wird.
    */
   update(tool: ToolStats | undefined): void {
+    // Auf dem Floß gibt es nur eines: absteigen.
+    const ride = this.deps.rafts.ridePrompt;
+    if (ride) {
+      this.target = null;
+      this.prompt = ride;
+      return;
+    }
     const reach = Math.max(INTERACT_REACH, tool?.reach ?? 0);
     this.target = this.player.stats.isDead ? null : this.raycast(reach);
     this.prompt = this.target ? this.promptFor(this.target, tool) : null;
@@ -331,6 +340,7 @@ export class InteractionSystem {
   private structurePrompt(s: Structure, tool: ToolStats | undefined): Prompt | null {
     const label = s.def.name;
     if (s.def.interaction === 'camp') return this.deps.camp.prompt(s);
+    if (s.def.interaction === 'raft') return this.deps.rafts.prompt(s);
     if (s.def.interaction === 'fire') {
       const cooking = this.deps.cooking;
       const n = cooking.cookingCount(s);
@@ -378,6 +388,10 @@ export class InteractionSystem {
 
   /** Führt die `E`-Aktion für das aktuelle Ziel aus. */
   interact(): void {
+    if (this.deps.rafts.riding) {
+      this.deps.rafts.dismount();
+      return;
+    }
     const target = this.target;
     if (!target || this.prompt?.key !== 'E') return;
 
@@ -405,6 +419,7 @@ export class InteractionSystem {
       case 'structure': {
         const s = target.structure;
         if (s.def.interaction === 'camp') this.deps.camp.interact(s);
+        else if (s.def.interaction === 'raft') this.deps.rafts.board(s);
         else if (s.def.interaction === 'fire') {
           const action = this.fireAction(s);
           if (action === 'take') this.deps.cooking.take(s);

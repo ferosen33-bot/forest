@@ -7,7 +7,14 @@ import { clamp } from '../utils/math';
 export interface ActivityState {
   sprinting: boolean;
   swimming: boolean;
+  /** Schwimmt im tiefen, offenen Meer: Strömung und Kälte zehren zusätzlich. */
+  openSea?: boolean;
 }
+
+/** Zusätzlicher Ausdauerverbrauch im offenen Meer (pro Sekunde). */
+export const OPEN_SEA_DRAIN = 5;
+/** Schaden pro Sekunde, wenn man im offenen Meer keine Kraft mehr hat. */
+export const OPEN_SEA_DAMAGE = 3;
 
 /**
  * Überlebenswerte des Spielers: Gesundheit, Ausdauer, Sättigung (Hunger) und Hydration (Durst).
@@ -68,6 +75,7 @@ export class PlayerStats {
     let staminaDrain = 0;
     if (activity.sprinting) staminaDrain += c.staminaSprintCost;
     if (activity.swimming) staminaDrain += c.staminaSwimCost;
+    if (activity.openSea) staminaDrain += OPEN_SEA_DRAIN;
     if (staminaDrain > 0) {
       this.stamina -= staminaDrain * this.staminaFactor * dt;
       this.regenDelay = c.staminaRegenDelay;
@@ -86,6 +94,9 @@ export class PlayerStats {
     const needsMul = (activity.sprinting ? c.sprintNeedsMultiplier : 1) * this.needsFactor;
     this.hunger = clamp(this.hunger - c.hungerRate * needsMul * dt, 0, c.max);
     this.thirst = clamp(this.thirst - c.thirstRate * needsMul * dt, 0, c.max);
+
+    // Ohne Kraft im offenen Meer geht man langsam unter.
+    if (activity.openSea && this.stamina <= 0) this.damage(OPEN_SEA_DAMAGE * dt, 'drowning', false);
 
     // Verhungern / Verdursten
     if (this.hunger <= 0) this.damage(c.starveDamage * dt, 'starvation', false);

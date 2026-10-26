@@ -66,6 +66,8 @@ function spread(hm: HeightMap, x: number, z: number, r: number): { min: number; 
  */
 export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: { x: number; z: number } | null): PlaceSite[] {
   if (!hm.biomes.enabled) return [];
+  // Die Nachbarinseln bleiben frei (für eigene Orte, die nur per Floß erreichbar sind).
+  avoid = [...avoid, ...hm.islets.map((i) => ({ x: i.x, z: i.z, radius: i.radius + 60 }))];
   const rng = mulberry32(deriveSeed(seed, 'places'));
   const b: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
   const n: [number, number, number] = [0, 1, 0];

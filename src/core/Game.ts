@@ -29,6 +29,7 @@ import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
 import { Camp } from '../systems/Camp';
+import { Rafts } from '../systems/Rafts';
 import { Climate } from '../systems/Climate';
 import { Fishing, FishTraps } from '../systems/Fishing';
 import { Caves, type CaveTarget } from '../systems/Caves';
@@ -175,6 +176,7 @@ export class Game {
   projectiles!: Projectiles;
   cooking!: Cooking;
   camp!: Camp;
+  rafts!: Rafts;
   climate!: Climate;
   fishing!: Fishing;
   fishTraps!: FishTraps;
@@ -522,6 +524,14 @@ export class Game {
       roofAbove: (pos) => this.climate.roofAbove(pos),
     });
     this.crafting.nearWorkbench = () => this.nearWorkbench();
+    this.rafts = new Rafts({
+      building: this.building,
+      player: this.player,
+      heightMap: this.world.heightMap,
+      audio: this.audio,
+      events: this.events,
+      particles: this.particles,
+    });
     this.menu.setLoading('Höhlen werden vermessen …');
     await nextFrame();
     this.caves = new Caves({
@@ -691,6 +701,7 @@ export class Game {
       animals: this.animals,
       cooking: this.cooking,
       camp: this.camp,
+      rafts: this.rafts,
       caves: this.caves,
       settlement: this.settlement,
       places: this.places,
@@ -1740,6 +1751,7 @@ export class Game {
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);
+    this.rafts.update(dt);
     this.camp.update(dt, { rain: this.climate.weather.rain * (1 - this.climate.season.snowfall), winter: this.climate.season.snow > 0.4 });
     this.caves.update(this.dayNight.daylight);
     this.worldItems.update();

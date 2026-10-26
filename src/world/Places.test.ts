@@ -43,13 +43,27 @@ describe('Gebiete und Orte der großen Insel', () => {
     expect(hm.heightAt(mine.position.x + Math.sin(mine.yaw) * 8, mine.position.z + Math.cos(mine.yaw) * 8)).toBeGreaterThan(mine.position.y + 3);
     // Funkstation: hoch über dem Meer.
     expect(at('radio').position.y).toBeGreaterThan(15);
+    // Die Orte der Geschichte liegen auf der Hauptinsel.
+    for (const site of sites) for (const islet of hm.islets) expect(Math.hypot(site.position.x - islet.x, site.position.z - islet.z)).toBeGreaterThan(islet.radius + 40);
     // Orte liegen weit auseinander.
     for (const a of sites) for (const b of sites) if (a !== b) expect(a.position.distanceTo(b.position)).toBeGreaterThan(150);
+  });
+
+  it('zwei Nachbarinseln liegen jenseits eines tiefen Kanals', () => {
+    expect(hm.islets.length).toBe(2);
+    for (const islet of hm.islets) {
+      expect(hm.heightAt(islet.x, islet.z)).toBeGreaterThan(8);
+      // Auf halbem Weg zur Hauptinsel ist das Meer tief.
+      const k = 1 - (islet.radius + 80) / Math.hypot(islet.x, islet.z);
+      expect(hm.heightAt(islet.x * k, islet.z * k)).toBeLessThan(hm.waterLevel - 12);
+      expect(Math.max(Math.abs(islet.x), Math.abs(islet.z)) + islet.radius).toBeLessThan(hm.half - 30);
+    }
   });
 
   it('kleine Testwelten bleiben ohne Gebiete und Orte', () => {
     const small = new HeightMap({ size: 512, cellSize: 2, seed: 7, waterLevel: 0 });
     expect(small.biomes.enabled).toBe(false);
     expect(placeSites(small, 7, [])).toEqual([]);
+    expect(small.islets).toEqual([]);
   });
 });

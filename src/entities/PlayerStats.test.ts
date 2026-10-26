@@ -54,3 +54,19 @@ describe('PlayerStats – Nässe und Kälte', () => {
     expect(s.health).toBeGreaterThanOrEqual(h);
   });
 });
+
+describe('PlayerStats – offenes Meer', () => {
+  it('zehrt die Ausdauer schneller auf und kostet danach Gesundheit', () => {
+    const coast = new PlayerStats(CONFIG, new EventBus());
+    const sea = new PlayerStats(CONFIG, new EventBus());
+    for (let i = 0; i < 100; i++) {
+      coast.update(0.1, { sprinting: false, swimming: true });
+      sea.update(0.1, { sprinting: false, swimming: true, openSea: true });
+    }
+    expect(sea.stamina).toBeLessThan(coast.stamina - 30);
+    const h = sea.health;
+    for (let i = 0; i < 300; i++) sea.update(0.1, { sprinting: false, swimming: true, openSea: true });
+    expect(sea.health).toBeLessThan(h - 50);
+    expect(coast.health).toBeGreaterThan(95);
+  });
+});

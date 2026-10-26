@@ -61,6 +61,18 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 47 – Mehr Möglichkeiten (Teil 3: Floß & Nachbarinseln)
+
+- **Zwei Nachbarinseln** liegen in den Weltecken vor der Küste: flache Hügel mit Strand, jeweils gut 150 m
+  im Durchmesser. Ein mindestens 170 m breiter, tiefer Kanal trennt sie von der Hauptinsel; sie erscheinen
+  auf der Karte. Die Orte der Geschichte bleiben auf der Hauptinsel.
+- **Offenes Meer:** Ab 12 m Wassertiefe zehren Strömung und Kälte zusätzlich an der Ausdauer; ist sie
+  aufgebraucht, verliert man Gesundheit. Ein Hinweis warnt beim ersten Mal. Hinüberschwimmen ist kaum zu schaffen.
+- **Floß** (6 Holzstämme, 2 Stöcke, 2 Felle): wird im Wasser gebaut. `E` besteigt es, `W`/`S` paddeln,
+  `A`/`D` lenken, `Shift` paddelt kräftiger (kostet Ausdauer). Paddelschläge plätschern und spritzen, das Floß
+  schaukelt auf den Wellen und läuft im flachen Wasser auf Grund. `E` steigt ab – aufs nächste Ufer, ins
+  flache Wasser oder notfalls ins Meer. Position und Richtung bleiben im Spielstand erhalten.
+
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 2: Lager ausbauen)
 
 - **Werkbank** (3 Holzstämme, 2 Stöcke, 2 Steine): schaltet die neuen Lager-Baupläne frei (sie brauchen eine

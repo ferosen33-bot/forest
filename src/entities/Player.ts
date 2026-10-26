@@ -23,6 +23,15 @@ const MAX_OXYGEN = 100;
  * Der Rigidbody-Ursprung liegt an den FÜSSEN; die Kapsel sitzt darüber. So bleibt die
  * Fußposition beim Ducken (Kapsel schrumpft) unverändert.
  */
+/** Trägt den Spieler (Floß): bekommt die Steuerung und liefert die neue Fußposition. */
+export interface PlayerCarrier {
+  /** @param input x = lenken (rechts +), y = vor (+) / zurück (−) */
+  carry(dt: number, input: THREE.Vector2, sprint: boolean): THREE.Vector3;
+}
+
+/** Ab dieser Wassertiefe (m) gilt man als im offenen Meer. */
+const OPEN_SEA_DEPTH = 12;
+
 /** Knochenrüstung: Schadensfaktor bei Treffern und Auffälligkeit. */
 export const ARMOR_FACTOR = 0.67;
 export const ARMOR_VISIBILITY = 1.25;
@@ -38,6 +47,10 @@ export class Player {
   grounded = false;
   crouching = false;
   swimming = false;
+  /** Schwimmt gerade im tiefen, offenen Meer. */
+  inOpenSea = false;
+  /** Fährt gerade mit (Floß): Bewegung übernimmt der Träger. */
+  carrier: PlayerCarrier | null = null;
   sprinting = false;
   /** Atemluft, sinkt wenn der Kopf unter Wasser ist. */
   oxygen = MAX_OXYGEN;
@@ -260,6 +273,19 @@ export class Player {
       return;
     }
 
+    if (this.carrier) {
+      const feet = this.carrier.carry(dt, this.moveInput, this.wantsSprint);
+      this.swimming = false;
+      this.inOpenSea = false;
+      this.sprinting = false;
+      this.grounded = true;
+      this.submersion = 0;
+      this.body.setNextKinematicTranslation({ x: feet.x, y: feet.y + 0.05, z: feet.z });
+      this.stats.update(dt, { sprinting: false, swimming: false });
+      this.updateOxygen(dt);
+      return;
+    }
+
     const cfg = this.cfg;
     const water = this.heightMap.waterLevel;
     const feetY = this.currFeet.y;
@@ -397,9 +423,15 @@ export class Player {
 
     // --- Überlebenswerte ---
     const horizontalSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+    const openSea = this.swimming && water - this.heightMap.heightAt(this.currFeet.x, this.currFeet.z) > OPEN_SEA_DEPTH;
+    if (openSea && !this.inOpenSea) {
+      this.events.emit('hud:message', { text: 'Offenes Meer – Strömung und Kälte zehren an deinen Kräften. Ohne Floß kommst du hier nicht weit.' });
+    }
+    this.inOpenSea = openSea;
     this.stats.update(dt, {
       sprinting: this.sprinting && horizontalSpeed > 1,
       swimming: this.swimming && horizontalSpeed > 0.5,
+      openSea,
     });
     this.updateOxygen(dt);
   }

@@ -96,6 +96,7 @@ export const RECIPES: Recipe[] = [
   structure('gardenBed'),
   structure('cookingPot'),
   structure('bed'),
+  structure('raft'),
 ];
 
 /** Braucht das Rezept eine Werkbank in der Nähe? */
