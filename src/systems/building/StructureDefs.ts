@@ -17,7 +17,11 @@ export type StructureId =
   | 'chest'
   | 'snare'
   | 'fishTrap'
-  | 'torchPost';
+  | 'torchPost'
+  | 'barricade'
+  | 'spikeWall'
+  | 'pitTrap'
+  | 'rattleLine';
 
 /** Offenes Feuer eines Bauwerks (Lagerfeuer, Standfackel). */
 export interface FlameDef {
@@ -45,7 +49,13 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap';
+  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit';
+  /** Spitze Pfähle: Schaden an jedem Gegner, der hineinläuft oder darauf einschlägt. */
+  thorns?: number;
+  /** Klapperleine: rasselt, wenn jemand die Schnur zwischen den Pflöcken quert (halbe Länge, m). */
+  rattle?: number;
+  /** Material zum Reparieren (stellt die Hälfte der Haltbarkeit wieder her). */
+  repair?: ItemCost[];
   /** Brennt nach dem Bauen (an/aus mit `E`, Regen löscht es). */
   flame?: FlameDef;
   /**
@@ -83,6 +93,11 @@ const M = {
   leaves: mat(0x3e5e2a),
   leavesDark: mat(0x2f4a22),
   rope: mat(0x7b6646),
+  pit: mat(0x120d09),
+  earth: texturize(mat(0x4a3a2a), 'mud', 0.6),
+  bone: mat(0xd8cfb8),
+  // Laubstreu der Tarnung: dieselbe Foto-Oberfläche wie der Waldboden, damit die Grube kaum auffällt.
+  litter: texturize(mat(0x55553a), 'forestFloor', 0.7),
 };
 
 const LOG_GEOMETRY = new THREE.CylinderGeometry(1, 1.06, 1, 8);
@@ -246,6 +261,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     maxStep: 1.0,
     maxHealth: 120,
     snap: 'wall',
+    repair: [{ item: 'log', count: 1 }],
     build() {
       const g = new THREE.Group();
       const n = 5;
@@ -330,6 +346,8 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     halfExtents: v(0.8, 0.45, 0.8),
     maxStep: 0.6,
     maxHealth: 80,
+    thorns: 30,
+    repair: [{ item: 'stick', count: 2 }],
     build() {
       const g = new THREE.Group();
       g.add(log(v(-0.75, 0.08, -0.7), v(0.75, 0.08, -0.7), 0.06, M.barkDark));
@@ -594,6 +612,7 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
     maxHealth: 140,
     snap: 'wall',
     interaction: 'door',
+    repair: [{ item: 'log', count: 1 }],
     doorCollider: 2,
     build() {
       const g = new THREE.Group();
@@ -611,6 +630,171 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       // Torflügel (wird beim Öffnen zum Sensor: weiter anvisierbar, aber durchlässig)
       RAPIER.ColliderDesc.cuboid(GATE_POST_X - 0.12, WALL_HEIGHT / 2 - 0.1, 0.13).setTranslation(0, WALL_HEIGHT / 2, 0),
     ],
+  },
+
+  barricade: {
+    id: 'barricade',
+    name: 'Barrikade',
+    description:
+      'Ein spanischer Reiter: gekreuzte, angespitzte Pfähle auf einem Stamm. Schnell gebaut, versperrt Wege – wer darauf einschlägt, reißt sich auf.',
+    cost: [
+      { item: 'log', count: 1 },
+      { item: 'stick', count: 6 },
+    ],
+    halfExtents: v(WALL_HALF_WIDTH, 0.65, 0.6),
+    maxStep: 0.8,
+    maxHealth: 160,
+    snap: 'wall',
+    thorns: 12,
+    repair: [{ item: 'stick', count: 3 }],
+    build() {
+      const g = new THREE.Group();
+      g.add(log(v(-WALL_HALF_WIDTH, 0.6, 0), v(WALL_HALF_WIDTH, 0.6, 0), 0.13, M.bark));
+      for (let i = 0; i < 4; i++) {
+        const x = -WALL_HALF_WIDTH + 0.3 + (i * (WALL_HALF_WIDTH * 2 - 0.6)) / 3;
+        // Zwei Pfähle kreuzen sich am Stamm (X), beide Enden angespitzt.
+        for (const side of [-1, 1]) {
+          const dir = v(0, 0.75, side * 0.66).normalize();
+          const center = v(x, 0.6, 0);
+          g.add(stake(center, dir, 0.95, 0.06));
+          g.add(stake(center, dir.clone().negate(), 0.7, 0.06));
+        }
+      }
+      return finish(g, 'Barricade');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, 0.62, 0.55).setTranslation(0, 0.62, 0)],
+  },
+
+  spikeWall: {
+    id: 'spikeWall',
+    name: 'Stachelwand',
+    description: 'Eine Palisade mit schräg nach vorne ragenden Spießen. Rastet an Wänden ein; die Spitzen zeigen nach außen.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'stick', count: 6 },
+    ],
+    halfExtents: v(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.55),
+    maxStep: 1.0,
+    maxHealth: 220,
+    snap: 'wall',
+    thorns: 20,
+    repair: [{ item: 'log', count: 1 }],
+    build() {
+      const g = new THREE.Group();
+      const n = 5;
+      const rng = mulberry32(17);
+      for (let i = 0; i < n; i++) {
+        const x = -WALL_HALF_WIDTH + 0.22 + (i * (WALL_HALF_WIDTH * 2 - 0.44)) / (n - 1);
+        g.add(stake(v(x, -0.6, 0), v(0, 1, 0), WALL_HEIGHT + 0.6 + (rng() - 0.5) * 0.25, 0.2));
+      }
+      g.add(log(v(-WALL_HALF_WIDTH, 1.55, 0.2), v(WALL_HALF_WIDTH, 1.55, 0.2), 0.07, M.barkDark));
+      g.add(log(v(-WALL_HALF_WIDTH, 0.55, 0.2), v(WALL_HALF_WIDTH, 0.55, 0.2), 0.07, M.barkDark));
+      // Spieße in zwei Reihen, leicht versetzt und schräg nach vorne oben
+      for (const [y, offset] of [
+        [0.55, 0],
+        [1.55, 0.25],
+      ]) {
+        for (let i = 0; i < 4; i++) {
+          const x = -WALL_HALF_WIDTH + 0.35 + offset + i * 0.5;
+          if (x > WALL_HALF_WIDTH - 0.15) continue;
+          g.add(stake(v(x, y, 0.05), v((rng() - 0.5) * 0.3, 0.35 + rng() * 0.2, 1), 1.0, 0.055));
+        }
+      }
+      return finish(g, 'SpikeWall');
+    },
+    colliders: () => [
+      RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.2).setTranslation(0, WALL_HEIGHT / 2, 0),
+      // Spieße: nicht ganz dicht, aber man kommt nicht nah an die Wand heran.
+      RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, 0.75, 0.25).setTranslation(0, 1.05, 0.45),
+    ],
+  },
+
+  pitTrap: {
+    id: 'pitTrap',
+    name: 'Fallgrube',
+    description:
+      'Eine mit Ästen und Laub getarnte Grube voller Pfähle. Wer hineintritt, stürzt und bleibt stecken. Danach mit E neu tarnen (2 Stöcke).',
+    cost: [
+      { item: 'stick', count: 8 },
+      { item: 'stone', count: 2 },
+    ],
+    halfExtents: v(0.9, 0.2, 0.9),
+    maxStep: 0.4,
+    maxHealth: 120,
+    interaction: 'pit',
+    walkable: true,
+    repair: [{ item: 'stick', count: 2 }],
+    build() {
+      const g = new THREE.Group();
+      // Aufgeworfene Erde als Rand
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        const rim = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.12, 0.25), M.earth);
+        rim.position.set(Math.sin(a) * 0.9, 0.03, Math.cos(a) * 0.9);
+        rim.rotation.y = a;
+        g.add(rim);
+      }
+      // Dunkles Loch und Pfähle, die aus der Tiefe ragen
+      const hole = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.02, 1.65), M.pit);
+      hole.position.y = 0.01;
+      g.add(hole);
+      const rng = mulberry32(23);
+      for (let i = 0; i < 9; i++) {
+        const x = ((i % 3) - 1) * 0.5 + (rng() - 0.5) * 0.15;
+        const z = (Math.floor(i / 3) - 1) * 0.5 + (rng() - 0.5) * 0.15;
+        g.add(stake(v(x, -0.35, z), v((rng() - 0.5) * 0.3, 1, (rng() - 0.5) * 0.3), 0.5, 0.03));
+      }
+      const frame = finish(g, 'PitTrap');
+      // Tarnung (eigenes Teil: verschwindet, wenn die Falle zuschnappt)
+      const c = new THREE.Group();
+      for (let i = 0; i < 7; i++) {
+        const z = -0.75 + i * 0.25;
+        c.add(log(v(-0.85, 0.06, z), v(0.85, 0.06, z + (rng() - 0.5) * 0.2), 0.02, M.barkDark));
+      }
+      const leaves = new THREE.Mesh(jitter(new THREE.BoxGeometry(1.8, 0.04, 1.8, 4, 1, 4), 0.02, 41), M.litter);
+      leaves.position.y = 0.08;
+      c.add(leaves);
+      const cover = finish(c, 'PitCover');
+      cover.name = 'cover';
+      frame.add(cover);
+      return frame;
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.85, 0.15, 0.85).setTranslation(0, 0.15, 0).setSensor(true)],
+  },
+
+  rattleLine: {
+    id: 'rattleLine',
+    name: 'Klapperleine',
+    description: 'Eine Schnur mit klappernden Knochen und Steinen zwischen zwei Pflöcken. Wer sie quert, verrät sich – auch in tiefster Nacht.',
+    cost: [
+      { item: 'stick', count: 4 },
+      { item: 'hide', count: 1 },
+    ],
+    halfExtents: v(1.6, 0.4, 0.2),
+    maxStep: 0.8,
+    maxHealth: 40,
+    walkable: true,
+    rattle: 1.5,
+    repair: [{ item: 'stick', count: 1 }],
+    build() {
+      const g = new THREE.Group();
+      g.add(stake(v(-1.5, -0.15, 0), v(0, 1, 0), 0.75, 0.03));
+      g.add(stake(v(1.5, -0.15, 0), v(0, 1, 0), 0.75, 0.03));
+      g.add(log(v(-1.5, 0.42, 0), v(1.5, 0.38, 0), 0.006, M.rope));
+      const rng = mulberry32(31);
+      for (let i = 0; i < 7; i++) {
+        const x = -1.2 + i * 0.4;
+        const sag = 0.4 - 0.04 * Math.sin(((x + 1.5) / 3) * Math.PI);
+        g.add(log(v(x, sag, 0), v(x, sag - 0.1, 0), 0.003, M.rope));
+        const charm = new THREE.Mesh(i % 2 ? STONE_GEOMETRY : new THREE.CylinderGeometry(0.012, 0.016, 0.09, 5), i % 2 ? M.stone : M.bone);
+        charm.scale.setScalar(i % 2 ? 0.03 + rng() * 0.01 : 1);
+        charm.position.set(x, sag - 0.14, 0);
+        charm.rotation.z = (rng() - 0.5) * 0.8;
+        g.add(charm);
+      }
+      return finish(g, 'RattleLine');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(1.55, 0.3, 0.12).setTranslation(0, 0.3, 0).setSensor(true)],
   },
 };
 

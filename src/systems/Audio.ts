@@ -41,6 +41,10 @@ export type SoundId =
   | 'wolfHowl'
   | 'wolfGrowl'
   | 'wolfBite'
+  | 'glassBreak'
+  | 'fireWhoosh'
+  | 'rattle'
+  | 'pitFall'
   | 'throw'
   | 'sizzle'
   | 'thunder'
@@ -343,6 +347,30 @@ export class Audio {
         this.noise(t, 0.04, 'highpass', 2200, 0.8, 0.9);
         this.tone(t, 'square', 320 * pitch, 140, 0.06, 0.18, 1800);
         this.noise(t + 0.03, 0.15, 'bandpass', 600, 1.2, 0.35);
+        break;
+      // Glas zerspringt: heller Knall, klirrende Scherben.
+      case 'glassBreak':
+        this.noise(t, 0.05, 'highpass', 3500, 0.7, 1.0);
+        for (let i = 0; i < 6; i++) this.tone(t + 0.02 + Math.random() * 0.15, 'sine', 2600 + Math.random() * 2600, 1800, 0.06, 0.12);
+        break;
+      // Öl fängt Feuer: dumpfes Fauchen, das anschwillt.
+      case 'fireWhoosh':
+        this.noise(t, 1.1, 'lowpass', 300, 0.8, 0.9, 1600);
+        this.tone(t, 'sine', 70, 45, 0.6, 0.5);
+        break;
+      // Klapperleine: Knochen und Steine schlagen aneinander.
+      case 'rattle':
+        for (let i = 0; i < 10; i++) {
+          const at = t + i * 0.06 + Math.random() * 0.04;
+          this.tone(at, 'triangle', 700 + Math.random() * 900, 400, 0.05, 0.25, 2600);
+          this.noise(at, 0.03, 'bandpass', 1800 + Math.random() * 800, 2, 0.3);
+        }
+        break;
+      // Zweige brechen, ein Körper stürzt auf Pfähle.
+      case 'pitFall':
+        for (let i = 0; i < 4; i++) this.noise(t + i * 0.04, 0.05, 'bandpass', 1600, 2.5, 0.6);
+        this.noise(t + 0.15, 0.3, 'lowpass', 500, 0.8, 1.0);
+        this.tone(t + 0.15, 'sine', 90, 40, 0.3, 0.8);
         break;
       case 'throw':
         this.noise(t, 0.35, 'bandpass', 500, 1.2, 0.45, 1800);

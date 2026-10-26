@@ -5,12 +5,15 @@ import type { HeightMap } from '../../world/HeightMap';
 import type { WorldItems } from '../../entities/items/WorldItems';
 import { FireEffect } from '../../entities/FireEffect';
 import { Inventory, type InventoryData } from '../Inventory';
-import { isItemId } from '../../entities/items/ItemDefs';
+import { isItemId, type ItemCost } from '../../entities/items/ItemDefs';
 import type { Crafting } from '../Crafting';
 import type { Particles } from '../Particles';
 import type { LightPool, LightRequest } from '../LightPool';
 import type { Audio } from '../Audio';
 import { FLOOR_HALF, GATE_OPEN_ANGLE, getStructure, WALL_HALF_WIDTH, type StructureDef, type StructureId } from './StructureDefs';
+
+/** Neue Tarnung für eine Fallgrube. */
+export const PIT_REARM_COST: ItemCost[] = [{ item: 'stick', count: 2 }];
 
 /** Ein platziertes Bauwerk. */
 export interface Structure {
@@ -33,6 +36,8 @@ export interface Structure {
   /** Nur Schlingfallen: gespannt (true) oder zugeschnappt. */
   armed?: boolean;
   spring?: THREE.Object3D;
+  /** Fallgrube: Tarnung aus Ästen und Laub (fehlt, wenn die Falle zugeschnappt ist). */
+  cover?: THREE.Object3D;
   /** Nur Tore */
   open?: boolean;
   doorAngle?: number;
@@ -498,8 +503,9 @@ export class BuildingSystem {
     }
 
     if (def.storageSlots) structure.storage = new Inventory(def.storageSlots, 0);
-    if (def.interaction === 'snare') {
+    if (def.interaction === 'snare' || def.interaction === 'pit') {
       structure.spring = object.getObjectByName('spring');
+      structure.cover = object.getObjectByName('cover');
       this.setArmed(structure, true);
     }
 
@@ -540,7 +546,7 @@ export class BuildingSystem {
       lit: s.lit,
       ...(s.open ? { open: true } : {}),
       ...(s.storage ? { storage: s.storage.serialize() } : {}),
-      ...(s.def.interaction === 'snare' ? { armed: s.armed === true } : {}),
+      ...(s.def.interaction === 'snare' || s.def.interaction === 'pit' ? { armed: s.armed === true } : {}),
       ...(s.catch ? { catch: s.catch } : {}),
     }));
   }
@@ -588,11 +594,47 @@ export class BuildingSystem {
     this.events.emit('structure:door', { id: s.def.id, position: s.position.clone(), rotation: s.rotation, open });
   }
 
-  /** Schlingfalle spannen (Ast heruntergebogen) bzw. zuschnappen lassen (Ast schnellt hoch). */
+  /**
+   * Schlingfalle spannen (Ast heruntergebogen) bzw. zuschnappen lassen (Ast schnellt hoch);
+   * Fallgrube tarnen bzw. einbrechen lassen.
+   */
   setArmed(s: Structure, armed: boolean): void {
-    if (s.def.interaction !== 'snare') return;
+    if (s.def.interaction !== 'snare' && s.def.interaction !== 'pit') return;
     s.armed = armed;
     if (s.spring) s.spring.rotation.z = armed ? 1.0 : 0.05;
+    if (s.cover) s.cover.visible = armed;
+  }
+
+  /** Fallgrube neu tarnen (kostet zwei Stöcke). @returns false, wenn sie schon getarnt ist oder Stöcke fehlen. */
+  rearmPit(s: Structure): boolean {
+    if (s.def.interaction !== 'pit' || s.armed || !this.crafting.consume(PIT_REARM_COST)) return false;
+    this.setArmed(s, true);
+    this.audio.play('place', { position: s.position });
+    return true;
+  }
+
+  /** Material für eine Reparatur: eigens festgelegt oder ein Drittel des Hauptmaterials. */
+  repairCost(def: StructureDef): ItemCost[] {
+    if (def.repair) return def.repair;
+    const main = def.cost[0];
+    return [{ item: main.item, count: Math.max(1, Math.round(main.count / 3)) }];
+  }
+
+  /** Beschädigt genug, dass sich eine Reparatur lohnt? */
+  needsRepair(s: Structure): boolean {
+    return s.health < s.def.maxHealth * 0.9;
+  }
+
+  /**
+   * Repariert ein Bauwerk um die Hälfte seiner Haltbarkeit.
+   * @returns false, wenn es heil ist oder das Material fehlt.
+   */
+  repair(s: Structure): boolean {
+    if (!this.needsRepair(s) || !this.crafting.consume(this.repairCost(s.def))) return false;
+    s.health = Math.min(s.def.maxHealth, s.health + s.def.maxHealth * 0.5);
+    s.shake = 0.2;
+    this.audio.play('craft', { position: s.position.clone().setY(s.position.y + 0.8) });
+    return true;
   }
 
   toggleDoor(s: Structure): void {

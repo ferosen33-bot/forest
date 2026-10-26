@@ -68,6 +68,7 @@ import { AnimalModels } from '../entities/animals/AnimalAvatars';
 import { wolfBoldness } from '../entities/animals/Wolf';
 import { SnowTracks } from '../world/SnowTracks';
 import { Breath } from '../world/Breath';
+import { Defenses, type Intruder } from '../systems/Defenses';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -168,6 +169,8 @@ export class Game {
   /** Abdrücke im Schnee. */
   snowTracks!: SnowTracks;
   private readonly breath = new Breath();
+  defenses!: Defenses;
+  private readonly intruderCache = new WeakMap<object, Intruder>();
   hud!: HUD;
   inventoryUI!: InventoryUI;
 
@@ -363,6 +366,7 @@ export class Game {
           })()
         : null,
       harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
+      extraFire: (pos, radius) => this.defenses?.fireNear(pos, radius) ?? null,
     });
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
@@ -397,7 +401,8 @@ export class Game {
         this.player.receiveHit(amount, from);
         this.audio.play('hurt');
       },
-      fireNear: (pos, radius) => this.building.structures.some((s) => s.lit && !!s.def.flame && s.position.distanceTo(pos) < radius),
+      fireNear: (pos, radius) =>
+        this.building.structures.some((s) => s.lit && !!s.def.flame && s.position.distanceTo(pos) < radius) || !!this.defenses?.fireNear(pos, radius),
       playerTorch: () => this.tools.equipped?.id === 'torch',
       playerHidden: () => !!this.caves?.current,
       isNight: () => this.dayNight.isNight,
@@ -412,6 +417,20 @@ export class Game {
     });
     this.scene.add(this.animals.group);
     this.animals.onTrack = (kind, pos, heading, side, scale) => this.snowTracks.add(kind, pos, heading, side, scale);
+    this.defenses = new Defenses({
+      building: this.building,
+      heightMap: this.world.heightMap,
+      lights: this.lights,
+      audio: this.audio,
+      particles: this.particles,
+      events: this.events,
+      intruders: () => this.intruders(),
+      player: {
+        position: this.player.position,
+        hurt: (amount, from) => this.player.stats.damage(amount, 'fire', true, from.clone()),
+      },
+    });
+    this.scene.add(this.defenses.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
     this.menu.setLoading('Höhlen werden vermessen …');
     await nextFrame();
@@ -483,6 +502,7 @@ export class Game {
       waterLevel: this.world.heightMap.waterLevel,
       groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
       onPlayerHit: (killed, headshot) => this.skills.gain('archery', killed ? 8 : headshot ? 5 : 3),
+      onShatter: (point) => this.defenses.ignite(point),
       hitPlayer: (damage, from) => {
         this.player.receiveHit(damage, from);
         this.audio.play('hurt');
@@ -1195,6 +1215,50 @@ export class Game {
 
   /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
   /** Licht des Items in der Hand (Taschenlampe nur mit geladener Batterie). */
+  /** Schrate und Wölfe in der Nähe – für Fallen und Brandherde. */
+  private *intruders(): Generator<Intruder> {
+    const cache = this.intruderCache;
+    for (const e of this.enemies.enemies) {
+      if (!e.active || e.isDead) continue;
+      let w = cache.get(e);
+      if (!w) {
+        const enemies = this.enemies;
+        w = {
+          kind: 'schrat',
+          get feet() {
+            return e.feet;
+          },
+          get isDead() {
+            return e.isDead;
+          },
+          hurt: (amount, from) => void enemies.hurt(e, amount, from),
+          stun: (seconds) => e.stun(seconds),
+        };
+        cache.set(e, w);
+      }
+      yield w;
+    }
+    for (const a of this.animals.animals) {
+      if (a.species !== 'wolf' || a.isDead || !a.active) continue;
+      let w = cache.get(a);
+      if (!w) {
+        const animals = this.animals;
+        w = {
+          kind: 'wolf',
+          get feet() {
+            return a.feet;
+          },
+          get isDead() {
+            return a.isDead;
+          },
+          hurt: (amount, from) => void animals.hurt(a, amount, from),
+        };
+        cache.set(a, w);
+      }
+      yield w;
+    }
+  }
+
   private heldLight(): ReturnType<typeof getItem>['light'] {
     const stack = this.tools.equipped;
     if (!stack) return undefined;
@@ -1383,12 +1447,15 @@ export class Game {
       else if (this.dialogueUI.open) this.dialogueUI.hide();
       else this.interaction.interact();
     }
+    if (playing && !building && this.input.wasPressed('repair')) this.interaction.repair();
     this.updateDialogue(playing);
     if (this.noteUI.open && (player.position.distanceTo(this.noteAt) > 3.5 || this.mode !== 'playing')) this.noteUI.hide();
     // Im Gespräch wählen die Zifferntasten Antworten statt Werkzeuge (und es wird nicht zugeschlagen).
     this.tools.update(dt, playing && !building && !this.dialogueUI.open);
     this.harvest.update(dt);
     this.building.update(dt, player.position);
+    this.defenses.rain = this.climate.weather.rain * (1 - this.climate.season.snowfall * 0.5);
+    this.defenses.update(dt);
     this.enemies.update(dt, alpha);
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);

@@ -53,7 +53,7 @@ export interface BuildHint {
   cost: { item: ItemId; have: number; need: number }[];
 }
 
-const KEY_LABEL: Record<NonNullable<Prompt['key']>, string> = { E: 'E', LMB: 'Linksklick' };
+const KEY_LABEL: Record<NonNullable<Prompt['key']>, string> = { E: 'E', R: 'R', LMB: 'Linksklick' };
 const TOAST_TIME = 2.8;
 
 interface Toast {

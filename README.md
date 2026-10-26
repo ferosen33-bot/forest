@@ -60,6 +60,30 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 37 – Verteidigung
+
+- **Neue Bauwerke für das Lager:**
+  - **Barrikade** (1 Stamm, 6 Stöcke): ein spanischer Reiter aus gekreuzten, angespitzten Pfählen. Schnell gebaut,
+    rastet an Wänden ein. Wer hineinläuft oder darauf einschlägt, reißt sich auf.
+  - **Stachelwand** (3 Stämme, 6 Stöcke): eine Palisade mit schräg nach vorne ragenden Spießen, die stärkste Wand.
+    Schrate, die sie einreißen wollen, verletzen sich bei jedem Schlag.
+  - **Fallgrube** (8 Stöcke, 2 Steine): unter Ästen und Laub getarnt. Wer drauftritt, stürzt auf die Pfähle
+    (75 Schaden) und steckt einige Sekunden fest. Danach liegt sie offen; `E` tarnt sie neu (2 Stöcke).
+  - **Klapperleine** (4 Stöcke, 1 Fell): Knochen und Steine an einer Schnur. Quert ein Schrat oder Wolf sie, rasselt
+    sie, und du bekommst eine Warnung mit der Entfernung – auch wenn du gerade woanders bist.
+- **Stachelfallen** und alle spitzen Bauten nutzen jetzt dieselbe Regel: Schaden beim Hineinlaufen und beim
+  Zuschlagen.
+- **Reparieren:** Beschädigte Bauwerke zeigen ihren Zustand in Prozent. Mit **R** repariert man sie um die Hälfte
+  ihrer Haltbarkeit (je nach Bauwerk 1 Stamm oder ein paar Stöcke).
+- **Brandflaschen:** Aus einer leeren Flasche und **Lampenöl** (neu: in Werkzeugkisten, Schränken, Autos und
+  verlassenen Lagern) entsteht eine Brandflasche.
+  - Linksklick wirft sie, mit Rechtsklick zielt man genauer.
+  - Sie zerschellt und setzt den Boden für zwölf Sekunden in Flammen (2,6 m Umkreis). Alles darin verbrennt, auch du.
+  - Schrate und Wölfe meiden das Feuer, rasende Horden laufen trotzdem hinein.
+  - Regen löscht es schneller, Wasser sofort.
+- **Klänge:** Glas zerspringt, das Öl fängt fauchend Feuer, die Klapperleine rasselt, und eine Fallgrube bricht ein.
+  Alles ist wie immer synthetisiert.
+
 ### Meilenstein 36 – Wölfe & Winter
 
 - **Wolfsrudel:** Drei Rudel mit je drei bis vier Wölfen leben fern vom Strand. Der Leitwolf ist der größte.
@@ -898,6 +922,6 @@ src/
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
 30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · ~~Teil 7: Tiere~~ ✓
 31. ~~Wölfe & Winter: Rudel, Spuren im Schnee~~ ✓
-32. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
+32. ~~Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen~~ ✓
 33. Neue Schrecken: neue Gegner, ein Boss in der Mine
 34. Koop-Mehrspieler (Server, bis zu 50 Spieler)

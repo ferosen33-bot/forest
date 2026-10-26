@@ -88,6 +88,8 @@ export interface DirectorDeps {
   characters?: CharacterLibrary | null;
   /** Das Lager der Überlebenden: kein Schratlager in der Nähe, sein Feuer schreckt sie ab. */
   harbor?: { center: THREE.Vector3; radius: number } | null;
+  /** Weitere Feuer (brennendes Lampenöl), die Schrate scheuen. */
+  extraFire?: (pos: THREE.Vector3, radius: number) => THREE.Vector3 | null;
 }
 
 const MAX_ENEMIES = 24;
@@ -189,7 +191,7 @@ export class EnemyDirector {
       fireNear: (pos, radius) => {
         for (const s of d.building.structures) if (s.lit && s.position.distanceTo(pos) < radius) return s.position;
         if (d.harbor && d.harbor.center.distanceTo(pos) < radius) return d.harbor.center;
-        return null;
+        return d.extraFire?.(pos, radius) ?? null;
       },
       structureByCollider: (c) => d.building.getByCollider(c),
       damageStructure: (s, amount, point) => d.building.damage(s, amount, point, new THREE.Vector3(0, 1, 0), false),
@@ -579,16 +581,29 @@ export class EnemyDirector {
     // Ein lautloser Kill ist kaum zu hören; sonst lockt der Kampflärm die Umgebung an.
     this.propagateNoise(point, sneak && killed ? 5 : 15, 0.6);
 
-    if (killed) {
-      this.byCollider.delete(enemy.collider.handle);
-      this.byCollider.delete(enemy.headCollider.handle);
-      this.playAt('enemyDeath', enemy.feet);
-      if (this.horde.has(enemy)) this.onHordeKill?.(enemy.feet.clone());
-      const slot = this.cave?.slots.get(enemy);
-      if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);
-    } else if (!wasAggressive) {
-      ctx.alertAllies(enemy);
-    }
+    if (killed) this.afterKill(enemy);
+    else if (!wasAggressive) ctx.alertAllies(enemy);
+  }
+
+  /**
+   * Schaden durch Fallen und Feuer (ohne Treffer-Anzeige im HUD, ohne Schleichbonus).
+   * @returns true, wenn der Gegner dadurch gestorben ist.
+   */
+  hurt(enemy: Enemy, amount: number, from: THREE.Vector3): boolean {
+    if (enemy.isDead) return false;
+    const killed = enemy.takeDamage(amount, from, this.ctxFor(enemy));
+    this.d.particles.burst(enemy.feet.clone().setY(enemy.feet.y + 0.9), { count: 6, color: 0x5c0f10, speed: 2, size: 0.03 });
+    if (killed) this.afterKill(enemy);
+    return killed;
+  }
+
+  private afterKill(enemy: Enemy): void {
+    this.byCollider.delete(enemy.collider.handle);
+    this.byCollider.delete(enemy.headCollider.handle);
+    this.playAt('enemyDeath', enemy.feet);
+    if (this.horde.has(enemy)) this.onHordeKill?.(enemy.feet.clone());
+    const slot = this.cave?.slots.get(enemy);
+    if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);
   }
 
   // ---------------------------------------------------------------------------

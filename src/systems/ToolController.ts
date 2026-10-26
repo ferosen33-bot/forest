@@ -140,6 +140,11 @@ export class ToolController {
 
     if (!active || this.player.stats.isDead || !stack || this.swing || this.eating || this.viewModel.busy) return;
 
+    // Brandflaschen wirft man, statt damit zuzuschlagen.
+    if (stack.id === 'molotov') {
+      if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwEquipped(def!);
+      return;
+    }
     if (def?.tool && this.input.isMouseDown(0)) this.startSwing(def.tool);
     else if (def?.food && this.input.wasMousePressed(0)) this.startEating(def);
   }

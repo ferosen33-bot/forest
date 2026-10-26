@@ -28,6 +28,8 @@ export const KEY_BINDINGS = {
   craft: ['KeyB'],
   /** Bauvorschau drehen. */
   rotate: ['KeyR'],
+  /** Beschädigtes Bauwerk reparieren (außerhalb des Baumodus). */
+  repair: ['KeyR'],
   /** Im Pointer Lock fängt der Browser Esc selbst ab; hier nur für offene Fenster (Inventar). */
   cancel: ['Escape'],
   debug: ['F3'],

@@ -248,4 +248,50 @@ describe('BuildingSystem', () => {
       w.building.demolish(fire);
     });
   });
+
+  describe('Verteidigung', () => {
+    const spot = (dx: number, dz: number) => {
+      const p = w.flat.clone().add(new THREE.Vector3(dx, 0, dz));
+      p.y = w.heightMap.heightAt(p.x, p.z);
+      return p;
+    };
+
+    it('Reparieren kostet Material und stellt die Hälfte der Haltbarkeit wieder her', () => {
+      const wall = w.building.place('spikeWall', spot(-3, -3), 0);
+      expect(w.building.needsRepair(wall)).toBe(false);
+      wall.health = 40;
+      w.inventory.remove('log', 99);
+      expect(w.building.repair(wall)).toBe(false);
+      w.inventory.add('log', 2);
+      expect(w.building.repair(wall)).toBe(true);
+      expect(wall.health).toBe(40 + getStructure('spikeWall').maxHealth / 2);
+      expect(w.inventory.count('log')).toBe(1);
+      w.building.demolish(wall);
+    });
+
+    it('Fallgrube: Tarnung verschwindet beim Zuschnappen und lässt sich neu legen', () => {
+      const pit = w.building.place('pitTrap', spot(-3, 3), 0);
+      expect(pit.armed).toBe(true);
+      expect(pit.cover?.visible).toBe(true);
+      w.building.setArmed(pit, false);
+      expect(pit.cover?.visible).toBe(false);
+      expect(w.building.serialize().find((x) => x.id === 'pitTrap')?.armed).toBe(false);
+      w.inventory.remove('stick', 99);
+      expect(w.building.rearmPit(pit)).toBe(false);
+      w.inventory.add('stick', 2);
+      expect(w.building.rearmPit(pit)).toBe(true);
+      expect(pit.cover?.visible).toBe(true);
+      w.building.demolish(pit);
+    });
+
+    it('Barrikade, Stachelwand und Klapperleine lassen sich bauen', () => {
+      for (const id of ['barricade', 'spikeWall', 'rattleLine'] as const) {
+        const s = w.building.place(id, spot(4, -4), 0);
+        expect(s.health).toBe(getStructure(id).maxHealth);
+        w.building.demolish(s);
+      }
+      expect(getStructure('barricade').thorns).toBeGreaterThan(0);
+      expect(getStructure('rattleLine').walkable).toBe(true);
+    });
+  });
 });

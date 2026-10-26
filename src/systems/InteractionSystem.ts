@@ -85,7 +85,7 @@ type FireAction = 'take' | 'cook' | 'toggle';
 /** Inhalt des Interaktions-Hinweises im HUD. */
 export interface Prompt {
   /** Taste, z. B. "E" oder "LMB"; null = nur Info (Aktion nicht möglich). */
-  key: 'E' | 'LMB' | null;
+  key: 'E' | 'R' | 'LMB' | null;
   action: string;
   label?: string;
 }
@@ -241,37 +241,13 @@ export class InteractionSystem {
       case 'structure': {
         if (target.hit.distance > Math.max(INTERACT_REACH, tool?.reach ?? 0)) return null;
         const s = target.structure;
-        const label = s.def.name;
-        if (s.def.interaction === 'fire') {
-          const cooking = this.deps.cooking;
-          const n = cooking.cookingCount(s);
-          const status = n > 0 ? `${label} · ${n}× brät (${Math.round(cooking.progress(s) * 100)} %)` : label;
-          switch (this.fireAction(s)) {
-            case 'take': {
-              const n = cooking.readyCount(s);
-              const what = n > 1 ? 'Gebratenes nehmen' : `${getItem(cooking.readyItem(s) ?? 'cookedMeat').name} nehmen`;
-              return { key: 'E', action: `${what} (${n})`, label: status };
-            }
-            case 'cook':
-              return { key: 'E', action: this.deps.heldItem() === 'rawFish' ? 'Fisch braten' : 'Fleisch braten', label: status };
-            case 'toggle':
-              return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label: status };
-          }
-        }
-        if (s.def.interaction === 'light') return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label };
-        if (s.def.interaction === 'trap') {
-          return s.catch
-            ? { key: 'E', action: `Fische herausnehmen (${s.catch})`, label }
-            : { key: null, action: 'Noch leer – fängt mit der Zeit', label };
-        }
-        if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
-        if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
-        if (s.def.interaction === 'snare') return s.armed ? { key: null, action: 'Gespannt', label } : { key: 'E', action: 'Neu spannen', label };
-        if (s.def.interaction === 'sleep') {
-          const sleep = this.deps.canSleep();
-          return sleep === true ? { key: 'E', action: 'Schlafen', label } : { key: null, action: sleep, label };
-        }
-        return tool ? { key: 'LMB', action: 'Abreißen', label } : null;
+        const p = this.structurePrompt(s, tool);
+        // Beschädigt: Reparieren mit R – als eigene Aktion, wenn es sonst nichts mit E zu tun gibt.
+        if (!this.building.needsRepair(s)) return p;
+        const pct = Math.round((s.health / s.def.maxHealth) * 100);
+        const cost = this.building.repairCost(s.def).map((c) => `${c.count}× ${getItem(c.item).name}`).join(', ');
+        if (!p || p.key !== 'E') return { key: 'R', action: `Reparieren (${cost})`, label: `${s.def.name} · ${pct} %` };
+        return { ...p, label: `${p.label ?? s.def.name} · ${pct} % · R: reparieren` };
       }
       case 'enemy':
         return null;
@@ -334,6 +310,54 @@ export class InteractionSystem {
     return 'toggle';
   }
 
+  /** Aktion für ein Bauwerk (ohne Reparatur). */
+  private structurePrompt(s: Structure, tool: ToolStats | undefined): Prompt | null {
+    const label = s.def.name;
+    if (s.def.interaction === 'fire') {
+      const cooking = this.deps.cooking;
+      const n = cooking.cookingCount(s);
+      const status = n > 0 ? `${label} · ${n}× brät (${Math.round(cooking.progress(s) * 100)} %)` : label;
+      switch (this.fireAction(s)) {
+        case 'take': {
+          const n = cooking.readyCount(s);
+          const what = n > 1 ? 'Gebratenes nehmen' : `${getItem(cooking.readyItem(s) ?? 'cookedMeat').name} nehmen`;
+          return { key: 'E', action: `${what} (${n})`, label: status };
+        }
+        case 'cook':
+          return { key: 'E', action: this.deps.heldItem() === 'rawFish' ? 'Fisch braten' : 'Fleisch braten', label: status };
+        case 'toggle':
+          return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label: status };
+      }
+    }
+    if (s.def.interaction === 'light') return { key: 'E', action: s.lit ? 'Löschen' : 'Anzünden', label };
+    if (s.def.interaction === 'trap') {
+      return s.catch
+        ? { key: 'E', action: `Fische herausnehmen (${s.catch})`, label }
+        : { key: null, action: 'Noch leer – fängt mit der Zeit', label };
+    }
+    if (s.def.interaction === 'door') return { key: 'E', action: s.open ? 'Schließen' : 'Öffnen', label };
+    if (s.def.interaction === 'storage') return { key: 'E', action: 'Öffnen', label };
+    if (s.def.interaction === 'snare') return s.armed ? { key: null, action: 'Gespannt', label } : { key: 'E', action: 'Neu spannen', label };
+    if (s.def.interaction === 'pit') return s.armed ? { key: null, action: 'Getarnt', label } : { key: 'E', action: 'Neu tarnen (2× Stock)', label };
+    if (s.def.interaction === 'sleep') {
+      const sleep = this.deps.canSleep();
+      return sleep === true ? { key: 'E', action: 'Schlafen', label } : { key: null, action: sleep, label };
+    }
+    return tool ? { key: 'LMB', action: 'Abreißen', label } : null;
+  }
+
+  /** `R`: anvisiertes Bauwerk reparieren. */
+  repair(): void {
+    const target = this.target;
+    if (!target || target.type !== 'structure' || this.prompt === null) return;
+    const s = target.structure;
+    if (!this.building.needsRepair(s)) return;
+    if (!this.building.repair(s)) {
+      const cost = this.building.repairCost(s.def).map((c) => `${c.count}× ${getItem(c.item).name}`).join(', ');
+      this.events.emit('hud:message', { text: `Zum Reparieren fehlt dir: ${cost}` });
+    }
+  }
+
   /** Führt die `E`-Aktion für das aktuelle Ziel aus. */
   interact(): void {
     const target = this.target;
@@ -383,6 +407,8 @@ export class InteractionSystem {
         else if (s.def.interaction === 'snare') {
           this.building.setArmed(s, true);
           this.audio.play('place', 0.6);
+        } else if (s.def.interaction === 'pit' && !this.building.rearmPit(s)) {
+          this.events.emit('hud:message', { text: 'Zum Tarnen brauchst du 2 Stöcke.' });
         }
         break;
       }

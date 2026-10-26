@@ -42,6 +42,8 @@ export interface ProjectileDeps {
   hitPlayer: (damage: number, from: THREE.Vector3) => void;
   /** Ein Geschoss des Spielers hat eine Kreatur getroffen (für die Fertigkeit Bogenschießen). */
   onPlayerHit?: (killed: boolean, headshot: boolean) => void;
+  /** Eine Brandflasche ist zerschellt. */
+  onShatter?: (point: THREE.Vector3) => void;
 }
 
 const GRAVITY = PROJECTILE_GRAVITY;
@@ -216,6 +218,13 @@ export class Projectiles {
   }
 
   private drop(p: Projectile, stuck: boolean): void {
+    // Brandflaschen bleiben nicht liegen: Sie zerschellen, wo sie aufschlagen.
+    if (p.itemId === 'molotov') {
+      this.d.audio.play('glassBreak', { position: p.position });
+      this.d.particles.burst(p.position, { count: 10, color: 0x6f8a5a, speed: 2.5, size: 0.02 });
+      this.d.onShatter?.(p.position.clone());
+      return;
+    }
     // Pfeile gehen öfter zu Bruch – an Lebewesen eher als im Boden.
     if (p.itemId === 'arrow' && Math.random() < (stuck ? 0.15 : 0.35)) return;
     if (p.durability !== undefined) {

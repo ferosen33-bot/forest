@@ -36,7 +36,9 @@ export type ItemId =
   | 'flashlight'
   | 'battery'
   | 'jacket'
-  | 'watch';
+  | 'watch'
+  | 'lampOil'
+  | 'molotov';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -419,6 +421,32 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Angespitzter Stock mit Steinspitze. Steckt nach dem Schuss oft noch im Ziel oder Boden – aufsammeln!',
     category: 'resource',
     maxStack: 30,
+  },
+  lampOil: {
+    id: 'lampOil',
+    name: 'Lampenöl',
+    description: 'Ein Blechkanister Petroleum aus einem Schuppen. Brennt lange – und in einer Flasche mit Lumpen gefährlich gut.',
+    category: 'resource',
+    maxStack: 5,
+  },
+  molotov: {
+    id: 'molotov',
+    name: 'Brandflasche',
+    description:
+      'Lampenöl in einer Flasche, ein Lumpen als Docht. Rechtsklick zielen, Linksklick werfen: Sie zerschellt und setzt alles ringsum in Brand.',
+    category: 'tool',
+    maxStack: 5,
+    throwable: { speed: 17, damageMultiplier: 1 },
+    tool: {
+      treeDamage: 0,
+      rockYield: 0,
+      damage: 8,
+      swingTime: 0.5,
+      impactAt: 0.4,
+      staminaCost: 4,
+      reach: 1.6,
+      animation: 'thrust',
+    },
   },
   torch: {
     id: 'torch',

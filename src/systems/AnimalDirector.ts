@@ -318,6 +318,22 @@ export class AnimalDirector {
     return killed;
   }
 
+  /**
+   * Schaden durch Fallen und Feuer (ohne Treffer-Feedback im HUD).
+   * @returns true bei tödlichem Schaden.
+   */
+  hurt(animal: Animal, amount: number, from: THREE.Vector3): boolean {
+    if (animal.isDead) return false;
+    const killed = animal.takeDamage(amount, from);
+    if (killed) {
+      this.byCollider.delete(animal.collider.handle);
+      this.byCollider.set(animal.corpse!.handle, animal);
+      this.d.events.emit('animal:killed', { species: animal.species });
+      if (animal instanceof Wolf) animal.pack.lost(from);
+    }
+    return killed;
+  }
+
   /** Erlegtes Tier ausnehmen → rohes Fleisch. */
   butcher(animal: Animal): void {
     if (!animal.isDead || !this.animals.includes(animal)) return;

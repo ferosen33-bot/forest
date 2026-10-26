@@ -61,6 +61,10 @@ const MATERIALS = {
   jacket: mat(0x3d5a7a, { roughness: 1 }),
   jacketDark: mat(0x2c4259, { roughness: 1 }),
   redCross: mat(0xb02a24, { roughness: 0.8 }),
+  glass: mat(0x4f6a3a, { roughness: 0.12, transparent: true, opacity: 0.72, flatShading: false }),
+  oil: mat(0x8a6a2a, { roughness: 0.2, transparent: true, opacity: 0.85, flatShading: false }),
+  rag: mat(0xb5a68a, { roughness: 1 }),
+  can: mat(0x7a2a22, { roughness: 0.55, metalness: 0.4 }),
 };
 
 // Holz, Rinde und Stein bekommen Foto-Oberflächen (dreiachsig projiziert, ohne UVs).
@@ -388,6 +392,33 @@ function build(id: ItemId): THREE.Object3D {
       g.add(cap);
       break;
     }
+    case 'molotov': {
+      // Grünes Glas, halb voll Öl, oben ein zusammengedrehter Lumpen
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.2, 10), MATERIALS.glass);
+      g.add(body);
+      const oil = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.036, 0.11, 10), MATERIALS.oil);
+      oil.position.y = -0.04;
+      g.add(oil);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.034, 0.06, 10), MATERIALS.glass);
+      neck.position.y = 0.13;
+      g.add(neck);
+      const rag = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 6), MATERIALS.rag);
+      rag.position.y = 0.2;
+      rag.rotation.z = 0.25;
+      g.add(rag);
+      break;
+    }
+    case 'lampOil': {
+      const tank = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.17, 0.07), MATERIALS.can);
+      g.add(tank);
+      const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.05, 8), MATERIALS.tin);
+      spout.position.set(0.03, 0.1, 0);
+      g.add(spout);
+      const grip = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.007, 4, 10, Math.PI), MATERIALS.tin);
+      grip.position.set(-0.025, 0.085, 0);
+      g.add(grip);
+      break;
+    }
     case 'painkillers': {
       const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.03), MATERIALS.pillbox);
       g.add(box);
@@ -543,6 +574,10 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.1, 0.037).setDensity(id === 'bottle' ? 100 : 900);
     case 'painkillers':
       return RAPIER.ColliderDesc.cuboid(0.045, 0.025, 0.015).setDensity(300);
+    case 'molotov':
+      return RAPIER.ColliderDesc.cylinder(0.11, 0.038).setDensity(900);
+    case 'lampOil':
+      return RAPIER.ColliderDesc.cuboid(0.06, 0.085, 0.035).setDensity(850);
     case 'machete':
       return RAPIER.ColliderDesc.cuboid(0.03, 0.26, 0.01).setDensity(2000);
     case 'flashlight':

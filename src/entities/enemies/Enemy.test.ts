@@ -153,7 +153,7 @@ describe('Enemy (KI)', () => {
         .setTranslation(trapPos.x, trapPos.y + 0.4, trapPos.z)
         .setCollisionGroups(interactionGroups(CollisionGroup.STATIC)),
     );
-    const trap = { def: { id: 'spikeTrap' }, position: trapPos, health: 80 } as unknown as import('../../systems/building/BuildingSystem').Structure;
+    const trap = { def: { id: 'spikeTrap', thorns: 30 }, position: trapPos, health: 80 } as unknown as import('../../systems/building/BuildingSystem').Structure;
     const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 9)));
     const e = spawnFacing(w.origin, 0);
     const ctx = makeCtx(p.target, [e]);

@@ -63,7 +63,7 @@ export type GameEvents = {
   'hud:message': { text: string };
 };
 
-export type DamageSource = 'fall' | 'starvation' | 'dehydration' | 'drowning' | 'enemy' | 'sickness' | 'cold' | 'world';
+export type DamageSource = 'fall' | 'starvation' | 'dehydration' | 'drowning' | 'enemy' | 'sickness' | 'cold' | 'fire' | 'world';
 
 type Handler<T> = (payload: T) => void;
 

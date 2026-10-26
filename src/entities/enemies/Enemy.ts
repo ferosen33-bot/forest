@@ -264,6 +264,16 @@ export class Enemy {
     return false;
   }
 
+  /** In eine Fallgrube gestürzt: steckt eine Weile fest. */
+  stun(seconds: number): void {
+    if (this.isDead) return;
+    this.knockback.set(0, 0, 0);
+    this.velocity.set(0, 0, 0);
+    this.rig.anim.attack = -1;
+    this.setState('stagger');
+    this.timer = seconds;
+  }
+
   /** Fiebernacht: rasend – fürchtet kein Feuer mehr. */
   enrage(): void {
     this.provokedUntil = Infinity;
@@ -593,6 +603,8 @@ export class Enemy {
     if (!this.struck && u >= STRIKE_AT) {
       this.struck = true;
       ctx.damageStructure(s, this.kind.structureDamage, this.tmp.copy(this.curr).addScaledVector(this.forward, 0.8).setY(this.curr.y + 1));
+      // Wer auf Spieße einschlägt, reißt sich selbst auf.
+      if (s.def.thorns) this.takeDamage(s.def.thorns * 0.5, s.position, ctx);
     }
     if (u >= 1) {
       this.attackTime = 0;
@@ -718,12 +730,15 @@ export class Enemy {
       if (!c?.collider) continue;
       const s = ctx.structureByCollider(c.collider);
       if (!s) continue;
+      if (s.def.thorns && this.trapCooldown <= 0) {
+        // Hineingelaufen: Pfähle verletzen, die Falle nutzt sich ab.
+        this.trapCooldown = 1.2;
+        ctx.damageStructure(s, s.def.id === 'spikeTrap' ? 12 : 4, this.curr.clone().add(new THREE.Vector3(0, 0.5, 0)));
+        this.takeDamage(s.def.thorns, s.position, ctx);
+        if (this.isDead) return;
+      }
       if (s.def.id === 'spikeTrap') {
-        if (this.trapCooldown <= 0) {
-          this.trapCooldown = 1.2;
-          ctx.damageStructure(s, 12, this.curr.clone().add(new THREE.Vector3(0, 0.5, 0)));
-          this.takeDamage(30, s.position, ctx);
-        }
+        continue;
       } else if (this.state === 'chase' && (this.pathFailed || !this.seesPlayerNow(ctx))) {
         this.breachTarget = s;
         this.setState('breach');
