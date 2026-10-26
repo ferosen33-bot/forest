@@ -57,8 +57,8 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 
 > **Richtung:** Ein Open-World-Survival-Horror im Geist von *The Forest*, mit Plündern und Erkunden wie in *DayZ*,
 > Horden-Nächten wie in *7 Days to Die*, Rollenspiel durch Fertigkeiten – und später **Koop-Mehrspieler**
-> (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
-> Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
+> (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
+> Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
 ### Meilenstein 36 – Wölfe & Winter
 
@@ -897,8 +897,7 @@ src/
 28. ~~Zufallsereignisse~~ ✓
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
 30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · ~~Teil 7: Tiere~~ ✓
-31. Das Fieber: Infektion, Heilmittel, Forschungsstation
-32. ~~Wölfe & Winter: Rudel, Spuren im Schnee~~ ✓
-33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
-34. Neue Schrecken: neue Gegner, ein Boss in der Mine
-35. Koop-Mehrspieler (Server, bis zu 50 Spieler)
+31. ~~Wölfe & Winter: Rudel, Spuren im Schnee~~ ✓
+32. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
+33. Neue Schrecken: neue Gegner, ein Boss in der Mine
+34. Koop-Mehrspieler (Server, bis zu 50 Spieler)

@@ -180,6 +180,9 @@ interface Driven {
   /** … oder prozedural (Wolf). */
   pose: WolfPose | null;
   eyes: THREE.MeshBasicMaterial | null;
+  /** Leuchtpunkte der Augen und ihre Grundgröße. */
+  eyeMeshes: THREE.Mesh[];
+  eyeScale: number;
   idle: string;
   death: string;
   wasDead: boolean;
@@ -245,6 +248,8 @@ export class AnimalAvatars {
       cast,
       pose: null,
       eyes: null,
+      eyeMeshes: [],
+      eyeScale: 1,
       idle,
       death: cast.deaths[t.id % cast.deaths.length],
       wasDead: false,
@@ -268,6 +273,8 @@ export class AnimalAvatars {
       if (o.name === 'b_LeftEye' || o.name === 'b_RightEye') eyeBones.push(o as THREE.Bone);
     });
     let eyes: THREE.MeshBasicMaterial | null = null;
+    const eyeMeshes: THREE.Mesh[] = [];
+    let eyeScale = 1;
     if (head) {
       const h = head as THREE.Bone;
       eyes = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
@@ -276,13 +283,15 @@ export class AnimalAvatars {
         const eye = new THREE.Mesh(EYE_GEOMETRY, eyes);
         const p = b.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0, 0.032 * height));
         eye.position.copy(h.worldToLocal(p));
-        eye.scale.setScalar((0.012 * height) / headScale);
+        eyeScale = (0.016 * height) / headScale;
+        eye.scale.setScalar(eyeScale);
         eye.visible = false;
+        eyeMeshes.push(eye);
         h.add(eye);
       }
     }
     const pose = new WolfPose(model, height * 0.55);
-    return { avatar, cast: null, pose, eyes, idle: '', death: '', wasDead: false, weights: new Map(), used: true, pending: 0 };
+    return { avatar, cast: null, pose, eyes, eyeMeshes, eyeScale, idle: '', death: '', wasDead: false, weights: new Map(), used: true, pending: 0 };
   }
 
   private drive(d: Driven, t: AnimalTarget, dt: number, viewer: THREE.Vector3): void {
@@ -364,12 +373,16 @@ export class AnimalAvatars {
     const dist = this.toViewer.length();
     const facing = (Math.sin(yaw) * this.toViewer.x + Math.cos(yaw) * this.toViewer.z) / Math.max(0.01, dist);
     const alive = t.rig.anim.death < 0 ? 1 : 0;
-    const glow = this.night * alive * Math.max(0, (facing - 0.55) / 0.45) ** 2 * THREE.MathUtils.clamp(1.4 - dist / 60, 0, 1);
-    d.eyes!.color.copy(EYESHINE).multiplyScalar(glow * 2.2);
+    const glow = this.night * alive * Math.max(0, (facing - 0.45) / 0.55) ** 1.5 * THREE.MathUtils.clamp(1.5 - dist / 70, 0, 1);
+    // Hell genug, dass das Bloom einen Schimmer darum legt.
+    d.eyes!.color.copy(EYESHINE).multiplyScalar(glow * 6);
     const visible = glow > 0.02;
-    obj.traverse((o) => {
-      if ((o as THREE.Mesh).material === d.eyes) o.visible = visible;
-    });
+    // In der Ferne wachsen die Punkte mit, damit sie nicht unter einen Pixel schrumpfen.
+    const grow = Math.max(1, dist / 7);
+    for (const eye of d.eyeMeshes) {
+      eye.visible = visible;
+      eye.scale.setScalar(d.eyeScale * grow);
+    }
   }
 
   dispose(): void {
