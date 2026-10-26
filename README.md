@@ -60,6 +60,25 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 40 – Licht im Nebel
+
+- **Sichtbare Lichtkegel:** Der Strahl der Taschenlampe steht nachts als Kegel im Dunst.
+  - Treibende Nebelschwaden ziehen durch das Licht.
+  - Stämme und Äste werfen dunkle Schneisen hinein (abgeschattet über die Schattenkarte der Lampe).
+  - Im Regen, im Schneetreiben und in staubiger Höhlenluft streut das Licht stärker.
+- **Leuchthöfe:** Fackeln, Lagerfeuer und brennendes Lampenöl tauchen den Nebel um sich in warmes Licht.
+- **Schwebstaub:** Im Lichtkegel und im Feuerschein glitzern winzige Staubkörner, die langsam durch die Luft treiben.
+  Ohne Licht sind sie unsichtbar.
+- **Glühwürmchen:** In warmen Sommer- und Frühlingsnächten taumeln grüngelbe Lichtpunkte über Gras und Unterholz.
+  - Jedes leuchtet in seinem eigenen Rhythmus auf: kurz hell, dann langsam verglimmend.
+  - Bei Regen, Kälte, Schnee und tagsüber sind sie verschwunden.
+- **Technik:**
+  - Neuer Durchgang in der Nachbearbeitung (halbe Auflösung): Jeder Sehstrahl wird bis zur Oberfläche abgetastet.
+    Der Startpunkt ist zufällig versetzt, das Ergebnis wird leicht weichgezeichnet.
+  - Die Leuchthöfe der Punktlichter werden geschlossen integriert, ohne Abtasten.
+  - Schwebstaub kostet keine CPU-Zeit: Ein Würfel aus Teilchen wandert im Vertex-Shader mit der Kamera mit.
+  - Bei Grafikqualität „niedrig“ ist das Licht im Nebel aus.
+
 ### Meilenstein 39 – Zwei Hände
 
 - **Bogen mit beiden Händen:** Die linke Hand hält den Bogen am Griff, der Arm kommt von links unten ins Bild.

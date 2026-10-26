@@ -56,7 +56,7 @@ import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
-import { PostFX } from '../systems/PostFX';
+import { PostFX, type VolumetricLights } from '../systems/PostFX';
 import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
@@ -68,6 +68,8 @@ import { AnimalModels } from '../entities/animals/AnimalAvatars';
 import { wolfBoldness } from '../entities/animals/Wolf';
 import { SnowTracks } from '../world/SnowTracks';
 import { Breath } from '../world/Breath';
+import { Fireflies } from '../world/Fireflies';
+import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 
 export interface GameOptions {
@@ -169,6 +171,8 @@ export class Game {
   /** Abdrücke im Schnee. */
   snowTracks!: SnowTracks;
   private readonly breath = new Breath();
+  private readonly motes = new Motes();
+  private fireflies!: Fireflies;
   defenses!: Defenses;
   private readonly intruderCache = new WeakMap<object, Intruder>();
   hud!: HUD;
@@ -216,6 +220,7 @@ export class Game {
   };
   /** Kegel der Taschenlampe – mit Schattenwurf (Bäume und Gestalten werfen lange Schatten). */
   private readonly flashlight = new THREE.SpotLight(0xf4f1e6, 0, 38, 0.42, 0.6, 1.6);
+  private readonly volLights: VolumetricLights = { spot: null, points: [], air: 0, strength: 0 };
 
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
@@ -372,7 +377,8 @@ export class Game {
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
     this.footsteps = new Footsteps(this.audio, this.world.heightMap, this.physics, this.building, this.events);
     this.snowTracks = new SnowTracks(this.world.heightMap);
-    this.scene.add(this.snowTracks.mesh, this.breath.group);
+    this.fireflies = new Fireflies(this.world.heightMap);
+    this.scene.add(this.snowTracks.mesh, this.breath.group, this.motes.points, this.fireflies.points);
     let enemyFoot = 1;
     this.enemies.onEnemyStep = (pos, speed, yaw) => {
       this.footsteps.enemyStep(pos, speed);
@@ -1654,6 +1660,12 @@ export class Game {
     const moving = Math.hypot(p.velocity.x, p.velocity.z) > 0.6;
     const light = Math.max(this.dayNight.daylight, this.heldLight() ? 0.6 : 0);
     this.breath.update(dt, this.camera, THREE.MathUtils.clamp(cold, 0, 1), p.sprinting && moving ? 1 : moving ? 0.3 : 0, light);
+    // Schwebstaub im Lichtkegel, Glühwürmchen in warmen Nächten.
+    const viewH = this.renderer.domElement.height;
+    this.motes.update(this.elapsed, this.camera, viewH, this.flashlight, this.lights.lights, p.headUnderwater ? 0 : 1);
+    const night = 1 - this.dayNight.daylight;
+    const flies = Fireflies.amount(night, season.chill, season.snow, climate.weather.rain, !!this.caves.current);
+    this.fireflies.update(dt, this.elapsed, this.camera, viewH, p.position, flies);
   }
 
   /** Baumodus: Drehen, Ghost nachführen, Bauen (Linksklick) und Abbrechen (Rechtsklick/Schnellzugriff). */
@@ -1718,6 +1730,7 @@ export class Game {
         time: this.elapsed,
         // Der Gegenstand in der Hand bekommt denselben Filmlook (Korn, Farbstimmung), aber keinen Nebel.
         overlay,
+        volumetric: this.volumetric(),
       });
       return;
     }
@@ -1729,6 +1742,19 @@ export class Game {
       this.renderer.render(this.viewModel.scene, this.viewModel.camera);
       this.renderer.autoClear = true;
     }
+  }
+
+  /** Licht im Nebel: Lichtkegel der Taschenlampe, Leuchthöfe um Feuer – nachts, im Regen und unter Tage. */
+  private volumetric(): VolumetricLights | null {
+    const cave = this.dayNight.underground > 0.5;
+    const rain = this.climate?.weather.rain ?? 0;
+    const blizzard = this.climate?.blizzard ?? 0;
+    this.volLights.spot = this.flashlight;
+    this.volLights.points = this.lights.lights;
+    // Höhlenluft ist staubig, Regen und Schneetreiben streuen das Licht stark.
+    this.volLights.air = (cave ? 0.035 : 0.014) + 0.02 * rain + 0.05 * blizzard;
+    this.volLights.strength = cave ? 1 : THREE.MathUtils.lerp(1, 0.15, this.dayNight.daylight);
+    return this.settings.quality === 'low' ? null : this.volLights;
   }
 
   private debugLines(): string[] {
