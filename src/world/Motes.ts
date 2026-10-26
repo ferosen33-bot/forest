@@ -44,7 +44,7 @@ void main() {
   for (int i = 0; i < ${POINTS}; i++) {
     vec3 lp = uPointPos[i].xyz;
     float dd = distance(p, lp);
-    light += uPointColor[i] * (1.0 - smoothstep(0.0, uPointPos[i].w * 0.4, dd)) / (1.0 + dd * dd);
+    light += uPointColor[i] * 0.35 * (1.0 - smoothstep(0.0, uPointPos[i].w * 0.3, dd)) / (1.0 + dd * dd);
   }
   // Glitzern: Staubkörner drehen sich und blitzen kurz auf.
   float glint = 0.55 + 0.45 * sin(uTime * (2.0 + aSeed.x * 3.0) + aSeed.z * 20.0);

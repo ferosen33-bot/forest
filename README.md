@@ -60,6 +60,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 41 – Feuer & Rauch
+
+- **Echte Flammen:** Statt der starren Kegel züngeln die Flammen jetzt. Aufsteigendes Rauschen formt sie zu
+  Zungen mit gelbem Kern, orangem Körper und dunkelroten, ausfransenden Spitzen. Jedes Feuer besteht aus einer
+  Hauptflamme und kleineren Flammen drumherum.
+- **Rauch:** Weiche, faserige Schwaden steigen auf, wachsen und verblassen. Der Wind treibt sie zur Seite.
+  - Unten leuchten sie im Feuerschein, oben nehmen sie die Farbe des Himmels an.
+  - Nachts sind sie fast unsichtbar.
+- **Funkenflug:** Glühende Funken wirbeln in die Höhe und verglimmen. Hin und wieder knackt das Holz und ein
+  ganzer Schwarm stiebt auf.
+- **Hitzeflimmern:** Über Lagerfeuern und Brandherden flimmert die Luft. Das Bild dahinter wellt sich, Dinge vor
+  dem Feuer bleiben ruhig.
+- **Feuer nachts:** Flammen, Lampen und Glühwürmchen behalten nachts ihre Farbe. Sie werden nicht mehr mit
+  entsättigt und leuchten durch den Bodennebel.
+- Die Fackel in der Hand bekommt die neuen Flammen, aber keinen Rauch.
+
 ### Meilenstein 40 – Licht im Nebel
 
 - **Sichtbare Lichtkegel:** Der Strahl der Taschenlampe steht nachts als Kegel im Dunst.

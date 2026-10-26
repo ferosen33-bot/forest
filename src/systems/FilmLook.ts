@@ -44,13 +44,14 @@ interface Tone {
   grain: number;
   vignette: number;
   aberration: number;
+  glow: number;
 }
 
-const DAY: Tone = { saturation: 0.74, contrast: 1.08, shadows: [0.0, 0.012, 0.02], highlights: [1.0, 0.97, 0.9], grain: 0.035, vignette: 0.8, aberration: 0.003 };
-const NIGHT: Tone = { saturation: 0.45, contrast: 1.05, shadows: [0.0, 0.01, 0.032], highlights: [0.86, 0.93, 1.06], grain: 0.075, vignette: 1.1, aberration: 0.004 };
-const CAVE: Tone = { saturation: 0.5, contrast: 1.12, shadows: [0.006, 0.012, 0.004], highlights: [1.02, 0.96, 0.8], grain: 0.065, vignette: 1.2, aberration: 0.004 };
-const FEVER: Tone = { saturation: 0.85, contrast: 1.18, shadows: [0.035, 0.0, 0.0], highlights: [1.12, 0.78, 0.72], grain: 0.08, vignette: 1.25, aberration: 0.006 };
-const WATER: Tone = { saturation: 0.6, contrast: 1.0, shadows: [0.0, 0.02, 0.03], highlights: [0.85, 1.0, 1.0], grain: 0.03, vignette: 1.0, aberration: 0.008 };
+const DAY: Tone = { saturation: 0.74, contrast: 1.08, shadows: [0.0, 0.012, 0.02], highlights: [1.0, 0.97, 0.9], grain: 0.035, vignette: 0.8, aberration: 0.003, glow: 0.3 };
+const NIGHT: Tone = { saturation: 0.45, contrast: 1.05, shadows: [0.0, 0.01, 0.032], highlights: [0.86, 0.93, 1.06], grain: 0.075, vignette: 1.1, aberration: 0.004, glow: 0.9 };
+const CAVE: Tone = { saturation: 0.5, contrast: 1.12, shadows: [0.006, 0.012, 0.004], highlights: [1.02, 0.96, 0.8], grain: 0.065, vignette: 1.2, aberration: 0.004, glow: 0.9 };
+const FEVER: Tone = { saturation: 0.85, contrast: 1.18, shadows: [0.035, 0.0, 0.0], highlights: [1.12, 0.78, 0.72], grain: 0.08, vignette: 1.25, aberration: 0.006, glow: 0.6 };
+const WATER: Tone = { saturation: 0.6, contrast: 1.0, shadows: [0.0, 0.02, 0.03], highlights: [0.85, 1.0, 1.0], grain: 0.03, vignette: 1.0, aberration: 0.008, glow: 0 };
 
 function mixTone(a: Tone, b: Tone, t: number): Tone {
   const m3 = (x: [number, number, number], y: [number, number, number]): [number, number, number] => [lerp(x[0], y[0], t), lerp(x[1], y[1], t), lerp(x[2], y[2], t)];
@@ -62,6 +63,7 @@ function mixTone(a: Tone, b: Tone, t: number): Tone {
     grain: lerp(a.grain, b.grain, t),
     vignette: lerp(a.vignette, b.vignette, t),
     aberration: lerp(a.aberration, b.aberration, t),
+    glow: lerp(a.glow, b.glow, t),
   };
 }
 
@@ -81,7 +83,7 @@ export function filmLook(c: LookContext, out?: Look): Look {
   const blizzard = c.cave || c.underwater ? 0 : clamp(c.blizzard ?? 0, 0, 1);
 
   const look = out ?? {
-    grade: { saturation: 1, contrast: 1, shadows: new THREE.Color(), highlights: new THREE.Color(), grain: 0, vignette: 0, aberration: 0 },
+    grade: { saturation: 1, contrast: 1, shadows: new THREE.Color(), highlights: new THREE.Color(), grain: 0, vignette: 0, aberration: 0, glow: 0 },
     mist: { color: new THREE.Color(), density: 0, height: 6, base: 0 },
   };
   const g = look.grade;
@@ -92,6 +94,7 @@ export function filmLook(c: LookContext, out?: Look): Look {
   g.grain = tone.grain + 0.05 * fear;
   g.vignette = tone.vignette + 0.9 * fear;
   g.aberration = tone.aberration + 0.012 * fear;
+  g.glow = tone.glow;
 
   const m = look.mist;
   m.color.copy(c.fogColor);

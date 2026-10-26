@@ -16,6 +16,8 @@ export interface Grade {
   grain: number;
   /** Abdunkeln der Bildränder. */
   vignette: number;
+  /** Lichtquellen (sehr helle HDR-Stellen) behalten ihre Farbe trotz Entsättigung (0..1, v. a. nachts). */
+  glow?: number;
   /** Farbsäume zum Rand hin (Linsenfehler). */
   aberration: number;
 }
@@ -47,6 +49,8 @@ export interface PostFXParams {
   overlay?: { scene: THREE.Scene; camera: THREE.Camera } | null;
   /** Licht im Nebel: Lichtkegel der Taschenlampe und Leuchthöfe um Feuer und Fackeln. */
   volumetric?: VolumetricLights | null;
+  /** Feuer mit Hitzeflimmern (die nächsten zählen). */
+  heat?: readonly HeatSource[];
 }
 
 /** Lichtquellen, deren Licht im Dunst sichtbar wird. */
@@ -63,6 +67,14 @@ export interface VolumetricLights {
 
 /** Höchstzahl der Punktlichter im Nebel (passt zum LightPool plus Fackel). */
 const VOL_POINTS = 6;
+/** Höchstzahl der Feuer mit Hitzeflimmern. */
+const HEAT_SOURCES = 4;
+
+/** Ein Feuer, über dem die Luft flimmert: Fuß der Flammen und Größe (m). */
+export interface HeatSource {
+  position: THREE.Vector3;
+  size: number;
+}
 
 const quadVertex = /* glsl */ `
 varying vec2 vUv;
@@ -124,9 +136,12 @@ uniform float uBase;
 uniform sampler2D tVol;
 uniform vec2 uVolTexel;
 uniform float uVolOn;
+uniform vec4 uHeat[${HEAT_SOURCES}];
+uniform float uHeatDist[${HEAT_SOURCES}];
+uniform int uHeatCount;
+uniform float uTime;
 varying vec2 vUv;
 void main() {
-  vec3 c = texture2D(tColor, vUv).rgb;
   float depth = texture2D(tDepth, vUv).r;
   vec4 view = uProjInv * vec4(vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
   view /= view.w;
@@ -135,11 +150,27 @@ void main() {
   float dist = length(ray);
   vec3 rd = ray / max(dist, 1e-4);
   if (depth >= 0.99999) dist = 380.0;
+  // Hitzeflimmern: Über jedem Feuer wird das Bild dahinter in feinen Wellen verschoben.
+  vec2 uv = vUv;
+  for (int i = 0; i < ${HEAT_SOURCES}; i++) {
+    if (i >= uHeatCount) break;
+    vec4 h = uHeat[i];
+    vec2 d = vec2((vUv.x - h.x) / h.z, (vUv.y - h.y) / h.w);
+    if (abs(d.x) < 1.0 && d.y > -0.15 && d.y < 1.0 && dist > uHeatDist[i] - 0.6) {
+      float m = (1.0 - d.x * d.x) * smoothstep(-0.15, 0.2, d.y) * (1.0 - smoothstep(0.45, 1.0, d.y));
+      vec2 wave = vec2(sin(vUv.y / h.w * 22.0 - uTime * 9.0 + vUv.x / h.z * 3.0), cos(vUv.x / h.z * 17.0 + uTime * 7.0 - vUv.y / h.w * 9.0));
+      uv += wave * m * h.z * 0.022;
+    }
+  }
+  vec3 c = texture2D(tColor, uv).rgb;
   float b = uFalloff;
   float a = uDensity * exp(-b * (uCamPos.y - uBase));
   float k = b * rd.y;
   float f = abs(k) > 1e-4 ? a * (1.0 - exp(-k * dist)) / k : a * dist;
   float fog = 1.0 - exp(-max(f, 0.0));
+  // Lichtquellen (Flammen, Glühwürmchen, Augen) leuchten durch den Dunst – sie schreiben keine Tiefe,
+  // sonst würden sie mit der Entfernung des Hintergrunds vernebelt.
+  fog *= 1.0 - smoothstep(0.25, 1.2, dot(c, vec3(0.2126, 0.7152, 0.0722)));
   vec3 outc = mix(c, uMistColor, clamp(fog, 0.0, 0.92));
   // Licht im Nebel (halbe Auflösung, leicht weichgezeichnet gegen das Abtastrauschen)
   if (uVolOn > 0.5) {
@@ -271,7 +302,7 @@ void main() {
     float dens = uAir + uMistDensity * exp(-uMistFalloff * (lp.y - uMistBase));
     // Die Fackel direkt vor dem Gesicht soll nicht das ganze Bild überstrahlen.
     float near = mix(0.2, 1.0, smoothstep(0.6, 3.0, length(oc)));
-    sum += uPointColor[i] * a * fade * near * dens * 0.22;
+    sum += uPointColor[i] * a * fade * near * dens * 0.14;
   }
 
   gl_FragColor = vec4(sum * uStrength, 1.0);
@@ -315,6 +346,7 @@ uniform vec3 uRayColor;
 uniform float uRays;
 uniform float uBloom;
 uniform float uSaturation;
+uniform float uGlowKeep;
 uniform float uContrast;
 uniform vec3 uShadows;
 uniform vec3 uHighlights;
@@ -341,17 +373,21 @@ void main() {
   c.b = texture2D(tColor, vUv + off).b;
   c += texture2D(tRays, vUv).rgb * uRayColor * uRays;
   c += texture2D(tBloom, vUv).rgb * uBloom;
+  // Feuer und Lampen sind nachts die einzigen Farben im Bild – sie werden nicht mit entsättigt.
+  float hdrLum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float glow = uGlowKeep * smoothstep(0.06, 0.5, hdrLum);
+  float sat = mix(uSaturation, 1.15, glow);
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 
   vec3 g = gl_FragColor.rgb;
   float l = dot(g, vec3(0.2126, 0.7152, 0.0722));
-  g = mix(vec3(l), g, uSaturation);
+  g = mix(vec3(l), g, sat);
   g = (g - 0.5) * uContrast + 0.5;
   g += uShadows * (1.0 - smoothstep(0.0, 0.55, l));
   // Farbfilter in den Lichtern – die hellsten Stellen (Flammen, Lampen) behalten ihre eigene Farbe.
-  g *= mix(vec3(1.0), uHighlights, smoothstep(0.25, 0.7, l) * (1.0 - smoothstep(0.75, 0.95, l)));
+  g *= mix(vec3(1.0), uHighlights, smoothstep(0.25, 0.7, l) * (1.0 - smoothstep(0.75, 0.95, l)) * (1.0 - glow));
   g *= 1.0 - r2 * uVignette;
   // Filmkorn: pro Pixel und Bild neu, in mittleren und dunklen Tönen am stärksten.
   float n = hash(floor(vUv * uRes) + fract(uTime * 7.31) * 517.0) - 0.5;
@@ -379,6 +415,10 @@ export class PostFX {
   private readonly aoOut: THREE.WebGLRenderTarget;
   /** Fertig beleuchtetes Bild mit Nebel; mit eigenem Tiefenpuffer für den Gegenstand in der Hand. */
   private readonly lit: THREE.WebGLRenderTarget;
+  private readonly tmpCam = new THREE.Vector3();
+  /** Platzhalter-Schattenkarte, solange keine Taschenlampe brennt (der Shadow-Sampler braucht eine Tiefentextur). */
+  private dummyShadow: THREE.WebGLRenderTarget | null = null;
+  private readonly tmpHeat = new THREE.Vector3();
   private readonly mask: THREE.WebGLRenderTarget;
   /** Licht im Nebel (halbe Auflösung). */
   private readonly vol: THREE.WebGLRenderTarget;
@@ -431,6 +471,10 @@ export class PostFX {
         tVol: { value: this.vol.texture },
         uVolTexel: { value: new THREE.Vector2() },
         uVolOn: { value: 0 },
+        uHeat: { value: Array.from({ length: HEAT_SOURCES }, () => new THREE.Vector4()) },
+        uHeatDist: { value: new Array<number>(HEAT_SOURCES).fill(0) },
+        uHeatCount: { value: 0 },
+        uTime: { value: 0 },
       }),
       volumetric: new THREE.ShaderMaterial({
         vertexShader: quadVertex,
@@ -475,6 +519,7 @@ export class PostFX {
           uRays: { value: 0 },
           uBloom: { value: 0 },
           uSaturation: { value: 1 },
+          uGlowKeep: { value: 0 },
           uContrast: { value: 1 },
           uShadows: { value: new THREE.Color(0, 0, 0) },
           uHighlights: { value: new THREE.Color(1, 1, 1) },
@@ -567,6 +612,8 @@ export class PostFX {
     m.uFalloff.value = 1 / Math.max(0.5, p.mist.height);
     m.uBase.value = p.mist.base;
     m.uVolOn.value = this.renderVolumetric(renderer, camera, p) ? 1 : 0;
+    m.uTime.value = p.time;
+    m.uHeatCount.value = p.underwater ? 0 : this.projectHeat(camera, p.heat ?? []);
     this.pass(renderer, this.mats.mist, this.lit);
 
     // Gegenstand in der Hand darüber (eigener Tiefenpuffer, nicht vernebelt, ohne Umgebungsverdeckung).
@@ -597,6 +644,7 @@ export class PostFX {
     c.uRayColor.value.copy(p.lightColor);
     c.uBloom.value = p.bloom;
     c.uSaturation.value = g.saturation;
+    c.uGlowKeep.value = g.glow ?? 0;
     c.uContrast.value = g.contrast;
     c.uShadows.value.copy(g.shadows);
     c.uHighlights.value.copy(g.highlights);
@@ -607,6 +655,42 @@ export class PostFX {
     renderer.setRenderTarget(null);
     this.quad.material = this.mats.composite;
     this.quad.render(renderer);
+  }
+
+  private placeholderShadow(renderer: THREE.WebGLRenderer): THREE.DepthTexture {
+    if (!this.dummyShadow) {
+      const depth = new THREE.DepthTexture(1, 1);
+      depth.compareFunction = THREE.LessEqualCompare;
+      this.dummyShadow = new THREE.WebGLRenderTarget(1, 1, { depthTexture: depth });
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(this.dummyShadow);
+      renderer.clear();
+      renderer.setRenderTarget(prev);
+    }
+    return this.dummyShadow.depthTexture!;
+  }
+
+  /** Feuer für das Hitzeflimmern auf den Bildschirm projizieren. @returns Anzahl sichtbarer Quellen. */
+  private projectHeat(camera: THREE.PerspectiveCamera, sources: readonly HeatSource[]): number {
+    const u = this.mats.mist.uniforms;
+    const cam = this.tmpCam.setFromMatrixPosition(camera.matrixWorld);
+    const sorted = sources.slice().sort((a, b) => a.position.distanceToSquared(cam) - b.position.distanceToSquared(cam));
+    const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    let n = 0;
+    for (const s of sorted) {
+      if (n >= HEAT_SOURCES) break;
+      const dist = s.position.distanceTo(cam);
+      if (dist > 40 || dist < 0.3) continue;
+      const v = this.tmpHeat.copy(s.position).project(camera);
+      if (v.z > 1 || Math.abs(v.x) > 1.6 || v.y > 1.2 || v.y < -2.5) continue;
+      // Breite und Höhe des Flimmerbereichs in Bildkoordinaten (0..1).
+      const h = (s.size * 3.2) / (dist * halfH * 2);
+      const w = h * 0.38 / camera.aspect;
+      u.uHeat.value[n].set((v.x + 1) / 2, (v.y + 1) / 2, w, h);
+      u.uHeatDist.value[n] = dist;
+      n++;
+    }
+    return n;
   }
 
   /** Licht im Nebel in `vol` zeichnen. @returns false, wenn es nichts zu zeigen gibt. */
@@ -635,8 +719,11 @@ export class PostFX {
       u.uSpotRange.value = spot.distance || 30;
       const map = spot.castShadow ? spot.shadow.map?.depthTexture : null;
       u.uShadowOn.value = map ? 1 : 0;
-      u.tShadow.value = map ?? null;
+      u.tShadow.value = map ?? this.placeholderShadow(renderer);
       if (map) u.uShadowMatrix.value.copy(spot.shadow.matrix);
+    } else {
+      u.uShadowOn.value = 0;
+      u.tShadow.value = this.placeholderShadow(renderer);
     }
     u.uProjInv.value.copy(camera.projectionMatrixInverse);
     u.uViewInv.value.copy(camera.matrixWorld);
@@ -659,6 +746,7 @@ export class PostFX {
 
   dispose(): void {
     for (const rt of [this.scene, this.aoOut, this.lit, this.mask, this.vol, this.rays, this.bloomA, this.bloomB]) rt.dispose();
+    this.dummyShadow?.dispose();
     Object.values(this.mats).forEach((m) => m.dispose());
     this.quad.dispose();
   }

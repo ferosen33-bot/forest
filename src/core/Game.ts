@@ -56,7 +56,8 @@ import { isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
-import { PostFX, type VolumetricLights } from '../systems/PostFX';
+import { PostFX, type HeatSource, type VolumetricLights } from '../systems/PostFX';
+import { FireEffect } from '../entities/FireEffect';
 import { filmLook, type Look } from '../systems/FilmLook';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
@@ -221,6 +222,9 @@ export class Game {
   /** Kegel der Taschenlampe – mit Schattenwurf (Bäume und Gestalten werfen lange Schatten). */
   private readonly flashlight = new THREE.SpotLight(0xf4f1e6, 0, 38, 0.42, 0.6, 1.6);
   private readonly volLights: VolumetricLights = { spot: null, points: [], air: 0, strength: 0 };
+  private readonly heat: HeatSource[] = [];
+  private readonly fireAmbient = new THREE.Color();
+  private readonly tmpScale = new THREE.Vector3();
 
   private constructor(private readonly opts: GameOptions) {
     this.config = opts.config ?? CONFIG;
@@ -1431,6 +1435,7 @@ export class Game {
     const water = this.world.heightMap.waterLevel;
 
     player.handleInput(playing);
+    this.beginFireFrame();
     this.dayNight.timeScale = this.hud.debugVisible && this.input.isDown('timeWarp') ? 120 : 1;
 
     // Fester Physik-Takt
@@ -1723,7 +1728,7 @@ export class Game {
         lightDir: this.dayNight.lightDirection(this.tmpDir),
         lightColor: this.dayNight.light.color,
         rays: this.dayNight.rayStrength,
-        bloom: this.dayNight.daylight > 0.5 ? 0.45 : 0.8,
+        bloom: this.dayNight.daylight > 0.5 ? 0.45 : 0.62,
         underwater: this.player.headUnderwater,
         grade: look.grade,
         mist: look.mist,
@@ -1731,6 +1736,7 @@ export class Game {
         // Der Gegenstand in der Hand bekommt denselben Filmlook (Korn, Farbstimmung), aber keinen Nebel.
         overlay,
         volumetric: this.volumetric(),
+        heat: this.heatSources(),
       });
       return;
     }
@@ -1742,6 +1748,31 @@ export class Game {
       this.renderer.render(this.viewModel.scene, this.viewModel.camera);
       this.renderer.autoClear = true;
     }
+  }
+
+  /** Feuer: gemeinsame Zeit, Rauchfarbe (Umgebungslicht) und Wind für Rauch und Funken. */
+  private beginFireFrame(): void {
+    const cave = !!this.caves.current;
+    this.fireAmbient.copy(this.dayNight.fog.color).multiplyScalar(cave ? 0.4 : 1);
+    FireEffect.beginFrame(this.elapsed, this.fireAmbient);
+    const wind = cave ? 0 : this.climate.weather.wind;
+    FireEffect.wind.set(0.94, 0.34).multiplyScalar(cave ? 0.05 : 0.25 + wind * 2.2);
+  }
+
+  /** Hitzeflimmern über den Feuern, die in diesem Bild brennen. */
+  private heatSources(): HeatSource[] {
+    const out = this.heat;
+    out.length = 0;
+    for (const f of FireEffect.heatSources) {
+      if (out.length >= 8 || !f.object.parent) continue;
+      let shown = true;
+      for (let o: THREE.Object3D | null = f.object; o; o = o.parent) if (!o.visible) shown = false;
+      if (!shown) continue;
+      const pos = f.object.getWorldPosition(new THREE.Vector3());
+      const size = f.size * f.object.getWorldScale(this.tmpScale).x;
+      if (size > 0.05) out.push({ position: pos, size });
+    }
+    return out;
   }
 
   /** Licht im Nebel: Lichtkegel der Taschenlampe, Leuchthöfe um Feuer – nachts, im Regen und unter Tage. */

@@ -64,7 +64,6 @@ interface FireZone {
   readonly flames: FireEffect[];
   readonly light: LightRequest;
   tick: number;
-  embers: number;
 }
 
 export class Defenses {
@@ -93,7 +92,8 @@ export class Defenses {
     const center = new THREE.Vector3(point.x, underground ? point.y : Math.max(ground, Math.min(point.y, ground + 3)), point.z);
     const flames: FireEffect[] = [];
     for (let i = 0; i < 6; i++) {
-      const f = new FireEffect(i === 0 ? 1.1 : 0.5 + Math.random() * 0.4);
+      // Rauch nur aus dem Hauptherd, Funken aus jedem zweiten – sonst wird es zu viel.
+      const f = new FireEffect(i === 0 ? 1.1 : 0.5 + Math.random() * 0.4, { smoke: i === 0, sparks: i % 2 === 0, heat: i === 0 });
       const a = (i / 6) * Math.PI * 2 + Math.random();
       const r = i === 0 ? 0 : FIRE_RADIUS * (0.35 + Math.random() * 0.45);
       const x = center.x + Math.cos(a) * r;
@@ -109,7 +109,6 @@ export class Defenses {
       flames,
       light: { position: center.clone().setY(center.y + 1), color: new THREE.Color(0xff7a2a), intensity: 0, distance: 20 },
       tick: 0,
-      embers: 0,
     });
     this.d.audio.play('fireWhoosh', { position: center });
     this.d.events.emit('noise', { position: center, radius: 25 });
@@ -189,14 +188,6 @@ export class Defenses {
       }
       z.light.intensity = 30 * strength * (z.flames[0]?.flicker ?? 1);
       this.d.lights.request(z.light);
-      z.embers -= dt;
-      if (z.embers <= 0) {
-        z.embers = 0.12;
-        const a = Math.random() * Math.PI * 2;
-        const r = Math.random() * FIRE_RADIUS;
-        this.tmp.set(z.center.x + Math.cos(a) * r, z.center.y + 0.3, z.center.z + Math.sin(a) * r);
-        this.d.particles.burst(this.tmp, { count: 1, color: 0x2a2624, speed: 0.6, size: 0.08, life: 2, gravity: -0.8 });
-      }
       // Schaden in halben Sekunden.
       z.tick -= dt;
       if (z.tick <= 0) {

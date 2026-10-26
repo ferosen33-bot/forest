@@ -184,7 +184,7 @@ export class ViewModel {
   private lastPitch = 0;
   private time = 0;
 
-  private readonly flame = new FireEffect(0.16);
+  private readonly flame = new FireEffect(0.16, { smoke: false, sparks: false, heat: false });
   /** Licht der Fackel für Hand und Item (eigene Szene → eigenes Licht, Anzahl bleibt fix). */
   private readonly handLight = new THREE.PointLight(0xffa04a, 0, 3, 2);
   private readonly hemi = new THREE.HemisphereLight();
