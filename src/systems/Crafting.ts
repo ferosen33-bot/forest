@@ -90,7 +90,16 @@ export const RECIPES: Recipe[] = [
   structure('snare'),
   structure('fishTrap'),
   structure('torchPost'),
+  structure('workbench'),
+  structure('dryingRack'),
+  structure('rainBarrel'),
+  structure('gardenBed'),
+  structure('cookingPot'),
+  structure('bed'),
 ];
+
+/** Braucht das Rezept eine Werkbank in der Nähe? */
+export const needsWorkbench = (r: Recipe): boolean => r.kind === 'structure' && getStructure(r.result).needsWorkbench === true;
 
 export const recipeName = (r: Recipe): string =>
   r.kind === 'item' ? getItem(r.result).name : getStructure(r.result).name;
@@ -100,7 +109,15 @@ export const recipeDescription = (r: Recipe): string =>
 
 /** Prüft und verbraucht Materialien. Reine Logik → unabhängig von UI und Bausystem testbar. */
 export class Crafting {
+  /** Steht der Spieler an einer Werkbank? (Setzt das Spiel.) */
+  nearWorkbench: () => boolean = () => false;
+
   constructor(private readonly inventory: Inventory) {}
+
+  /** Material vorhanden und – falls nötig – eine Werkbank in der Nähe. */
+  canMake(recipe: Recipe): boolean {
+    return this.canAfford(recipe.cost) && (!needsWorkbench(recipe) || this.nearWorkbench());
+  }
 
   canAfford(cost: ItemCost[]): boolean {
     return cost.every((c) => this.inventory.has(c.item, c.count));

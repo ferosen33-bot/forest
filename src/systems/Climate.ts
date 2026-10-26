@@ -200,7 +200,7 @@ export class Climate {
   }
 
   /** Strahl nach oben: trifft er ein Bauwerk (Dach), ist man geschützt. */
-  private roofAbove(from: THREE.Vector3): boolean {
+  roofAbove(from: THREE.Vector3): boolean {
     // Sensoren (Büsche, Äste, Köpfe) überspringen – sie halten keinen Regen ab.
     const hit = this.d.physics.raycast(from, this.up, 8, this.d.player.collisionShape, true);
     return !!hit && !!this.d.building.getByCollider(hit.collider);

@@ -61,6 +61,25 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 47 – Mehr Möglichkeiten (Teil 2: Lager ausbauen)
+
+- **Werkbank** (3 Holzstämme, 2 Stöcke, 2 Steine): schaltet die neuen Lager-Baupläne frei (sie brauchen eine
+  Werkbank im Umkreis von 6 m, im Bauen-Menü als Chip „Werkbank“ markiert). Hier hergestellte Werkzeuge halten ein
+  Viertel länger, und `E` bessert das Werkzeug in der Hand für 1 Stock und 1 Stein ganz aus.
+- **Trockengestell** (7 Stöcke, 1 Fell): Rohes Fleisch oder Fisch hängt man mit `E` auf, bis zu vier Stück. In drei
+  Minuten werden daraus dunkle, geschrumpfte Streifen **Trockenfleisch** – leicht, stapelbar, ohne Feuer essbar.
+  Bei Regen trocknet nur, was unter einem Dach hängt.
+- **Regentonne** (3 Holzstämme, 1 Fell): sammelt bei Regen bis zu sechs Portionen Trinkwasser. Der Wasserspiegel
+  steigt sichtbar; `E` trinkt daraus oder füllt Schale und Flasche.
+- **Gartenbeet** (2 Holzstämme, 2 Stöcke): Mit Beeren oder Leuchtpilzen in der Hand pflanzt `E` sie ein. Sie
+  wachsen in sechs Minuten heran (Regen beschleunigt), tragen danach immer wieder und ruhen im Winter.
+- **Kochtopf** (8 Steine, 3 Stöcke): ein Steinkessel am Dreibein über eigener Feuerstelle (wärmt wie ein
+  Lagerfeuer). Wasser eingießen, zwei bis drei Zutaten hinein (Fleisch, Fisch, Pilze, Beeren) – nach einer halben
+  Minute köchelnd mit Dampf ist ein **Eintopf** fertig, eine Portion pro Zutat. Geschöpft wird mit leeren Schalen.
+- **Bett** (2 Holzstämme, 2 Stöcke, 3 Felle): Wer hier schläft, wacht mit voller Gesundheit auf, Hunger und Durst
+  zehren weniger, und hier beginnt man nach dem Tod.
+- Alles bleibt im Spielstand erhalten (Trockengrad, Wasserstand, Wachstum, Topfinhalt).
+
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 1: Waffen & Ausrüstung)
 
 - **Knochen:** Wer Wild ausnimmt, bekommt jetzt auch Knochen – zwei bis drei vom Hirsch und vom Wolf, ab und zu

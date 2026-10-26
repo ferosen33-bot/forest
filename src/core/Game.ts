@@ -28,6 +28,7 @@ import { EnemyDirector } from '../systems/ai/EnemyDirector';
 import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles } from '../systems/Projectiles';
 import { Cooking } from '../systems/Cooking';
+import { Camp } from '../systems/Camp';
 import { Climate } from '../systems/Climate';
 import { Fishing, FishTraps } from '../systems/Fishing';
 import { Caves, type CaveTarget } from '../systems/Caves';
@@ -47,7 +48,7 @@ import { getSkill, Skills, wireSkillEvents } from '../systems/Skills';
 import { Fear } from '../systems/Fear';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
-import type { ItemId } from '../entities/items/ItemDefs';
+import type { ItemCost, ItemId } from '../entities/items/ItemDefs';
 import { WorldEvents } from '../systems/WorldEvents';
 import { Survivors, type NpcDef } from '../systems/Survivors';
 import { Quests } from '../systems/Quests';
@@ -93,6 +94,14 @@ export interface GameOptions {
 
 /** Abstand zwischen automatischen Speicherungen (Sekunden Spielzeit). */
 const AUTOSAVE_INTERVAL = 90;
+/** Abstand zur Werkbank, in dem ihre Baupläne gelten (m). */
+const WORKBENCH_RADIUS = 6;
+/** Werkzeuge, die sich an der Werkbank ausbessern lassen (Fackel und Taschenlampe nicht). */
+const REPAIRABLE = new Set<ItemId>(['axe', 'stoneAxe', 'flintAxe', 'machete', 'spear', 'bow', 'fishingRod', 'boneClub']);
+const TOOL_REPAIR_COST: ItemCost[] = [
+  { item: 'stick', count: 1 },
+  { item: 'stone', count: 1 },
+];
 
 /**
  * Spielzustand:
@@ -165,6 +174,7 @@ export class Game {
   animals!: AnimalDirector;
   projectiles!: Projectiles;
   cooking!: Cooking;
+  camp!: Camp;
   climate!: Climate;
   fishing!: Fishing;
   fishTraps!: FishTraps;
@@ -204,6 +214,7 @@ export class Game {
   /** Restzeit der Schlaf-Überblendung (> 0 = schläft gerade). */
   private sleepTimer = 0;
   private sleepApplied = false;
+  private sleepComfort = false;
   saves!: SaveStore;
   private readonly settingsStore = new SettingsStore();
   settings: Settings;
@@ -492,6 +503,25 @@ export class Game {
     });
     this.scene.add(this.defenses.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
+    this.camp = new Camp({
+      building: this.building,
+      items: this.items,
+      inventory: this.inventory,
+      audio: this.audio,
+      events: this.events,
+      particles: this.particles,
+      heldItem: () => this.tools.equipped?.id ?? null,
+      takeHeld: () => void this.inventory.takeFromSlot(this.tools.selected, 1),
+      transformHeld: (to) => {
+        if (this.inventory.transform(this.tools.selected, to) > 0) this.items.drop(to, 1, this.player.position);
+      },
+      drink: (amount) => this.player.stats.drink(amount),
+      drinkAmount: cfg.stats.drinkAmount,
+      repairHeld: () => this.repairHeld(),
+      repairPrompt: () => (this.repairableHeld() ? 'Werkzeug ausbessern (1 Stock, 1 Stein)' : null),
+      roofAbove: (pos) => this.climate.roofAbove(pos),
+    });
+    this.crafting.nearWorkbench = () => this.nearWorkbench();
     this.menu.setLoading('Höhlen werden vermessen …');
     await nextFrame();
     this.caves = new Caves({
@@ -660,6 +690,7 @@ export class Game {
       enemies: this.enemies,
       animals: this.animals,
       cooking: this.cooking,
+      camp: this.camp,
       caves: this.caves,
       settlement: this.settlement,
       places: this.places,
@@ -862,6 +893,7 @@ export class Game {
       harvest: this.harvest.serialize(),
       structures: this.building.serialize(),
       cooking: this.cooking.serialize(),
+      camp: this.camp.serialize(),
       items: this.worldItems.serialize(),
       enemies: this.enemies.serialize(),
       animals: this.animals.serialize(),
@@ -891,6 +923,7 @@ export class Game {
     this.harvest.load(d.harvest);
     const structures = this.building.load(d.structures, isStructureId);
     this.cooking.load(d.cooking, structures);
+    this.camp.load(d.camp, structures);
     this.worldItems.load(d.items, isItemId);
     this.enemies.load(d.enemies);
     this.animals.load(d.animals);
@@ -1067,6 +1100,11 @@ export class Game {
       this.events.emit('hud:message', { text: `Material fehlt für: ${recipeName(recipe)}` });
       return;
     }
+    if (!this.crafting.canMake(recipe)) {
+      this.audio.play('denied');
+      this.events.emit('hud:message', { text: `${recipeName(recipe)}: Dafür brauchst du eine Werkbank in der Nähe.` });
+      return;
+    }
     if (recipe.kind === 'structure') {
       if (this.caves.current) {
         this.audio.play('denied');
@@ -1077,7 +1115,8 @@ export class Game {
       this.building.begin(recipe.result);
       return;
     }
-    const rest = this.crafting.craftItem(recipe, this.skills.craftedDurability);
+    // An der Werkbank hergestellte Werkzeuge halten ein Viertel länger.
+    const rest = this.crafting.craftItem(recipe, this.skills.craftedDurability * (this.nearWorkbench() ? 1.25 : 1));
     if (rest === null) return;
     if (rest > 0) this.worldItems.spawn(recipe.result, rest, this.player.position.clone().add(new THREE.Vector3(0, 1, 0)));
     this.audio.play('craft');
@@ -1085,11 +1124,39 @@ export class Game {
     this.events.emit('hud:message', { text: `${recipeName(recipe)} hergestellt.` });
   }
 
-  /** Schlafen im Unterstand: abblenden, Zeit auf den Morgen setzen, Aufwachpunkt merken. */
+  /** Steht der Spieler an einer Werkbank? */
+  private nearWorkbench(): boolean {
+    const p = this.player.position;
+    return this.building.structures.some((s) => s.def.camp === 'workbench' && s.position.distanceTo(p) < WORKBENCH_RADIUS);
+  }
+
+  /** Werkzeug in der Hand, das abgenutzt ist und sich an der Werkbank ausbessern lässt. */
+  private repairableHeld(): boolean {
+    const stack = this.inventory.get(this.tools.selected);
+    if (!stack || !REPAIRABLE.has(stack.id)) return false;
+    const max = getItem(stack.id).durability ?? 0;
+    return stack.durability !== undefined && stack.durability < max * 0.95;
+  }
+
+  private repairHeld(): boolean {
+    if (!this.repairableHeld()) return false;
+    if (!this.crafting.consume(TOOL_REPAIR_COST)) {
+      this.audio.play('denied');
+      this.events.emit('hud:message', { text: 'Zum Ausbessern brauchst du 1 Stock und 1 Stein.' });
+      return false;
+    }
+    const stack = this.inventory.get(this.tools.selected)!;
+    this.inventory.restore(this.tools.selected);
+    this.events.emit('hud:message', { text: `${getItem(stack.id).name} ausgebessert.` });
+    return true;
+  }
+
+  /** Schlafen im Unterstand oder Bett: abblenden, Zeit auf den Morgen setzen, Aufwachpunkt merken. */
   private sleep(shelter: Structure): void {
     if (!this.dayNight.isSleepTime || this.sleepTimer > 0 || this.feverState === 'night') return;
     this.sleepTimer = 2.4;
     this.sleepApplied = false;
+    this.sleepComfort = shelter.def.comfort === true;
     this.hud.faded = true;
     const front = new THREE.Vector3(0, 0, 1.8).applyAxisAngle(new THREE.Vector3(0, 1, 0), shelter.rotation);
     this.respawnPoint.copy(shelter.position).add(front);
@@ -1104,12 +1171,16 @@ export class Game {
       this.sleepApplied = true;
       this.dayNight.skipTo(6.5);
       const s = this.player.stats;
-      s.hunger = Math.max(5, s.hunger - 18);
-      s.thirst = Math.max(5, s.thirst - 22);
+      // Im Bett schläft man tiefer: volle Gesundheit, und die Nacht zehrt weniger.
+      const bed = this.sleepComfort;
+      s.hunger = Math.max(5, s.hunger - (bed ? 10 : 18));
+      s.thirst = Math.max(5, s.thirst - (bed ? 12 : 22));
       s.stamina = s.max;
-      s.health = Math.min(s.max, s.health + 25);
+      s.health = bed ? s.max : Math.min(s.max, s.health + 25);
       this.hud.faded = false;
-      this.events.emit('hud:message', { text: 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.' });
+      this.events.emit('hud:message', {
+        text: bed ? 'Im eigenen Bett ausgeschlafen – du fühlst dich wie neu. Hier wachst du künftig auf.' : 'Du hast bis zum Morgen geschlafen. Hier wachst du künftig auf.',
+      });
       this.events.emit('player:slept', {});
       this.saveNow();
     }
@@ -1669,6 +1740,7 @@ export class Game {
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);
+    this.camp.update(dt, { rain: this.climate.weather.rain * (1 - this.climate.season.snowfall), winter: this.climate.season.snow > 0.4 });
     this.caves.update(this.dayNight.daylight);
     this.worldItems.update();
     this.particles.update(dt);

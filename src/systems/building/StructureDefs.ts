@@ -21,7 +21,16 @@ export type StructureId =
   | 'barricade'
   | 'spikeWall'
   | 'pitTrap'
-  | 'rattleLine';
+  | 'rattleLine'
+  | 'workbench'
+  | 'dryingRack'
+  | 'rainBarrel'
+  | 'gardenBed'
+  | 'cookingPot'
+  | 'bed';
+
+/** Lager-Bauwerke mit eigenem Zustand (Camp-System). */
+export type CampKind = 'workbench' | 'rack' | 'barrel' | 'garden' | 'pot';
 
 /** Offenes Feuer eines Bauwerks (Lagerfeuer, Standfackel). */
 export interface FlameDef {
@@ -49,7 +58,13 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit';
+  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp';
+  /** Art des Lager-Bauwerks (nur `interaction: 'camp'`). */
+  camp?: CampKind;
+  /** Bett: Schlaf heilt vollständig und kostet weniger Hunger und Durst. */
+  comfort?: boolean;
+  /** Bauplan nur in der Nähe einer Werkbank. */
+  needsWorkbench?: boolean;
   /** Spitze Pfähle: Schaden an jedem Gegner, der hineinläuft oder darauf einschlägt. */
   thorns?: number;
   /** Klapperleine: rasselt, wenn jemand die Schnur zwischen den Pflöcken quert (halbe Länge, m). */
@@ -96,6 +111,9 @@ const M = {
   pit: mat(0x120d09),
   earth: texturize(mat(0x4a3a2a), 'mud', 0.6),
   bone: mat(0xd8cfb8),
+  fur: mat(0x6e5a44),
+  furLight: mat(0x9a8468),
+  potStone: texturize(mat(0x5d5a55), 'mossyRock', 0.4),
   // Laubstreu der Tarnung: dieselbe Foto-Oberfläche wie der Waldboden, damit die Grube kaum auffällt.
   litter: texturize(mat(0x55553a), 'forestFloor', 0.7),
 };
@@ -795,6 +813,252 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'RattleLine');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(1.55, 0.3, 0.12).setTranslation(0, 0.3, 0).setSensor(true)],
+  },
+
+  workbench: {
+    id: 'workbench',
+    name: 'Werkbank',
+    description:
+      'Ein schwerer Arbeitstisch. Schaltet die Lager-Baupläne frei, hier hergestellte Werkzeuge halten länger, und mit E besserst du das Werkzeug in der Hand aus.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'stick', count: 2 },
+      { item: 'stone', count: 2 },
+    ],
+    halfExtents: v(0.95, 0.45, 0.5),
+    maxStep: 0.5,
+    maxHealth: 140,
+    interaction: 'camp',
+    camp: 'workbench',
+    build() {
+      const g = new THREE.Group();
+      // Platte aus drei gespaltenen Stämmen
+      for (let i = 0; i < 3; i++) {
+        const z = -0.3 + i * 0.3;
+        const b = log(v(-0.95, 0.86, z), v(0.95, 0.86, z), 0.16, M.bark);
+        b.scale.z *= 0.42;
+        g.add(b);
+      }
+      for (const x of [-0.78, 0.78]) {
+        for (const z of [-0.36, 0.36]) g.add(log(v(x, -0.1, z), v(x * 0.97, 0.8, z * 0.95), 0.07, M.barkDark));
+        g.add(log(v(x, 0.32, -0.38), v(x, 0.32, 0.38), 0.04, M.barkDark));
+      }
+      g.add(log(v(-0.78, 0.32, 0), v(0.78, 0.32, 0), 0.04, M.barkDark));
+      // Hackklotz mit Steinklinge, Schleifstein und ein paar Stöcke auf der Platte
+      g.add(log(v(0.55, 0.92, 0.1), v(0.55, 1.08, 0.1), 0.12, M.bark));
+      const blade = new THREE.Mesh(STONE_GEOMETRY, M.stone);
+      blade.scale.set(0.12, 0.03, 0.07);
+      blade.position.set(0.55, 1.12, 0.1);
+      g.add(blade);
+      const whet = new THREE.Mesh(STONE_GEOMETRY, M.stone);
+      whet.scale.set(0.14, 0.05, 0.09);
+      whet.position.set(-0.4, 0.97, -0.15);
+      g.add(whet);
+      for (let i = 0; i < 3; i++) g.add(log(v(-0.75, 0.95, 0.18 + i * 0.05), v(-0.05, 0.95 + i * 0.02, 0.24 + i * 0.04), 0.018, M.barkDark));
+      g.add(log(v(0.1, 0.94, -0.3), v(0.3, 0.94, -0.2), 0.03, M.rope));
+      return finish(g, 'Workbench');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.95, 0.47, 0.48).setTranslation(0, 0.47, 0)],
+  },
+
+  dryingRack: {
+    id: 'dryingRack',
+    name: 'Trockengestell',
+    description: 'Zwei Astgabeln mit Querstange. Rohes Fleisch und Fisch werden hier mit der Zeit zu haltbarem Trockenfleisch – im Regen nur unter einem Dach.',
+    cost: [
+      { item: 'stick', count: 7 },
+      { item: 'hide', count: 1 },
+    ],
+    halfExtents: v(1.0, 0.85, 0.45),
+    maxStep: 0.7,
+    maxHealth: 50,
+    interaction: 'camp',
+    camp: 'rack',
+    needsWorkbench: true,
+    build() {
+      const g = new THREE.Group();
+      for (const x of [-0.9, 0.9]) {
+        g.add(log(v(x, -0.1, -0.42), v(x, 1.62, 0.04), 0.035));
+        g.add(log(v(x, -0.1, 0.42), v(x, 1.62, -0.04), 0.035));
+      }
+      g.add(log(v(-1.0, 1.5, 0), v(1.0, 1.5, 0), 0.03, M.barkDark));
+      g.add(log(v(-0.95, 1.05, -0.2), v(0.95, 1.05, -0.2), 0.02, M.barkDark));
+      // Glutschale darunter (rein optisch)
+      const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.04, 9), M.ash);
+      ash.position.y = 0.02;
+      g.add(ash);
+      return finish(g, 'DryingRack');
+    },
+    colliders: () => [
+      RAPIER.ColliderDesc.cuboid(0.06, 0.8, 0.42).setTranslation(-0.9, 0.8, 0),
+      RAPIER.ColliderDesc.cuboid(0.06, 0.8, 0.42).setTranslation(0.9, 0.8, 0),
+      RAPIER.ColliderDesc.cuboid(0.85, 0.3, 0.06).setTranslation(0, 1.2, 0),
+    ],
+  },
+
+  rainBarrel: {
+    id: 'rainBarrel',
+    name: 'Regentonne',
+    description: 'Ein Fass aus Dauben mit Fell-Auskleidung. Sammelt bei Regen Trinkwasser – E trinkt daraus oder füllt Schale und Flasche.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'hide', count: 1 },
+    ],
+    halfExtents: v(0.45, 0.5, 0.45),
+    maxStep: 0.4,
+    maxHealth: 80,
+    interaction: 'camp',
+    camp: 'barrel',
+    needsWorkbench: true,
+    build() {
+      const g = new THREE.Group();
+      const n = 12;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const stave = log(v(Math.cos(a) * 0.36, 0, Math.sin(a) * 0.36), v(Math.cos(a) * 0.4, 0.95, Math.sin(a) * 0.4), 0.1, i % 2 ? M.bark : M.barkDark);
+        stave.scale.x *= 0.55;
+        stave.scale.z *= 0.55;
+        g.add(stave);
+      }
+      for (const y of [0.18, 0.78]) {
+        const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.022, 4, 16), M.rope);
+        hoop.rotation.x = Math.PI / 2;
+        hoop.position.y = y;
+        g.add(hoop);
+      }
+      const bottom = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.06, 12), M.cut);
+      bottom.position.y = 0.06;
+      g.add(bottom);
+      // Blätter-Trichter am Rand
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.3;
+        const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.015, 0.16), i % 2 ? M.leaves : M.leavesDark);
+        leaf.position.set(Math.cos(a) * 0.42, 0.98, Math.sin(a) * 0.42);
+        leaf.rotation.set(0, -a, 0.45);
+        g.add(leaf);
+      }
+      return finish(g, 'RainBarrel');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cylinder(0.5, 0.44).setTranslation(0, 0.5, 0)],
+  },
+
+  gardenBed: {
+    id: 'gardenBed',
+    name: 'Gartenbeet',
+    description: 'Ein Rahmen aus Stämmen voll lockerer Erde. Mit Beeren oder Pilzen in der Hand pflanzt E sie ein; sie wachsen nach und lassen sich immer wieder ernten. Im Winter ruht das Beet.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(0.9, 0.15, 0.55),
+    maxStep: 0.5,
+    maxHealth: 60,
+    interaction: 'camp',
+    camp: 'garden',
+    needsWorkbench: true,
+    build() {
+      const g = new THREE.Group();
+      for (const z of [-0.5, 0.5]) g.add(log(v(-0.9, 0.1, z), v(0.9, 0.1, z), 0.1));
+      for (const x of [-0.85, 0.85]) g.add(log(v(x, 0.1, -0.5), v(x, 0.1, 0.5), 0.1, M.barkDark));
+      const soil = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.16, 0.86, 4, 1, 2), M.earth);
+      soil.position.y = 0.1;
+      g.add(soil);
+      // Furchen
+      for (let i = 0; i < 3; i++) {
+        const ridge = log(v(-0.75, 0.18, -0.27 + i * 0.27), v(0.75, 0.18, -0.27 + i * 0.27), 0.05, M.earth);
+        ridge.scale.z *= 0.5;
+        g.add(ridge);
+      }
+      return finish(g, 'GardenBed');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.92, 0.12, 0.56).setTranslation(0, 0.12, 0)],
+  },
+
+  cookingPot: {
+    id: 'cookingPot',
+    name: 'Kochtopf',
+    description:
+      'Ein ausgehöhlter Steintopf an einem Dreibein über einer Feuerstelle. Wasser und zwei bis drei Zutaten (Fleisch, Fisch, Pilze, Beeren) ergeben einen kräftigen Eintopf – zum Schöpfen braucht es leere Schalen.',
+    cost: [
+      { item: 'stone', count: 8 },
+      { item: 'stick', count: 3 },
+    ],
+    halfExtents: v(0.6, 0.65, 0.6),
+    maxStep: 0.5,
+    maxHealth: 90,
+    interaction: 'camp',
+    camp: 'pot',
+    needsWorkbench: true,
+    flame: { size: 0.45, height: 0.04, lightHeight: 0.5, intensity: 30, distance: 22, warmth: true },
+    build() {
+      const g = new THREE.Group();
+      const rng = mulberry32(41);
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2;
+        const st = new THREE.Mesh(STONE_GEOMETRY, M.stone);
+        const r = 0.09 + rng() * 0.04;
+        st.scale.set(r * 1.2, r * 0.8, r);
+        st.position.set(Math.cos(a) * 0.46, r * 0.5, Math.sin(a) * 0.46);
+        st.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+        g.add(st);
+      }
+      const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.38, 0.04, 10), M.ash);
+      ash.position.y = 0.02;
+      g.add(ash);
+      // Dreibein
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + 0.5;
+        g.add(log(v(Math.cos(a) * 0.62, -0.05, Math.sin(a) * 0.62), v(Math.cos(a) * 0.04, 1.32, Math.sin(a) * 0.04), 0.03, M.barkDark));
+      }
+      g.add(log(v(0, 1.28, 0), v(0, 0.74, 0), 0.006, M.rope));
+      // Topf: dickwandiger Steinkessel (oben offen)
+      const profile = [
+        [0.0, 0.0], [0.14, 0.0], [0.21, 0.06], [0.23, 0.16], [0.215, 0.25], [0.2, 0.25], [0.205, 0.17], [0.185, 0.07], [0.0, 0.05],
+      ].map(([x, y]) => new THREE.Vector2(x, y));
+      const pot = new THREE.Mesh(new THREE.LatheGeometry(profile, 12), M.potStone);
+      pot.position.y = 0.48;
+      g.add(pot);
+      for (const s of [-1, 1]) g.add(log(v(s * 0.21, 0.72, 0), v(0, 0.76, 0), 0.006, M.rope));
+      return finish(g, 'CookingPot');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cylinder(0.4, 0.55).setTranslation(0, 0.4, 0)],
+  },
+
+  bed: {
+    id: 'bed',
+    name: 'Bett',
+    description: 'Ein Bettgestell mit Fellen und einem Laubkissen. Hier schläfst du richtig aus: volle Gesundheit am Morgen, weniger Hunger und Durst – und hier wachst du nach dem Tod auf.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 2 },
+      { item: 'hide', count: 3 },
+    ],
+    halfExtents: v(0.6, 0.3, 1.15),
+    maxStep: 0.5,
+    maxHealth: 90,
+    interaction: 'sleep',
+    comfort: true,
+    needsWorkbench: true,
+    build() {
+      const g = new THREE.Group();
+      for (const x of [-0.55, 0.55]) g.add(log(v(x, 0.2, -1.1), v(x, 0.2, 1.1), 0.09));
+      for (const z of [-1.05, 1.05]) g.add(log(v(-0.62, 0.2, z), v(0.62, 0.2, z), 0.08, M.barkDark));
+      for (const x of [-0.55, 0.55]) for (const z of [-1.05, 1.05]) g.add(log(v(x, -0.1, z), v(x, 0.38, z), 0.07, M.barkDark));
+      // Querlatten, darauf Felle und ein Laubkissen
+      for (let i = 0; i < 6; i++) g.add(log(v(-0.5, 0.25, -0.9 + i * 0.36), v(0.5, 0.25, -0.9 + i * 0.36), 0.03, M.bark));
+      const fur = new THREE.Mesh(jitter(new THREE.BoxGeometry(1.02, 0.1, 1.95, 4, 1, 6), 0.02, 51), M.fur);
+      fur.position.set(0, 0.33, 0.02);
+      g.add(fur);
+      const blanket = new THREE.Mesh(jitter(new THREE.BoxGeometry(1.06, 0.06, 1.05, 4, 1, 4), 0.025, 52), M.furLight);
+      blanket.position.set(0, 0.41, 0.42);
+      blanket.rotation.y = 0.04;
+      g.add(blanket);
+      const pillow = new THREE.Mesh(jitter(new THREE.BoxGeometry(0.62, 0.12, 0.3, 3, 1, 2), 0.02, 53), M.leavesDark);
+      pillow.position.set(0, 0.44, -0.8);
+      g.add(pillow);
+      return finish(g, 'Bed');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.62, 0.22, 1.12).setTranslation(0, 0.22, 0)],
   },
 };
 

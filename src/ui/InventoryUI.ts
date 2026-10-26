@@ -1,6 +1,6 @@
 import type { Inventory } from '../systems/Inventory';
 import { getItem } from '../entities/items/ItemDefs';
-import { RECIPES, recipeDescription, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
+import { RECIPES, needsWorkbench, recipeDescription, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
 import { collectRefs } from './dom';
 import { renderSlot } from './slots';
 import type { IconSets } from './ItemIcons';
@@ -211,9 +211,17 @@ export class InventoryUI {
   /** Aktualisiert Verfügbarkeit und "vorhanden/benötigt" aller Rezepte. */
   private renderRecipes(): void {
     for (const card of this.cards) {
-      const affordable = this.crafting.canAfford(card.recipe.cost);
+      const affordable = this.crafting.canMake(card.recipe);
       card.el.classList.toggle('is-available', affordable);
+      const station: HTMLElement[] = [];
+      if (needsWorkbench(card.recipe)) {
+        const chip = document.createElement('span');
+        chip.className = 'cost cost--station' + (this.crafting.nearWorkbench() ? '' : ' is-missing');
+        chip.textContent = 'Werkbank';
+        station.push(chip);
+      }
       card.cost.replaceChildren(
+        ...station,
         ...card.recipe.cost.map((c) => {
           const have = this.inventory.count(c.item);
           const chip = document.createElement('span');

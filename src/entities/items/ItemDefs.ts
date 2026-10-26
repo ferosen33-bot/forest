@@ -44,7 +44,9 @@ export type ItemId =
   | 'bone'
   | 'boneClub'
   | 'fireArrow'
-  | 'boneArmor';
+  | 'boneArmor'
+  | 'jerky'
+  | 'stew';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -469,6 +471,22 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Ein Pfeil mit ölgetränktem Lappen an der Spitze. Fängt beim Abschuss Feuer und setzt alles in Brand, was er trifft. V wechselt die Munition.',
     category: 'resource',
     maxStack: 15,
+  },
+  jerky: {
+    id: 'jerky',
+    name: 'Trockenfleisch',
+    description: 'Am Trockengestell zu zähen Streifen getrocknet. Leicht, lange haltbar und ohne Feuer essbar.',
+    category: 'food',
+    maxStack: 20,
+    food: { hunger: 26, thirst: -4, health: 4 },
+  },
+  stew: {
+    id: 'stew',
+    name: 'Eintopf',
+    description: 'Fleisch, Pilze und Beeren im Kochtopf geschmort. Macht richtig satt, stillt Durst und wärmt von innen.',
+    category: 'food',
+    maxStack: 1,
+    food: { hunger: 55, thirst: 25, health: 18, leftover: 'bowl' },
   },
   boneArmor: {
     id: 'boneArmor',

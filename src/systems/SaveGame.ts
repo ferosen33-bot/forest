@@ -13,6 +13,7 @@ import type { WorldItemSave } from '../entities/items/WorldItems';
 import type { EnemySave } from './ai/EnemyDirector';
 import type { AnimalSave } from './AnimalDirector';
 import type { CookingSave } from './Cooking';
+import type { CampSave } from './Camp';
 import type { WeatherSave } from './Weather';
 import type { JournalSave } from './Journal';
 
@@ -50,6 +51,7 @@ export interface SaveData {
   harvest: HarvestSave;
   structures: StructureSave[];
   cooking: CookingSave;
+  camp?: CampSave;
   items: WorldItemSave[];
   enemies: EnemySave[];
   animals: AnimalSave[];

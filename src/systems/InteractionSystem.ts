@@ -23,6 +23,7 @@ import type { LootContainer, Settlement } from './Settlement';
 import { getNote } from './Notes';
 import type { EventTarget, WorldEvents } from './WorldEvents';
 import type { NpcDef, Survivors } from './Survivors';
+import type { Camp } from './Camp';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -51,6 +52,7 @@ export interface InteractionDeps {
   enemies: EnemyDirector;
   animals: AnimalDirector;
   cooking: Cooking;
+  camp: Camp;
   caves: Caves;
   settlement: Settlement | null;
   places?: Places | null;
@@ -328,6 +330,7 @@ export class InteractionSystem {
   /** Aktion für ein Bauwerk (ohne Reparatur). */
   private structurePrompt(s: Structure, tool: ToolStats | undefined): Prompt | null {
     const label = s.def.name;
+    if (s.def.interaction === 'camp') return this.deps.camp.prompt(s);
     if (s.def.interaction === 'fire') {
       const cooking = this.deps.cooking;
       const n = cooking.cookingCount(s);
@@ -401,7 +404,8 @@ export class InteractionSystem {
       }
       case 'structure': {
         const s = target.structure;
-        if (s.def.interaction === 'fire') {
+        if (s.def.interaction === 'camp') this.deps.camp.interact(s);
+        else if (s.def.interaction === 'fire') {
           const action = this.fireAction(s);
           if (action === 'take') this.deps.cooking.take(s);
           else if (action === 'cook') {

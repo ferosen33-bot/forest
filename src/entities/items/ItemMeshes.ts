@@ -37,6 +37,9 @@ const MATERIALS = {
   water: mat(0x3d6f86, { roughness: 0.1, metalness: 0.1, flatShading: false }),
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
+  jerky: mat(0x4a2216, { roughness: 0.7 }),
+  stewBit: mat(0x9a7a44, { roughness: 0.6 }),
+  stew: mat(0x6a4426, { roughness: 0.35, flatShading: false }),
   bone: mat(0xe6dcc6, { roughness: 0.7 }),
   /** Vergilbter, verschmierter Knochen für Waffen. */
   oldBone: new THREE.MeshStandardMaterial({ color: 0xb8a684, roughness: 0.75 }),
@@ -516,6 +519,32 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'jerky': {
+      // Drei dunkle, verdrehte Fleischstreifen.
+      for (let i = 0; i < 3; i++) {
+        const strip = new THREE.Mesh(jitter(new THREE.BoxGeometry(0.05, 0.012, 0.2, 1, 1, 3), 0.006, 90 + i), MATERIALS.jerky);
+        strip.position.set((i - 1) * 0.045, i * 0.008, (i - 1) * 0.015);
+        strip.rotation.set(0, (i - 1) * 0.25, (i - 1) * 0.2);
+        g.add(strip);
+      }
+      break;
+    }
+    case 'stew': {
+      const profile = [
+        [0.0, -0.04], [0.07, -0.04], [0.11, -0.01], [0.13, 0.04], [0.12, 0.045], [0.1, 0.0], [0.06, -0.025], [0.0, -0.025],
+      ].map(([x, y]) => new THREE.Vector2(x, y));
+      g.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 10), MATERIALS.lightWood));
+      const surface = new THREE.Mesh(new THREE.CircleGeometry(0.108, 12), MATERIALS.stew);
+      surface.rotation.x = -Math.PI / 2;
+      surface.position.y = 0.028;
+      g.add(surface);
+      for (let i = 0; i < 4; i++) {
+        const bit = new THREE.Mesh(new THREE.IcosahedronGeometry(0.018, 0), i % 2 ? MATERIALS.cookedMeat : MATERIALS.stewBit);
+        bit.position.set(Math.cos(i * 1.7) * 0.05, 0.032, Math.sin(i * 1.7) * 0.05);
+        g.add(bit);
+      }
+      break;
+    }
     case 'boneArmor': {
       const fur = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.4), MATERIALS.fur);
       g.add(fur);
@@ -693,6 +722,10 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.28, 0.045).setDensity(900);
     case 'fireArrow':
       return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
+    case 'jerky':
+      return RAPIER.ColliderDesc.cuboid(0.08, 0.02, 0.1).setDensity(700);
+    case 'stew':
+      return RAPIER.ColliderDesc.cylinder(0.045, 0.12).setDensity(800);
     case 'boneArmor':
       return RAPIER.ColliderDesc.cuboid(0.17, 0.04, 0.2).setDensity(700);
     case 'documents':

@@ -39,6 +39,7 @@ export type GameEvents = {
   'player:slept': Record<string, never>;
   'camp:discovered': { index: number };
   'food:cooked': { count: number };
+  'crop:harvested': { item: ItemId };
   /** Höhle betreten (`first`: zum ersten Mal), Vorratskiste geöffnet. */
   'cave:entered': { index: number; first: boolean };
   'cave:crate': { index: number };
