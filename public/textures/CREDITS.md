@@ -2,6 +2,8 @@
 
 Alle Texturen stammen von [Poly Haven](https://polyhaven.com) und stehen unter **CC0** (gemeinfrei).
 Für das Spiel auf 1024 px (Farbe) verkleinert; Normalen im OpenGL-Format.
+Die `_m.jpg`-Dateien (512 px) packen je Oberfläche drei Karten derselben Quelle: Rot = Rauheit, Grün = Umgebungs-
+verdeckung (AO), Blau = Höhe (Displacement, auf den vollen Wertebereich gestreckt).
 
 | Datei | Textur | Fotografiert von |
 |---|---|---|

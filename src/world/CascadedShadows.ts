@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CSM } from 'three/examples/jsm/csm/CSM.js';
 import * as CSMShaderModule from 'three/examples/jsm/csm/CSMShader.js';
 import type { CSMShader as CSMShaderChunks } from 'three/examples/jsm/csm/CSMShader.js';
+import { CLOUD_GLSL, cloudUniforms } from './SkyDome';
 
 // Die Typen beschreiben `CSMShader` nur als Interface; zur Laufzeit ist es ein Objekt mit den Bausteinen.
 const CSMShader = (CSMShaderModule as unknown as { CSMShader: CSMShaderChunks }).CSMShader;
@@ -20,15 +21,37 @@ function cascadeChunks(): { fragment: string; pars: string } {
   const csmStart = csm.indexOf('#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct ) && defined( USE_CSM )');
   const csmEnd = csm.indexOf('#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct ) && !defined( USE_CSM )', csmStart);
   if (dirStart < 0 || dirEnd < 0 || csmStart < 0 || csmEnd < 0) throw new Error('Kaskadenschatten: Shader-Bausteine von three.js haben sich geändert.');
+  // Wolkenschatten: Wo zwischen Punkt und Sonne eine Wolke hängt, kommt weniger Sonnenlicht an.
+  const csmBlock = csm
+    .slice(csmStart, csmEnd)
+    .replace(
+      'float linearDepth = (vViewPosition.z) / (shadowFar - cameraNear);',
+      `float linearDepth = (vViewPosition.z) / (shadowFar - cameraNear);
+	float csmCloudShadow = 1.0;
+	if ( uClouds > 0.02 && NUM_DIR_LIGHTS > 0 ) {
+		vec3 csmWorld = ( uInvView * vec4( geometryPosition, 1.0 ) ).xyz;
+		vec3 csmSun = normalize( mat3( uInvView ) * directionalLights[ 0 ].direction );
+		if ( csmSun.y > 0.05 ) {
+			vec3 csmCloud = csmWorld + csmSun * ( ( CLOUD_BOTTOM + 450.0 - csmWorld.y ) / csmSun.y );
+			float csmD = cloudDensity( csmCloud, 0.0 ) + cloudDensity( csmCloud + csmSun * 500.0, 0.0 );
+			// Bei geschlossener Decke dunkelt das Wetter das Licht schon ab – dann keine Flecken mehr.
+			csmCloudShadow = 1.0 - smoothstep( 0.05, 0.9, csmD ) * 0.72 * ( 1.0 - smoothstep( 0.75, 1.0, uClouds ) );
+		}
+	}`,
+    )
+    .split('getDirectionalLightInfo( directionalLight, directLight );')
+    .join('getDirectionalLightInfo( directionalLight, directLight );\n\t\t\tdirectLight.color *= csmCloudShadow;');
   const fragment =
     ORIGINAL_FRAGMENT.slice(0, dirStart) +
-    csm.slice(csmStart, csmEnd) +
+    csmBlock +
     '\n#if !defined( USE_CSM )\n' +
     ORIGINAL_FRAGMENT.slice(dirStart, dirEnd) +
     '\n#endif\n' +
     ORIGINAL_FRAGMENT.slice(dirEnd);
   const pars =
-    '#if defined( USE_CSM ) && defined( CSM_CASCADES )\nuniform vec2 CSM_cascades[CSM_CASCADES];\nuniform float cameraNear;\nuniform float shadowFar;\n#endif\n' +
+    '#if defined( USE_CSM ) && defined( CSM_CASCADES )\nuniform vec2 CSM_cascades[CSM_CASCADES];\nuniform float cameraNear;\nuniform float shadowFar;\nuniform mat4 uInvView;\n' +
+    CLOUD_GLSL +
+    '\n#endif\n' +
     ORIGINAL_PARS;
   return { fragment, pars };
 }
@@ -58,6 +81,8 @@ export class CascadedShadows {
     cascades: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
     near: { value: 0.1 },
     far: { value: SHADOW_FAR },
+    /** Kamera → Welt (für die Wolkenschatten); dieselbe Matrix wie `camera.matrixWorld`. */
+    invView: { value: new THREE.Matrix4() },
   };
   private readonly dir = new THREE.Vector3();
   private readonly lens = { fov: 0, aspect: 0, far: 0 };
@@ -67,6 +92,7 @@ export class CascadedShadows {
     private readonly camera: THREE.PerspectiveCamera,
     mapSize: number,
   ) {
+    this.uniforms.invView.value = camera.matrixWorld;
     this.csm = new CSM({
       camera,
       parent: scene,
@@ -159,6 +185,10 @@ export class CascadedShadows {
           shader.uniforms.CSM_cascades = u.cascades;
           shader.uniforms.cameraNear = u.near;
           shader.uniforms.shadowFar = u.far;
+          shader.uniforms.uInvView = u.invView;
+          shader.uniforms.tCloudNoise = cloudUniforms.tCloudNoise;
+          shader.uniforms.uClouds = cloudUniforms.uClouds;
+          shader.uniforms.uCloudOffset = cloudUniforms.uCloudOffset;
         };
         this.customProgramCacheKey = () => `${key}|csm`;
         this.needsUpdate = true;

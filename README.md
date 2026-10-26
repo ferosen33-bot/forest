@@ -61,6 +61,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 48 – Grafik wie aus einem Guss (Teil 2: Materialien & Himmel)
+
+- **Volumetrische Wolken:** Statt einer flachen Wolkenschicht läuft der Himmels-Shader per Raymarching durch eine
+  echte Wolkenschicht (1,5–3,2 km Höhe). Grundlage ist eine kachelbare 3D-Rauschtextur (Perlin-Worley, beim Start
+  berechnet). Sonnen- und Mondlicht wird nach Beer-Lambert durch die Wolken gedämpft. Dazu kommen
+  Henyey-Greenstein-Streuung (Silberrand an der Sonne) und Pulver-Effekt, die Unterseiten sind dunkel und die
+  Kuppen hell. Die Wolken liegen fest in der Welt und ziehen mit dem Wind; der Bedeckungsgrad folgt dem Wetter.
+- **Wolkenschatten:** Dieselben Wolken dunkeln das Sonnenlicht am Boden ab. Ihre Schatten ziehen über Wald und
+  Hänge (eingebaut in die Kaskaden-Beleuchtung, gilt für alle beleuchteten Materialien).
+- **PBR aus Fotos:** Alle Foto-Oberflächen bekommen Rauheit, Umgebungsverdeckung (AO) und Höhe aus Poly-Haven-
+  Karten (`*_m.jpg`). Ritzen bekommen weniger Himmelslicht, Putz und Rinde glänzen anders als Sand und Laub.
+- **Mischen nach Höhe im Gelände:** Steine ragen aus Sand und Laub heraus, statt mit ihnen zu verschwimmen.
+- **Nässe:** Bei und nach Regen werden Boden, Fels, Rinde und Häuser dunkler und glänzend. Auf ebenem Boden stehen
+  in Senken Pfützen, die den Himmel spiegeln. Nach dem Regen trocknet alles langsam ab.
+- Der Himmel wird jetzt nach der undurchsichtigen Geometrie gezeichnet. Für verdeckte Himmelspixel rechnet der
+  Wolken-Shader dann gar nicht erst.
+
 ### Meilenstein 48 – Grafik wie aus einem Guss (Teil 1: Schatten & Kantenglättung)
 
 - **Kaskadierte Sonnenschatten:** Statt einer Schattenkarte mit 60 m Reichweite gibt es jetzt drei: scharf bis

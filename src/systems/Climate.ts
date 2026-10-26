@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceUniforms } from '../world/SurfaceTextures';
 import type { EventBus } from '../core/EventBus';
 import type { Physics } from '../core/Physics';
 import type { Player } from '../entities/Player';
@@ -139,9 +140,8 @@ export class Climate {
 
     // Boden wird nass und dunkel, trocknet langsamer, als er nass wird.
     this.groundWet += clamp(w.rain - this.groundWet, -dt / 240, dt / 50);
-    const terrain = this.d.world.terrain.material;
-    terrain.color.setScalar(1 - 0.24 * this.groundWet);
-    terrain.roughness = 0.96 - 0.3 * this.groundWet;
+    // Dunkel, glänzend und Pfützen übernimmt der Oberflächen-Shader (gilt für Gelände, Felsen, Rinde, Häuser).
+    surfaceUniforms.uSurfWet.value = f.underground ? 0 : this.groundWet * (1 - this.season.snowfall);
 
     this.d.world.vegetation.setWind(w.wind);
     this.d.world.grass?.setWind(w.wind);

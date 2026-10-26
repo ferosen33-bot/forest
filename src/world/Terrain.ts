@@ -43,6 +43,12 @@ const mixSplat = (w: Splat, to: Splat, t: number): void => {
 /** Foto-Texturen im Gelände: Waldboden und Matsch eben projiziert, Fels dreiachsig, Sand am Strand. */
 const TERRAIN_SURFACE = /* glsl */ `
 vec4 sw = vSplat / max(1e-3, dot(vSplat, vec4(1.0)));
+// Übergänge nach Höhe: Steine ragen aus Sand und Laub heraus, statt mit ihnen zu verschwimmen.
+sw = surfHeightBlend(sw, vec4(
+  surfHeightPlanar(${surfaceLayer('forestFloor')}, surfP),
+  surfHeightPlanar(${surfaceLayer('mud')}, surfP),
+  surfHeightTriplanar(${surfaceLayer('rockFace')}, surfP, surfGeo),
+  surfHeightPlanar(${surfaceLayer('sand')}, surfP)));
 vec3 sd = vec3(0.0);
 sd += sw.x * surfPlanar(${surfaceLayer('forestFloor')}, surfP, surfN, sw.x);
 sd += sw.y * surfPlanar(${surfaceLayer('mud')}, surfP, surfN, sw.y);
