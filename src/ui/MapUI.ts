@@ -1,4 +1,5 @@
 import type { HeightMap } from '../world/HeightMap';
+import type { PlaceKind } from '../world/Places';
 import type { Vegetation } from '../world/Vegetation';
 import { isTree } from '../world/Vegetation';
 import type { Exploration } from '../systems/Exploration';
@@ -19,7 +20,7 @@ export interface MapMarkers {
   /** Leuchtturm der Überlebenden (sobald gefunden). */
   harbor?: { x: number; z: number } | null;
   /** Entdeckte besondere Orte (mit Namen). */
-  places?: { x: number; z: number; name: string; kind: 'crash' | 'mine' | 'hut' | 'radio' }[];
+  places?: { x: number; z: number; name: string; kind: PlaceKind }[];
 }
 
 const RES = 512;
@@ -317,7 +318,7 @@ export class MapUI {
     // Besondere Orte: Raute mit Namen
     for (const pl of m.places ?? []) {
       const [x, y] = this.px(pl.x, pl.z);
-      const color = { crash: '#d9d6cc', mine: '#8a7a62', hut: '#6f8048', radio: '#c2463a' }[pl.kind];
+      const color = { crash: '#d9d6cc', mine: '#8a7a62', hut: '#6f8048', radio: '#c2463a', ferry: '#4a6a8a', chapel: '#e6dcc4', lab: '#7ab8b0', stones: '#9a8a7a' }[pl.kind];
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#1a1612';
       ctx.fillStyle = color;

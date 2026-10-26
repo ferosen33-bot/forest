@@ -25,9 +25,14 @@ describe('Gebiete und Orte der großen Insel', () => {
     expect(cliffs).toBeGreaterThan(50);
   });
 
-  it('findet alle vier Orte an passenden Stellen', () => {
+  it('findet alle Orte an passenden Stellen', () => {
     const kinds = sites.map((s) => s.kind).sort();
-    expect(kinds).toEqual(['crash', 'hut', 'mine', 'radio']);
+    expect(kinds).toEqual(['chapel', 'crash', 'ferry', 'hut', 'lab', 'mine', 'radio', 'stones']);
+    // Fähre im flachen Wasser, Labor hoch im Gebirge, Steinkreis auf einer Kuppe.
+    const ferry = sites.find((s) => s.kind === 'ferry')!;
+    expect(hm.heightAt(ferry.position.x, ferry.position.z)).toBeLessThan(hm.waterLevel - 1);
+    expect(Math.hypot(ferry.position.x, ferry.position.z) / hm.half).toBeGreaterThan(0.6);
+    expect(sites.find((s) => s.kind === 'lab')!.position.y).toBeGreaterThan(50);
     const at = (k: string) => sites.find((s) => s.kind === k)!;
     // Hütte steht im Wasser, der Steg führt zu festem Ufer.
     const hut = at('hut');

@@ -27,6 +27,7 @@ export type Trigger =
   | { on: 'harbor' }
   | { on: 'place'; kind?: string }
   | { on: 'biome'; name?: string }
+  | { on: 'ending' }
   | { on: 'npc' }
   | { on: 'quest' }
   | { on: 'day'; day: number };
@@ -130,7 +131,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 15 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 22 },
     ],
   },
   {
@@ -155,6 +156,20 @@ export const CHAPTERS: Chapter[] = [
       { id: 'hut', text: 'Die Hütte im Moor finden', trigger: { on: 'place', kind: 'hut' } },
       { id: 'radio', text: 'Die Funkstation erreichen', trigger: { on: 'place', kind: 'radio' } },
       { id: 'radio3', text: 'Das letzte Funkprotokoll der Station lesen', trigger: { on: 'note', id: 'funk3' } },
+    ],
+  },
+  {
+    title: 'Heimweg',
+    intro: 'Jemand hat gewusst, was im Stollen geschah. Mit dem richtigen Beweis lässt das Festland vielleicht doch jemanden heim.',
+    objectives: [
+      { id: 'chapel', text: 'Die Kapelle am Waldrand finden', trigger: { on: 'place', kind: 'chapel' } },
+      { id: 'stones', text: 'Den Steinkreis der Schrate finden', trigger: { on: 'place', kind: 'stones' } },
+      { id: 'lab', text: 'Das Labor Nordwand erreichen', trigger: { on: 'place', kind: 'lab' } },
+      { id: 'documents', text: 'Die Forschungsakte an dich nehmen', trigger: { on: 'collect', item: 'documents' } },
+      { id: 'mainland', text: 'Das Festland per Funk rufen', trigger: { on: 'note', id: 'funkspruch' } },
+      { id: 'ferry', text: 'Das Wrack der Fähre finden', trigger: { on: 'place', kind: 'ferry' } },
+      { id: 'anne', text: 'Annes Brief an Mia finden', trigger: { on: 'note', id: 'anne' } },
+      { id: 'depart', text: 'Mit der Möwe ablegen', trigger: { on: 'ending' } },
     ],
   },
 ];
@@ -209,6 +224,7 @@ export class Journal {
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));
     events.on('harbor:found', () => this.advance((t) => t.on === 'harbor'));
     events.on('place:discovered', ({ kind }) => this.advance((t) => t.on === 'place' && (!t.kind || t.kind === kind)));
+    events.on('story:ended', () => this.advance((t) => t.on === 'ending'));
     events.on('biome:entered', ({ name }) => this.advance((t) => t.on === 'biome' && (!t.name || t.name === name)));
     events.on('npc:met', () => this.advance((t) => t.on === 'npc'));
     events.on('quest:completed', () => this.advance((t) => t.on === 'quest'));

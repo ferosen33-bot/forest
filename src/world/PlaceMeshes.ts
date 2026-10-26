@@ -12,7 +12,7 @@ import { deriveSeed, mulberry32 } from '../utils/random';
  * des Ortes); `systems/Places` setzt es in die Welt und erzeugt Kollision, Behälter und Notizen.
  */
 
-export type PlaceLootKind = 'suitcase' | 'cockpit' | 'medbox' | 'locker' | 'toolbox' | 'crate' | 'chest' | 'shelf' | 'desk';
+export type PlaceLootKind = 'suitcase' | 'cockpit' | 'medbox' | 'locker' | 'toolbox' | 'crate' | 'chest' | 'shelf' | 'desk' | 'spares' | 'safe' | 'sacristy';
 
 export const PLACE_LOOT_LABELS: Record<PlaceLootKind, string> = {
   suitcase: 'Koffer',
@@ -24,6 +24,9 @@ export const PLACE_LOOT_LABELS: Record<PlaceLootKind, string> = {
   chest: 'Truhe',
   shelf: 'Regal',
   desk: 'Schreibtisch',
+  spares: 'Ersatzteilkiste',
+  safe: 'Tresor',
+  sacristy: 'Sakristeischrank',
 };
 
 export interface PlaceCollider {
@@ -39,8 +42,8 @@ export interface PlaceLight {
   color: THREE.Color;
   intensity: number;
   distance: number;
-  /** Laterne (flackert leicht, nur nachts), Warnlicht (blinkt), Glut (Feuer). */
-  mode: 'lamp' | 'blink' | 'fire';
+  /** Laterne (flackert leicht, nur nachts), Warnlicht (blinkt), Glut (Feuer), Leuchtröhre (immer an, setzt aus). */
+  mode: 'lamp' | 'blink' | 'fire' | 'flicker';
 }
 
 export interface PlaceModel {
@@ -53,6 +56,8 @@ export interface PlaceModel {
   fires: { position: THREE.Vector3; size: number }[];
   /** Blinkende Warnlampe (Mesh mit leuchtendem Material). */
   beacons: THREE.Mesh[];
+  /** Benutzbare Dinge (Funkgerät …). */
+  uses: { id: string; position: THREE.Vector3 }[];
 }
 
 /** Brandfleck: dunkel in der Mitte, zum Rand hin ausgefranst. */
@@ -112,13 +117,17 @@ const M = {
   lamp: new THREE.MeshStandardMaterial({ color: 0x302010, emissive: new THREE.Color(1, 0.62, 0.28), emissiveIntensity: 3 }),
   beacon: new THREE.MeshStandardMaterial({ color: 0x300000, emissive: new THREE.Color(1, 0.08, 0.05), emissiveIntensity: 0 }),
 };
+const PAPER = std(0xe6dfcc, { side: THREE.DoubleSide });
 const SUITCASE_COLORS = [0x2d3c55, 0x6b2a24, 0x2b2b2b, 0x56603a, 0x7a6248].map((c) => std(c, { roughness: 0.7 }));
 
 /** Sammelt Meshes und Kollider eines Ortes. */
 class Builder {
   readonly group = new THREE.Group();
   readonly model: PlaceModel;
+  /** Optionaler Rahmen (z. B. das schräg liegende Schiff): alle folgenden Teile liegen darin. */
+  private frame: THREE.Matrix4 | null = null;
   private readonly e = new THREE.Euler();
+  private readonly m4 = new THREE.Matrix4();
 
   constructor(
     name: string,
@@ -126,13 +135,35 @@ class Builder {
     readonly ground: (x: number, z: number) => number,
   ) {
     this.group.name = name;
-    this.model = { group: this.group, colliders: [], containers: [], notes: [], lights: [], fires: [], beacons: [] };
+    this.model = { group: this.group, colliders: [], containers: [], notes: [], lights: [], fires: [], beacons: [], uses: [] };
+  }
+
+  /** Folgende Teile in einem gedrehten/verschobenen Rahmen bauen (null = wieder im Ortsraum). */
+  setFrame(pos: [number, number, number] | null, rot: [number, number, number] = [0, 0, 0]): void {
+    this.frame = pos ? new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1)) : null;
+  }
+
+  /** Lage im Ortsraum (Rahmen angewandt). */
+  private xf(pos: [number, number, number], rot: [number, number, number]): { p: THREE.Vector3; q: THREE.Quaternion } {
+    const p = new THREE.Vector3(...pos);
+    const q = new THREE.Quaternion().setFromEuler(this.e.set(...rot));
+    if (this.frame) {
+      this.m4.compose(p, q, new THREE.Vector3(1, 1, 1)).premultiply(this.frame);
+      this.m4.decompose(p, q, new THREE.Vector3());
+    }
+    return { p, q };
+  }
+
+  private point(pos: [number, number, number]): THREE.Vector3 {
+    const p = new THREE.Vector3(...pos);
+    return this.frame ? p.applyMatrix4(this.frame) : p;
   }
 
   add(geo: THREE.BufferGeometry, mat: THREE.Material, pos: [number, number, number], rot: [number, number, number] = [0, 0, 0], shadow = true): THREE.Mesh {
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(...pos);
-    m.rotation.set(...rot);
+    const { p, q } = this.xf(pos, rot);
+    m.position.copy(p);
+    m.quaternion.copy(q);
     m.castShadow = shadow;
     m.receiveShadow = true;
     this.group.add(m);
@@ -157,26 +188,27 @@ class Builder {
   }
 
   collider(half: [number, number, number], pos: [number, number, number], rot: [number, number, number] = [0, 0, 0], nav = true): void {
-    this.model.colliders.push({
-      half: new THREE.Vector3(...half),
-      position: new THREE.Vector3(...pos),
-      quaternion: new THREE.Quaternion().setFromEuler(this.e.set(...rot)),
-      nav,
-    });
+    const { p, q } = this.xf(pos, rot);
+    this.model.colliders.push({ half: new THREE.Vector3(...half), position: p, quaternion: q, nav });
   }
 
   container(kind: PlaceLootKind, pos: [number, number, number]): void {
-    this.model.containers.push({ kind, position: new THREE.Vector3(...pos) });
+    this.model.containers.push({ kind, position: this.point(pos) });
   }
 
   note(id: string, pos: [number, number, number], rotY = 0): void {
     // Ein Blatt Papier, leicht schräg.
-    this.add(new THREE.PlaneGeometry(0.21, 0.28), std(0xe6dfcc, { side: THREE.DoubleSide }), [pos[0], pos[1] + 0.005, pos[2]], [-Math.PI / 2, 0, rotY], false);
-    this.model.notes.push({ id, position: new THREE.Vector3(...pos) });
+    this.add(new THREE.PlaneGeometry(0.21, 0.28), PAPER, [pos[0], pos[1] + 0.005, pos[2]], [-Math.PI / 2, 0, rotY], false);
+    this.model.notes.push({ id, position: this.point(pos) });
+  }
+
+  /** Etwas, das man benutzen kann (Funkgerät …). */
+  use(id: string, pos: [number, number, number]): void {
+    this.model.uses.push({ id, position: this.point(pos) });
   }
 
   light(pos: [number, number, number], color: number, intensity: number, distance: number, mode: PlaceLight['mode']): void {
-    this.model.lights.push({ position: new THREE.Vector3(...pos), color: new THREE.Color(color), intensity, distance, mode });
+    this.model.lights.push({ position: this.point(pos), color: new THREE.Color(color), intensity, distance, mode });
   }
 
   /** Laterne an einem Haken: Glaskörper leuchtet, dazu ein Licht. */
@@ -184,6 +216,11 @@ class Builder {
     this.add(new THREE.CylinderGeometry(0.07, 0.08, 0.2, 8), M.lamp, pos, [0, 0, 0], false);
     this.add(new THREE.ConeGeometry(0.1, 0.08, 8), M.metal, [pos[0], pos[1] + 0.14, pos[2]], [0, 0, 0], false);
     this.light([pos[0], pos[1] - 0.05, pos[2]], 0xffa04a, 6, 14, 'lamp');
+  }
+
+  fire(pos: [number, number, number], size: number): void {
+    this.model.fires.push({ position: this.point(pos), size });
+    this.light([pos[0], pos[1] + 0.5, pos[2]], 0xff7a2a, 9 * size + 3, 12, 'fire');
   }
 }
 
@@ -498,6 +535,7 @@ function buildRadio(b: Builder): void {
   b.box(std(0x3a3d36, { roughness: 0.5 }), [0.7, 0.4, 0.45], [bx - 0.4, y + 1.1, bz + 1.5], [0, 0, 0], false);
   b.box(std(0x2a2a2a, { roughness: 0.4 }), [0.5, 0.3, 0.35], [bx - 1.3, y + 1.03, bz + 1.55], [0, 0.1, 0], false);
   b.note('funk3', [bx - 0.9, y + 0.89, bz + 1.15], -0.2);
+  b.use('transmitter', [bx - 0.4, y + 1.1, bz + 1.5]);
   b.box(M.metal, [0.6, 1.8, 0.5], [bx + 2.0, y + 0.95, bz + 1.5]);
   b.container('locker', [bx + 2.0, y + 1.2, bz + 1.25]);
   b.lantern([bx - 0.2, y + 2.4, bz - D / 2 - 0.3]);
@@ -530,6 +568,358 @@ function buildRadio(b: Builder): void {
   b.container('crate', [bx + 4, g(bx + 4, -3) + 1.0, -3]);
 }
 
+// ---------------------------------------------------------------------------
+// Gemeinsames für die späteren Orte
+// ---------------------------------------------------------------------------
+
+/** Schriftzug auf transparentem Grund (Schiffsname, Landeplatz-H). */
+function textTexture(text: string, color: string, w = 512, h = 128, font = 'bold 84px serif'): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d')!;
+  g.fillStyle = color;
+  g.font = font;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, w / 2, h / 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const L = {
+  shipHull: std(0x1f2a33, { roughness: 0.7, metalness: 0.25 }),
+  shipBand: std(0xd8d3c6, { roughness: 0.7 }),
+  shipRust: std(0x5e2f1c, { roughness: 0.95 }),
+  deck: texturize(std(0x6f6150), 'planks', 0.5),
+  white: std(0xd2cec2, { roughness: 0.65 }),
+  funnel: std(0x26292c, { roughness: 0.6 }),
+  stone: texturize(seasonal(std(0x8f8a80), 0.1), 'mossyRock', 0.45),
+  wallStone: texturize(seasonal(std(0xb3ada0)), 'plaster', 0.4),
+  slate: seasonal(std(0x34373c, { roughness: 0.8 }), 0.2),
+  bronze: std(0x5a4424, { metalness: 0.6, roughness: 0.45 }),
+  dirt: std(0x3a2f22, { roughness: 1 }),
+  pit: std(0x050403, { roughness: 1 }),
+  wood: texturize(std(0x5b4632), 'planks', 0.45),
+  steel: std(0x6e7378, { metalness: 0.6, roughness: 0.45 }),
+  labWhite: std(0xd6d6d0, { roughness: 0.5 }),
+  jar: new THREE.MeshStandardMaterial({ color: 0x0c2a26, emissive: new THREE.Color(0.1, 0.85, 0.72), emissiveIntensity: 1.6, roughness: 0.2, transparent: true, opacity: 0.85 }),
+  glow: new THREE.MeshStandardMaterial({ color: 0x1a4a44, emissive: new THREE.Color(0.15, 0.95, 0.8), emissiveIntensity: 2.2, roughness: 0.5 }),
+  tube: new THREE.MeshStandardMaterial({ color: 0x222222, emissive: new THREE.Color(0.85, 0.95, 1), emissiveIntensity: 2.5 }),
+  candle: new THREE.MeshStandardMaterial({ color: 0xe8e0c8, emissive: new THREE.Color(1, 0.7, 0.35), emissiveIntensity: 1.2 }),
+};
+
+// ---------------------------------------------------------------------------
+// Fährenwrack
+// ---------------------------------------------------------------------------
+
+function buildFerry(b: Builder, rng: () => number): void {
+  // Das Schiff liegt auf dem Riff: Bug leicht gehoben, Schlagseite nach Steuerbord.
+  b.setFrame([0, 0, 0], [-0.04, 0, 0.13]);
+  const keel = -2.6;
+  const deckY = 1.7;
+  const H = deckY - keel;
+  // Rumpf: Grundriss mit spitzem Bug, senkrecht extrudiert.
+  const shape = new THREE.Shape();
+  const pts: [number, number][] = [[-3.4, -13], [3.4, -13], [3.5, 6], [2.4, 11], [0, 14.5], [-2.4, 11], [-3.5, 6]];
+  shape.moveTo(pts[0][0], -pts[0][1]);
+  for (const [x, z] of pts.slice(1)) shape.lineTo(x, -z);
+  shape.closePath();
+  const hull = new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false });
+  hull.rotateX(-Math.PI / 2);
+  hull.translate(0, keel, 0);
+  b.add(hull, L.shipHull, [0, 0, 0]);
+  b.collider([3.4, H / 2, 10], [0, keel + H / 2, -3]);
+  b.collider([2.2, H / 2, 3.5], [0, keel + H / 2, 10.5]);
+  // Weißer Streifen oben, Rost an der Wasserlinie
+  b.box(L.shipBand, [7.1, 0.35, 19.2], [0, deckY - 0.3, -3.5], [0, 0, 0], false);
+  b.box(L.shipRust, [7.05, 0.5, 19.1], [0, 0.1, -3.5], [0, 0, 0], false);
+  // Deck (begehbar)
+  b.box(L.deck, [6.6, 0.12, 19.5], [0, deckY + 0.06, -3.3]);
+  b.box(L.deck, [4.2, 0.12, 6], [0, deckY + 0.06, 9], [0, 0, 0], true, false);
+  // Reling
+  for (const side of [-1, 1]) {
+    b.box(L.white, [0.05, 0.05, 19], [side * 3.3, deckY + 1.0, -3.5], [0, 0, 0], false);
+    b.collider([0.05, 0.5, 9.5], [side * 3.3, deckY + 0.6, -3.5], [0, 0, 0], false);
+    for (let z = -12.5; z < 6; z += 1.6) b.box(L.white, [0.05, 1.0, 0.05], [side * 3.3, deckY + 0.5, z], [0, 0, 0], false);
+  }
+  // Schiffsname am Bug
+  const name = textTexture('ALTWASSER', '#e8e2d2');
+  for (const side of [-1, 1]) {
+    const plate = b.add(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: name, transparent: true, toneMapped: true }), [side * 3.0, deckY - 1.0, 8.5], [0, side * (Math.PI / 2 - 0.45), 0], false);
+    plate.renderOrder = 2;
+  }
+  // Brücke (hohl, Tür achtern)
+  const bz = -2;
+  const by = deckY + 0.12;
+  const W = 4.8;
+  const D = 5;
+  const Hb = 2.5;
+  b.box(L.white, [W, Hb, 0.12], [0, by + Hb / 2, bz + D / 2]);
+  b.box(L.white, [0.12, Hb, D], [-W / 2, by + Hb / 2, bz]);
+  b.box(L.white, [0.12, Hb, D], [W / 2, by + Hb / 2, bz]);
+  b.box(L.white, [1.6, Hb, 0.12], [-1.6, by + Hb / 2, bz - D / 2]);
+  b.box(L.white, [1.6, Hb, 0.12], [1.6, by + Hb / 2, bz - D / 2]);
+  b.box(L.white, [W + 0.4, 0.15, D + 0.4], [0, by + Hb + 0.07, bz]);
+  b.box(M.glass, [W - 0.4, 0.7, 0.14], [0, by + 1.7, bz + D / 2], [0, 0, 0], false);
+  for (const side of [-1, 1]) b.box(M.glass, [0.14, 0.6, 3], [side * W / 2, by + 1.7, bz], [0, 0, 0], false);
+  // Steuerstand, Kartentisch
+  b.box(M.metal, [2.4, 1.0, 0.6], [0, by + 0.5, bz + 1.9]);
+  b.add(new THREE.TorusGeometry(0.35, 0.04, 6, 16), L.wood, [0, by + 1.25, bz + 1.5], [0.4, 0, 0], false);
+  b.box(L.wood, [1.2, 0.06, 0.8], [-1.5, by + 0.85, bz - 0.6]);
+  b.note('faehre', [-1.5, by + 0.89, bz - 0.6], 0.3);
+  b.box(M.metal, [0.6, 1.8, 0.5], [1.9, by + 0.9, bz - 1.6]);
+  b.container('locker', [1.9, by + 1.1, bz - 1.35]);
+  b.lantern([0, by + Hb - 0.3, bz - D / 2 - 0.3]);
+  // Schornstein
+  b.cyl(L.funnel, 0.8, 0.9, 2.8, [0, by + Hb + 1.4, bz - 3.8], [-0.12, 0, 0], 14);
+  b.cyl(M.stripe, 0.82, 0.82, 0.4, [0, by + Hb + 2.2, bz - 3.9], [-0.12, 0, 0], 14, false);
+  // Rettungsboot an Backbord, das an Steuerbord fehlt (nur das Seil hängt).
+  b.box(L.white, [1.2, 0.7, 4], [-3.9, deckY + 1.5, -8], [0, 0, 0.1]);
+  b.box(M.stripe, [1.25, 0.15, 4.05], [-3.9, deckY + 1.75, -8], [0, 0, 0.1], false);
+  for (const z of [-9.6, -6.4]) {
+    b.box(M.metal, [0.08, 2.0, 0.08], [-3.3, deckY + 1.0, z], [0, 0, -0.3], false);
+    b.box(M.rope, [0.03, 1.8, 0.03], [3.6, deckY + 0.3, z], [0, 0, 0.05], false);
+  }
+  // Achterdeck: Bänke, Ladung, Luke zum Maschinenraum
+  b.box(L.wood, [2.4, 0.45, 0.5], [-1.5, deckY + 0.35, -7], [0, 0, 0], true, false);
+  b.note('anne', [-1.5, deckY + 0.59, -7], 1.2);
+  b.box(M.metal, [1.6, 0.5, 1.6], [1.2, deckY + 0.35, -10.5]);
+  b.box(M.rust, [1.65, 0.08, 1.65], [1.2, deckY + 0.62, -10.5], [0, 0, 0.3], false);
+  b.box(M.redPaint, [0.9, 0.5, 0.6], [2.2, deckY + 0.37, -8.8], [0, 0.3, 0], true, false);
+  b.container('spares', [2.2, deckY + 0.7, -8.8]);
+  for (let i = 0; i < 5; i++) {
+    const x = -2 + rng() * 4;
+    const z = -12.4 + rng() * 2;
+    b.box(M.oldPlanks, [0.9, 0.8, 0.9], [x, deckY + 0.5, z], [0, rng(), 0], true, false);
+  }
+  // Fallreep: Gangway vom Bug hinunter ins flache Wasser vor dem Strand.
+  b.setFrame(null);
+  const gz = 15.2;
+  const top = deckY + 0.6;
+  const footZ = 21;
+  const foot = Math.max(b.ground(0, footZ), -0.5);
+  const len = Math.hypot(footZ - gz, top - foot);
+  const slope = Math.atan2(top - foot, footZ - gz);
+  b.box(L.deck, [1.2, 0.1, len], [0, (top + foot) / 2, (gz + footZ) / 2], [slope, 0, 0]);
+  for (const side of [-0.6, 0.6]) b.box(M.rope, [0.03, 0.03, len], [side, (top + foot) / 2 + 0.7, (gz + footZ) / 2], [slope, 0, 0], false);
+}
+
+// ---------------------------------------------------------------------------
+// Kapelle mit Friedhof
+// ---------------------------------------------------------------------------
+
+function buildChapel(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const y = g(0, 0);
+  const W = 7;
+  const D = 12;
+  const H = 4.4;
+  // Schiff der Kapelle, Eingang vorn (+Z)
+  b.box(L.wallStone, [W, 0.2, D], [0, y + 0.1, 0], [0, 0, 0], true, false);
+  b.box(L.wallStone, [W, H, 0.4], [0, y + H / 2, -D / 2]);
+  for (const side of [-1, 1]) {
+    b.box(L.wallStone, [0.4, H, D], [side * W / 2, y + H / 2, 0]);
+    for (const z of [-3.5, 0, 3.5]) b.box(M.glass, [0.44, 1.8, 0.7], [side * W / 2, y + 2.6, z], [0, 0, 0], false);
+  }
+  b.box(L.wallStone, [2.7, H, 0.4], [-2.15, y + H / 2, D / 2]);
+  b.box(L.wallStone, [2.7, H, 0.4], [2.15, y + H / 2, D / 2]);
+  b.box(L.wallStone, [1.6, H - 2.7, 0.4], [0, y + 2.7 + (H - 2.7) / 2, D / 2]);
+  // Giebel und Dach
+  const gable = new THREE.Shape();
+  gable.moveTo(-W / 2, 0);
+  gable.lineTo(W / 2, 0);
+  gable.lineTo(0, 2.6);
+  gable.closePath();
+  for (const z of [-D / 2, D / 2]) {
+    const geo = new THREE.ExtrudeGeometry(gable, { depth: 0.4, bevelEnabled: false });
+    geo.translate(0, 0, -0.2);
+    b.add(geo, L.wallStone, [0, y + H, z]);
+  }
+  for (const side of [-1, 1]) b.box(L.slate, [4.6, 0.15, D + 1], [side * 1.8, y + H + 1.3, 0], [0, 0, side * -0.62]);
+  // Glockenturm hinten
+  const tz = -D / 2 - 1.6;
+  b.box(L.wallStone, [3, 8.5, 3], [0, y + 4.25, tz]);
+  b.box(M.dark, [1.2, 1.4, 3.05], [0, y + 7.4, tz], [0, 0, 0], false);
+  b.box(M.dark, [3.05, 1.4, 1.2], [0, y + 7.4, tz], [0, 0, 0], false);
+  b.add(new THREE.ConeGeometry(1.2, 1.0, 12, 1, true), L.bronze, [0, y + 7.6, tz], [0, 0, 0], false);
+  b.add(new THREE.ConeGeometry(2.4, 3.5, 4), L.slate, [0, y + 10.25, tz], [0, Math.PI / 4, 0]);
+  b.box(L.bronze, [0.08, 1.2, 0.08], [0, y + 12.5, tz], [0, 0, 0], false);
+  b.box(L.bronze, [0.6, 0.08, 0.08], [0, y + 12.7, tz], [0, 0, 0], false);
+  // Innen: Bänke, Altar mit Kerzen, Sakristeischrank
+  for (let row = 0; row < 5; row++) {
+    for (const side of [-1, 1]) {
+      const z = 3.8 - row * 1.4;
+      const fallen = rng() < 0.25;
+      b.box(L.wood, [2.3, 0.45, 0.4], [side * 1.6, y + (fallen ? 0.25 : 0.45), z], [fallen ? 1.2 : 0, (rng() - 0.5) * 0.2, 0], true, false);
+      if (!fallen) b.box(L.wood, [2.3, 0.6, 0.08], [side * 1.6, y + 0.85, z - 0.2], [0, 0, 0], false);
+    }
+  }
+  b.box(L.wallStone, [2.2, 1.0, 0.9], [0, y + 0.5, -D / 2 + 1.2]);
+  b.note('pfarrer', [0.3, y + 1.01, -D / 2 + 1.2], 0.2);
+  for (const x of [-0.8, -0.5, 0.7]) b.cyl(L.candle, 0.03, 0.03, 0.25, [x, y + 1.12, -D / 2 + 1.0], [0, 0, 0], 6, false);
+  b.light([0, y + 1.6, -D / 2 + 1.3], 0xffb060, 3, 9, 'lamp');
+  b.box(L.wood, [1.0, 2.0, 0.5], [W / 2 - 0.6, y + 1.0, -D / 2 + 1.8]);
+  b.container('sacristy', [W / 2 - 0.6, y + 1.3, -D / 2 + 2.1]);
+  // Friedhof rechts der Kapelle (+X), drei Gräber offen
+  const fx = 9;
+  let open = 0;
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      const x = fx + c * 2.2 + (rng() - 0.5) * 0.3;
+      const z = -4.5 + r * 3 + (rng() - 0.5) * 0.3;
+      const gy = g(x, z);
+      const isOpen = (r * 4 + c) % 5 === 2 && open < 3;
+      if (isOpen) {
+        open++;
+        b.box(L.pit, [0.9, 0.05, 1.9], [x, gy + 0.03, z], [0, 0, 0], false);
+        b.add(new THREE.SphereGeometry(0.7, 7, 5), L.dirt, [x + 1.0, gy, z], [0, rng(), 0]).scale.set(0.8, 0.45, 1.3);
+        b.box(L.wood, [0.6, 0.05, 1.8], [x - 0.9, gy + 0.3, z + 0.2], [0.2, 0.3, 1.1], false);
+      } else {
+        b.box(L.dirt, [0.9, 0.18, 1.9], [x, gy + 0.05, z], [0, 0, 0], false);
+      }
+      if (rng() < 0.55) {
+        b.box(L.wood, [0.1, 1.0, 0.1], [x, gy + 0.5, z - 1.0], [(rng() - 0.5) * 0.3, 0, (rng() - 0.5) * 0.3], false);
+        b.box(L.wood, [0.55, 0.09, 0.09], [x, gy + 0.75, z - 1.0], [0, 0, 0], false);
+      } else {
+        b.box(L.stone, [0.7, 0.85, 0.18], [x, gy + 0.4, z - 1.0], [(rng() - 0.5) * 0.2, 0, (rng() - 0.5) * 0.25], true, false);
+      }
+    }
+  }
+  // Friedhofsmauer (niedrig) mit Lücke zur Kapelle
+  for (const [x, z, w, d] of [[fx + 3.3, -6.6, 9.6, 0.4], [fx + 3.3, 7.1, 9.6, 0.4], [fx + 8.3, 0.25, 0.4, 13.7]] as const) {
+    b.box(L.stone, [w, 0.9, d], [x, g(x, z) + 0.45, z]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Labor Nordwand
+// ---------------------------------------------------------------------------
+
+function buildLab(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const y = g(0, 0);
+  const W = 10;
+  const D = 7;
+  const H = 3.2;
+  // Betonbau, Eingang vorn (+Z)
+  b.box(M.concrete, [W + 0.4, 0.25, D + 0.4], [0, y + 0.12, 0], [0, 0, 0], true, false);
+  b.box(M.concrete, [W, H, 0.25], [0, y + H / 2, -D / 2]);
+  b.box(M.concrete, [0.25, H, D], [-W / 2, y + H / 2, 0]);
+  b.box(M.concrete, [0.25, H, D], [W / 2, y + H / 2, 0]);
+  b.box(M.concrete, [4.2, H, 0.25], [-2.9, y + H / 2, D / 2]);
+  b.box(M.concrete, [4.2, H, 0.25], [2.9, y + H / 2, D / 2]);
+  b.box(M.concrete, [1.6, 0.8, 0.25], [0, y + H - 0.4, D / 2]);
+  for (const x of [-3, 3]) b.box(M.glass, [1.8, 0.8, 0.28], [x, y + 1.9, D / 2], [0, 0, 0], false);
+  b.box(M.concrete, [W + 0.5, 0.25, D + 0.5], [0, y + H + 0.12, 0]);
+  // Dach: Lüfter, Antenne, Schüssel
+  b.cyl(L.steel, 0.35, 0.35, 0.8, [-3, y + H + 0.6, -1.5], [0, 0, 0], 10);
+  b.cyl(L.steel, 0.35, 0.35, 0.8, [-1.8, y + H + 0.6, -1.5], [0, 0, 0], 10);
+  b.box(M.metal, [0.08, 5, 0.08], [3.8, y + H + 2.5, -2.5], [0, 0, 0], false);
+  b.add(new THREE.SphereGeometry(0.9, 14, 8, 0, Math.PI * 2, 0, 0.9), L.labWhite, [2.2, y + H + 0.9, -2], [-0.9, 0.6, 0]);
+  // Innen: Labortische mit leuchtenden Probengläsern, Kühltruhe, Schreibtisch, Tresor, Spind
+  for (const x of [-2.5, 1.5]) {
+    b.box(L.labWhite, [3, 0.9, 1], [x, y + 0.45 + 0.12, -0.5]);
+    for (let i = 0; i < 5; i++) {
+      const jx = x - 1.2 + i * 0.6 + (rng() - 0.5) * 0.1;
+      b.cyl(L.jar, 0.09, 0.09, 0.26 + rng() * 0.1, [jx, y + 1.17, -0.5 + (rng() - 0.5) * 0.4], [0, 0, 0], 10, false);
+    }
+  }
+  b.light([-0.5, y + 1.5, -0.5], 0x40ffd8, 4, 8, 'flicker');
+  b.note('labor1', [1.0, y + 1.04, -0.2], 0.4);
+  b.box(L.labWhite, [1.8, 0.9, 0.8], [-3.8, y + 0.57, -2.8]);
+  b.box(L.wood, [1.6, 0.06, 0.8], [3.6, y + 0.85, -2.6]);
+  b.box(M.metal, [1.6, 0.8, 0.7], [3.6, y + 0.45, -2.6], [0, 0, 0], true, false);
+  b.note('labor2', [3.4, y + 0.89, -2.6], -0.3);
+  b.box(M.dark, [0.8, 0.9, 0.7], [4.4, y + 0.57, 2.6]);
+  b.box(L.steel, [0.05, 0.25, 0.25], [4.0, y + 0.65, 2.6], [0, 0, 0], false);
+  b.container('safe', [4.1, y + 0.8, 2.6]);
+  b.box(M.metal, [0.6, 1.8, 0.5], [-4.4, y + 1.02, 2.4]);
+  b.container('locker', [-4.15, y + 1.2, 2.4]);
+  // Leuchtröhre an der Decke
+  b.box(L.tube, [1.6, 0.06, 0.12], [0, y + H - 0.1, 0], [0, 0, 0], false);
+  b.light([0, y + H - 0.4, 0.5], 0xdfeeff, 5, 12, 'flicker');
+  // Landeplatz vor dem Gebäude
+  const px = 0;
+  const pz = 11;
+  b.box(M.concrete, [8, 0.15, 8], [px, g(px, pz) + 0.08, pz], [0, 0, 0], true, false);
+  const hTex = textTexture('H', '#e8e4d8', 256, 256, 'bold 220px sans-serif');
+  const hPlate = b.add(new THREE.PlaneGeometry(5, 5), new THREE.MeshStandardMaterial({ map: hTex, transparent: true, roughness: 0.9 }), [px, g(px, pz) + 0.17, pz], [-Math.PI / 2, 0, 0], false);
+  hPlate.renderOrder = 1;
+  // Zaun mit Tor
+  const F = 15;
+  for (let i = -F; i <= F; i += 3) {
+    for (const [x, z] of [[i, -F], [-F, i], [F, i]] as [number, number][]) b.box(M.metal, [0.08, 2.0, 0.08], [x, g(x, z) + 1.0, z], [0, 0, 0], false);
+  }
+  for (const [ax, az, cx, cz] of [[-F, -F, F, -F], [-F, -F, -F, F], [F, -F, F, F]] as const) {
+    const len = Math.hypot(cx - ax, cz - az);
+    const yaw = Math.atan2(cx - ax, cz - az);
+    for (const h of [0.6, 1.2, 1.9]) b.box(M.metal, [0.015, 0.015, len], [(ax + cx) / 2, (g(ax, az) + g(cx, cz)) / 2 + h, (az + cz) / 2], [0, yaw, 0], false);
+    b.collider([0.05, 1.0, len / 2], [(ax + cx) / 2, (g(ax, az) + g(cx, cz)) / 2 + 1.0, (az + cz) / 2], [0, yaw, 0]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Steinkreis
+// ---------------------------------------------------------------------------
+
+function buildStones(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const R = 7;
+  const N = 9;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.15;
+    const x = Math.cos(a) * R;
+    const z = Math.sin(a) * R;
+    const h = 2.2 + rng() * 1.6;
+    const fallen = i === 4;
+    if (fallen) b.box(L.stone, [1.0, 0.6, h], [x * 1.1, g(x, z) + 0.3, z * 1.1], [0, a, 0.1]);
+    else b.box(L.stone, [1.0 + rng() * 0.3, h, 0.6 + rng() * 0.25], [x, g(x, z) + h / 2 - 0.2, z], [(rng() - 0.5) * 0.12, -a + Math.PI / 2, (rng() - 0.5) * 0.12]);
+  }
+  // Altar in der Mitte mit Leuchtpilzen und Knochen
+  const y = g(0, 0);
+  b.box(L.stone, [0.5, 0.6, 0.5], [-0.6, y + 0.3, 0]);
+  b.box(L.stone, [0.5, 0.6, 0.5], [0.6, y + 0.3, 0]);
+  b.box(L.stone, [2.2, 0.3, 1.2], [0, y + 0.75, 0], [0, 0.1, 0]);
+  for (let i = 0; i < 9; i++) {
+    const mx = (rng() - 0.5) * 1.6;
+    const mz = (rng() - 0.5) * 0.8;
+    b.add(new THREE.SphereGeometry(0.06 + rng() * 0.05, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), L.glow, [mx, y + 0.9, mz], [0, 0, 0], false);
+  }
+  b.light([0, y + 1.3, 0], 0x40ffd8, 2.5, 7, 'flicker');
+  for (let i = 0; i < 4; i++) b.cyl(M.bone, 0.025, 0.03, 0.35, [(rng() - 0.5) * 1.8, y + 0.93, (rng() - 0.5) * 0.9], [Math.PI / 2, rng() * 3, 0], 6, false);
+  // Totems mit Geweihen und Schädeln
+  for (const a of [0.6, 2.7, 4.6]) {
+    const x = Math.cos(a) * 4.2;
+    const z = Math.sin(a) * 4.2;
+    const ty = g(x, z);
+    b.cyl(L.wood, 0.1, 0.13, 3.2, [x, ty + 1.6, z], [(rng() - 0.5) * 0.08, 0, (rng() - 0.5) * 0.08], 7);
+    b.add(new THREE.SphereGeometry(0.17, 8, 6), M.bone, [x, ty + 3.25, z], [0, 0, 0]).scale.set(1, 0.85, 1.25);
+    for (const s of [-1, 1]) {
+      b.cyl(M.bone, 0.02, 0.035, 0.7, [x + s * 0.25, ty + 3.6, z], [0, a, s * 0.7], 5, false);
+      b.cyl(M.bone, 0.015, 0.02, 0.35, [x + s * 0.45, ty + 3.85, z], [0.4, a, s * 0.2], 5, false);
+    }
+  }
+  // Feuerstelle vor dem Altar – die Schrate halten sie am Brennen.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    b.box(L.stone, [0.35, 0.25, 0.3], [Math.cos(a) * 0.8, g(0, 3) + 0.12, 3 + Math.sin(a) * 0.8], [0, a, 0], false);
+  }
+  b.fire([0, g(0, 3) + 0.05, 3], 0.7);
+  // Hochsitz des Jägers am Waldrand, seine Aufzeichnungen liegen auf der Kiste darunter.
+  const hx = -14;
+  const hz = 10;
+  const hy = g(hx, hz);
+  for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(L.wood, 0.07, 0.08, 3.4, [hx + dx, hy + 1.7, hz + dz], [0, 0, 0], 6);
+  b.box(L.wood, [2, 0.1, 2], [hx, hy + 3.2, hz], [0, 0, 0], false);
+  b.box(L.wood, [2, 0.9, 0.06], [hx, hy + 3.7, hz - 1], [0, 0, 0], false);
+  for (let r = 0.4; r < 3.2; r += 0.4) b.box(L.wood, [0.6, 0.05, 0.05], [hx, hy + r, hz + 1.3], [0, 0, 0], false);
+  b.box(M.oldPlanks, [0.7, 0.5, 0.5], [hx + 1.4, hy + 0.25, hz + 0.6]);
+  b.note('steinkreis', [hx + 1.4, hy + 0.51, hz + 0.6], 0.5);
+}
+
 /**
  * Modell eines Ortes bauen.
  * @param ground Geländehöhe an einer Weltposition
@@ -545,6 +935,10 @@ export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3,
   if (kind === 'crash') buildCrash(b, rng);
   else if (kind === 'mine') buildMine(b, rng);
   else if (kind === 'hut') buildHut(b, rng, hm.waterLevel - origin.y);
-  else buildRadio(b);
+  else if (kind === 'radio') buildRadio(b);
+  else if (kind === 'ferry') buildFerry(b, rng);
+  else if (kind === 'chapel') buildChapel(b, rng);
+  else if (kind === 'lab') buildLab(b, rng);
+  else buildStones(b, rng);
   return b.model;
 }

@@ -64,6 +64,8 @@ interface Camp {
 }
 
 export interface DirectorDeps {
+  /** Feste Lager (Schrate, die den Steinkreis bewachen). */
+  extraCamps?: THREE.Vector3[];
   /** Weitere Flächen ohne Lager (besondere Orte). */
   avoidAreas?: { x: number; z: number; radius: number }[];
   /** Blutspritzer und Lachen (optional, fehlt in Tests). */
@@ -253,8 +255,9 @@ export class EnemyDirector {
     const town = this.d.town;
     // Das Lager der Plünderer in der Stadt ist größer als die im Wald.
     if (town) this.addCamp(town.plaza.clone(), ['schrat', 'spaeher', 'schrat', 'spaeher', 'koloss']);
+    for (const c of this.d.extraCamps ?? []) this.addCamp(c.clone(), ['schrat', 'schrat', 'spaeher', 'schreier']);
     const n: [number, number, number] = [0, 1, 0];
-    for (let attempt = 0; attempt < 4000 && this.camps.length < this.cfg.camps + (town ? 1 : 0); attempt++) {
+    for (let attempt = 0; attempt < 4000 && this.camps.length < this.cfg.camps + (town ? 1 : 0) + (this.d.extraCamps?.length ?? 0); attempt++) {
       const x = (this.rng() - 0.5) * hm.size * 0.8;
       const z = (this.rng() - 0.5) * hm.size * 0.8;
       const h = hm.heightAt(x, z);

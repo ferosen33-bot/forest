@@ -59,7 +59,7 @@ export class World {
       { x: spawn.x, z: spawn.z, radius: 200 },
       ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 60 }] : []),
       ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 90 }] : []),
-    ]);
+    ], town ? { x: town.center.x, z: town.center.z } : null);
     const places = this.places;
     const urban = (x: number, z: number) => Math.max(town ? urbanAt(town, x, z) : 0, placeGround(places, x, z));
     physics.addTerrain(this.heightMap);

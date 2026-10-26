@@ -49,6 +49,8 @@ export type GameEvents = {
   'place:discovered': { kind: string; name: string };
   /** Erstes Betreten eines Gebiets (Gebirge, Sumpf, Klippen). */
   'biome:entered': { name: string };
+  /** Abspann gesehen: Die Geschichte ist erzählt. */
+  'story:ended': Record<string, never>;
   /** Zufallsereignis begonnen bzw. geplündert. */
   'world:event': { kind: string; phase: 'start' | 'looted' };
   /** Die Überlebenden in der Nordbucht wurden gefunden. */

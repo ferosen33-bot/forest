@@ -459,6 +459,33 @@ function build(id: ItemId): THREE.Object3D {
       g.add(lamp);
       break;
     }
+    case 'enginePart': {
+      // Ölverschmierter Lappen mit Zündkerzen und einer Pumpe darauf.
+      const rag = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.16), MATERIALS.cloth);
+      g.add(rag);
+      const pump = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.09, 10), MATERIALS.steel);
+      pump.rotation.z = Math.PI / 2;
+      pump.position.set(-0.03, 0.045, 0);
+      g.add(pump);
+      for (let i = 0; i < 3; i++) {
+        const plug = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.07, 6), i % 2 ? MATERIALS.steelEdge : MATERIALS.bone);
+        plug.rotation.x = Math.PI / 2;
+        plug.position.set(0.06 + i * 0.018, 0.02, 0.01);
+        g.add(plug);
+      }
+      break;
+    }
+    case 'documents': {
+      const folder = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.025, 0.3), mat(0x8a6a3c, { roughness: 0.9 }));
+      g.add(folder);
+      const paper = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.026, 0.27), mat(0xe2dccb, { roughness: 1 }));
+      paper.position.set(0.01, 0.003, 0.005);
+      g.add(paper);
+      const stamp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.027, 0.03), mat(0x9a2a24, { roughness: 0.8 }));
+      stamp.position.set(0.03, 0.004, -0.08);
+      g.add(stamp);
+      break;
+    }
     case 'watch': {
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 14), MATERIALS.tin);
       body.rotation.x = Math.PI / 2;
@@ -588,6 +615,10 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.25, 0.2).setDensity(250);
     case 'watch':
       return RAPIER.ColliderDesc.cylinder(0.008, 0.036).setDensity(3000);
+    case 'enginePart':
+      return RAPIER.ColliderDesc.cuboid(0.11, 0.04, 0.08).setDensity(1500);
+    case 'documents':
+      return RAPIER.ColliderDesc.cuboid(0.11, 0.015, 0.15).setDensity(600);
     case 'rawFish':
     case 'cookedFish':
       return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);

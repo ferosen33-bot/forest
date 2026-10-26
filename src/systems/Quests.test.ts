@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../core/EventBus';
-import { QUESTS, Quests } from './Quests';
+import { BOAT_QUEST, QUESTS, Quests } from './Quests';
 
 const stock = (items: Record<string, number>) => ({ count: (id: string) => items[id] ?? 0 });
 
@@ -35,9 +35,26 @@ describe('Quests', () => {
     expect(copy.state('papa')).toBe('ready');
   });
 
-  it('jeder Folgeauftrag verweist auf existierende Aufträge desselben Auftraggebers', () => {
+  it('jeder Folgeauftrag verweist auf existierende Aufträge desselben Auftraggebers (außer dem Finale)', () => {
     for (const quest of QUESTS) {
-      for (const r of quest.requires ?? []) expect(QUESTS.find((x) => x.id === r)?.giver).toBe(quest.giver);
+      for (const r of quest.requires ?? []) {
+        const req = QUESTS.find((x) => x.id === r);
+        expect(req).toBeDefined();
+        if (quest !== BOAT_QUEST) expect(req!.giver).toBe(quest.giver);
+      }
     }
+  });
+
+  it('Notiz-Auftrag ist erfüllt, auch wenn die Notiz vor der Annahme gelesen wurde', () => {
+    const events = new EventBus();
+    const q = new Quests(events);
+    events.emit('note:read', { id: 'schichtbuch', first: true });
+    for (const id of ['samples', 'shiftbook']) {
+      q.accept(id);
+      q.complete(id, { count: () => 99 });
+    }
+    events.emit('note:read', { id: 'labor1', first: true });
+    expect(q.accept('lab')).toBe(true);
+    expect(q.state('lab')).toBe('ready');
   });
 });

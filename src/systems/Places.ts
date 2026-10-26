@@ -34,6 +34,9 @@ const LOOT: Record<PlaceLootKind, LootTable> = {
   chest: { rolls: [1, 2], table: [['hide', 2, 1, 2], ['arrow', 2, 3, 6], ['berries', 2, 2, 4], ['mushroom', 1, 1, 3], ['furCoat', 1, 1, 1]] },
   shelf: { rolls: [1, 2], table: [['cannedFood', 2, 1, 1], ['bottle', 2, 1, 1], ['lampOil', 2, 1, 1], ['mushroom', 1, 1, 2], [null, 1, 0, 0]] },
   desk: { rolls: [1, 2], table: [['battery', 3, 1, 2], ['flashlight', 1, 1, 1], ['painkillers', 1, 1, 1], ['cannedFood', 1, 1, 1]] },
+  spares: { rolls: [1, 1], table: [['lampOil', 3, 1, 2], ['battery', 1, 1, 1]] },
+  safe: { rolls: [1, 1], table: [['battery', 2, 2, 3], ['medkit', 1, 1, 1]] },
+  sacristy: { rolls: [1, 2], table: [['lampOil', 2, 1, 1], ['painkillers', 1, 1, 1], ['bottle', 2, 1, 1], ['cannedFood', 1, 1, 1]] },
 };
 
 /** Garantierte Fundstücke (damit sich der Weg lohnt). */
@@ -41,6 +44,9 @@ const GUARANTEED: Partial<Record<PlaceLootKind, [ItemId, number][]>> = {
   cockpit: [['flashlight', 1]],
   medbox: [['medkit', 1]],
   toolbox: [['axe', 1]],
+  // Was die Geschichte braucht, liegt sicher dort.
+  spares: [['enginePart', 1]],
+  safe: [['documents', 1]],
 };
 
 export interface PlaceContainer {
@@ -86,6 +92,7 @@ export class Places {
   readonly containers: PlaceContainer[] = [];
   private readonly byCollider = new Map<number, PlaceContainer>();
   private readonly notes = new Map<number, string>();
+  private readonly uses = new Map<number, { id: string; place: PlaceKind }>();
   private readonly biomesSeen = new Set<BiomeName>(['forest']);
   private biomeTimer = 0;
   private time = 0;
@@ -138,6 +145,14 @@ export class Places {
         );
         this.byCollider.set(col.handle, container);
       }
+      for (const u of model.uses) {
+        const p = toWorld(u.position);
+        const col = d.physics.world.createCollider(
+          RAPIER.ColliderDesc.cuboid(0.4, 0.3, 0.35).setTranslation(p.x, p.y, p.z).setSensor(true).setCollisionGroups(interactionGroups(CollisionGroup.STATIC)),
+          body,
+        );
+        this.uses.set(col.handle, { id: u.id, place: site.kind });
+      }
       for (const n of model.notes) {
         const p = toWorld(n.position);
         const col = d.physics.world.createCollider(
@@ -168,6 +183,16 @@ export class Places {
 
   getContainer(collider: RAPIER.Collider): PlaceContainer | undefined {
     return this.byCollider.get(collider.handle);
+  }
+
+  /** Benutzbares Ding unter dem Fadenkreuz (Funkgerät …). */
+  getUse(collider: RAPIER.Collider): { id: string; place: PlaceKind } | undefined {
+    return this.uses.get(collider.handle);
+  }
+
+  /** Lage eines Ortes (für Erzählung und Ziele). */
+  site(kind: PlaceKind): PlaceSite | undefined {
+    return this.places.find((p) => p.site.kind === kind)?.site;
   }
 
   getNote(collider: RAPIER.Collider): string | undefined {
@@ -234,6 +259,11 @@ export class Places {
       for (const l of p.lights) {
         if (l.mode === 'lamp') l.intensity = isNight ? l.base * (0.9 + 0.1 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1)) : 0;
         else if (l.mode === 'fire') l.intensity = l.base * (p.fires[0]?.flicker ?? 1);
+        else if (l.mode === 'flicker') {
+          // Defekte Röhre: meist an, setzt in unregelmäßigen Abständen kurz aus.
+          const n = Math.sin(this.time * 13 + l.phase) * Math.sin(this.time * 4.7 + l.phase * 2);
+          l.intensity = n > 0.82 ? l.base * 0.1 : l.base * (0.85 + 0.15 * Math.sin(this.time * 50));
+        }
         else l.intensity = isNight ? blink * 30 : 0;
         if (l.intensity > 0) this.d.lights.request(l);
       }
@@ -250,6 +280,10 @@ export class Places {
         mine: 'Die alte Zeche. Der Stollen führt tief in den Berg.',
         hut: 'Eine Hütte auf Pfählen, mitten im Moor. Vor der Tür hängen Knochen.',
         radio: 'Eine Funkstation auf den Klippen. Das Licht am Mast blinkt noch.',
+        ferry: 'Die Fähre, die nie angekommen ist. Sie liegt auf dem Riff, als wäre sie gestern aufgelaufen.',
+        chapel: 'Eine Kapelle mit Friedhof. Einige Gräber sind offen – von innen.',
+        lab: 'Eine Forschungsstation, hoch über der Zeche. Daneben ein leerer Landeplatz.',
+        stones: 'Ein Kreis aus aufgerichteten Steinen. Auf dem Altar in der Mitte leuchtet etwas.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });

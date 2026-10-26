@@ -60,6 +60,40 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 46 – Heimweg
+
+- **Die Geschichte hat jetzt ein Ende.** Sie führt quer über die Insel, bis zur Abfahrt mit dem Kutter:
+  1. Dr. Albers vermutet, dass die Betriebsleitung mehr wusste. Im **Labor Nordwand** steht es schwarz auf weiß:
+     Der Erreger ist ein Pilz aus dem Stollen und springt nicht von Mensch zu Mensch über. Im Tresor liegt die
+     **Forschungsakte**.
+  2. Mit der Akte und zwei Batterien setzt du an der **Funkstation** einen Funkspruch ab. Ohne Beweis glaubt dir
+     niemand, ohne Strom bleibt das Gerät stumm. Das Festland lässt schließlich ein Boot mit Gesunden anlegen.
+  3. Jonas will seinen alten Kutter, die **Möwe**, wieder flottmachen: Motorteile aus dem Maschinenraum der Fähre
+     und vier Lampenöl als Sprit.
+  4. Mia bittet dich, nach ihrer Mama zu suchen. Auf der gestrandeten Fähre liegt **Annes Brief**.
+  5. Sag Jonas, dass du bereit bist: Ihr legt ab, und der **Abspann** erzählt, wie es ausgeht. Er hängt davon ab,
+     ob Mia den Brief ihrer Mutter hat und ob Hansen, der Erste, gefallen ist. Dazu kommt eine Bilanz. Danach kann
+     man auf der Insel weiterspielen.
+- **Vier neue Orte:**
+  - **Wrack der Fähre** an der Küste: auf ein Riff gelaufen, mit Brücke, Schornstein, fehlendem Rettungsboot,
+    Gangway zum Strand und dem Logbuch des Kapitäns.
+  - **Kapelle St. Brigid** nahe Altwasser: Glockenturm, umgestürzte Bänke, Kerzen auf dem Altar. Auf dem Friedhof
+    sind drei Gräber offen, von innen aufgegraben. Dort liegt das Tagebuch des Pfarrers.
+  - **Labor Nordwand** hoch im Gebirge: Betonbau mit Leuchtröhre, die immer wieder aussetzt, leuchtende Proben,
+    Tresor, leerer Hubschrauber-Landeplatz und Zaun.
+  - **Steinkreis** auf einer Kuppe: neun Menhire, ein Altar mit Leuchtpilzen, Totems mit Geweih und Schädel und
+    ein Feuer, das die Schrate am Brennen halten. Ein Lager bewacht den Kreis. Am Hochsitz daneben liegen die
+    Aufzeichnungen eines Jägers.
+- **Neue Gegenstände:** Motorteile und die Forschungsakte.
+- **Sieben neue Notizen:** Logbuch der Fähre, Annes Brief, Tagebuch des Pfarrers, Forschungsbericht,
+  Schreibtischnotiz der Betriebsleitung, Aufzeichnungen des Jägers und der Funkspruch selbst.
+- **Neue Aufträge:** „Was sie wussten“ und „Ein Funkspruch“ (Albers), „Mama“ (Mia), „Die Möwe“ (Jonas).
+- **Tagebuch:** neues Kapitel „Heimweg“.
+- **Behoben:**
+  - Ein Notiz-Auftrag lässt sich jetzt auch abschließen, wenn man die Notiz schon vor der Annahme gelesen hat.
+  - Laufende und fertige Aufträge eines Überlebenden erscheinen jetzt alle im Gespräch, auch wenn er gerade einen
+    neuen anbietet.
+
 ### Meilenstein 45 – Die große Insel
 
 - **Mehr als doppelt so viel Land:** Die Welt misst jetzt 2,3 × 2,3 km statt 1,5 × 1,5 km, gut 2 km² Land.

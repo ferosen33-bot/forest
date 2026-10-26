@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CAVE_NOTES, PLACE_NOTES, NOTES, TOWN_NOTES, getNote } from './Notes';
+import { CAVE_NOTES, PLACE_NOTES, STORY_NOTES, NOTES, TOWN_NOTES, getNote } from './Notes';
 import { CHAPTERS, Journal } from './Journal';
 import { EventBus } from '../core/EventBus';
 
 describe('Notes', () => {
   it('jede Notiz hat einen Fundort und jeder Fundort eine Notiz', () => {
-    const placed = [...TOWN_NOTES.hall, ...TOWN_NOTES.gas, ...TOWN_NOTES.shop, ...TOWN_NOTES.houses, ...CAVE_NOTES, ...PLACE_NOTES];
+    const placed = [...TOWN_NOTES.hall, ...TOWN_NOTES.gas, ...TOWN_NOTES.shop, ...TOWN_NOTES.houses, ...CAVE_NOTES, ...PLACE_NOTES, ...STORY_NOTES];
     expect(new Set(placed).size).toBe(placed.length);
     expect(placed.sort()).toEqual(NOTES.map((n) => n.id).sort());
     for (const id of placed) expect(getNote(id)?.text.length).toBeGreaterThan(80);

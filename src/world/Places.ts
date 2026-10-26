@@ -9,12 +9,16 @@ import { deriveSeed, mulberry32 } from '../utils/random';
  * - **Zeche** (Gebirge): Stollenmundloch am Hang (führt in den Feuersteinstollen), Zechenhaus, Gleise.
  * - **Hütte im Sumpf**: auf Pfählen über einem Tümpel, ein Bohlensteg führt hin.
  * - **Funkstation** (Klippen): Gittermast mit Warnlicht, Betonbaracke, Zaun – hoch über dem Meer.
+ * - **Fährenwrack** (Küste): die letzte Fähre, auf ein Riff gelaufen, mit Motorteilen und Annes Brief.
+ * - **Kapelle** (Wald bei Altwasser): Kirche mit Glockenturm und einem Friedhof voller offener Gräber.
+ * - **Labor Nordwand** (Gebirge): Forschungsstation der Betriebsleitung, Landeplatz, Tresor mit der Akte.
+ * - **Steinkreis** (Kuppe im Wald): Ritualplatz der Schrate mit Altar, bewacht von einem Lager.
  *
  * Hier werden nur die Bauplätze gesucht und eingeebnet (vor Gelände und Physik); Modelle, Beute und
  * Notizen baut `systems/Places`.
  */
 
-export type PlaceKind = 'crash' | 'mine' | 'hut' | 'radio';
+export type PlaceKind = 'crash' | 'mine' | 'hut' | 'radio' | 'ferry' | 'chapel' | 'lab' | 'stones';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -32,6 +36,10 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   mine: 'Zeche Altwasser',
   hut: 'Hütte im Moor',
   radio: 'Funkstation Klippenkopf',
+  ferry: 'Wrack der Fähre',
+  chapel: 'Kapelle St. Brigid',
+  lab: 'Labor Nordwand',
+  stones: 'Steinkreis',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -56,7 +64,7 @@ function spread(hm: HeightMap, x: number, z: number, r: number): { min: number; 
  * Bauplätze suchen und – wo nötig – einebnen. Muss vor dem Aufbau von Gelände und Physik laufen.
  * @param avoid Spawn, Stadt, Hafen …
  */
-export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[]): PlaceSite[] {
+export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: { x: number; z: number } | null): PlaceSite[] {
   if (!hm.biomes.enabled) return [];
   const rng = mulberry32(deriveSeed(seed, 'places'));
   const b: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
@@ -163,6 +171,79 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[]): PlaceSi
     hm.flatten(radio.x, radio.z, 11, 6, radio.y!);
     sites.push({ kind: 'radio', name: PLACE_NAMES.radio, position: new THREE.Vector3(radio.x, radio.y!, radio.z), yaw: radio.yaw, radius: 26 });
   }
+
+  // Fährenwrack: auf ein Riff gelaufen, im flachen Wasser vor einem Strand, der Bug zeigt aufs Land.
+  const ferry = search(14, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.cliffs > 0.3 || b.swamp > 0.3 || b.highland > 0.3) return null;
+    const h = hm.heightAt(x, z);
+    if (h > water - 1.2 || h < water - 3.6 || taken(x, z, 35)) return null;
+    // An der Küste, nicht in einem Binnensee.
+    if (Math.hypot(x, z) / hm.half < 0.6) return null;
+    for (let k = 0; k < 16; k++) {
+      const yaw = (k / 16) * Math.PI * 2;
+      const dx = Math.sin(yaw);
+      const dz = Math.cos(yaw);
+      // Vor dem Bug Strand, hinter dem Heck tieferes Wasser, an den Seiten kein Land.
+      if (hm.heightAt(x + dx * 24, z + dz * 24) < water + 0.6) continue;
+      if (hm.heightAt(x - dx * 16, z - dz * 16) > water - 2) continue;
+      if (hm.heightAt(x + dz * 7, z - dx * 7) > water - 0.5 || hm.heightAt(x - dz * 7, z + dx * 7) > water - 0.5) continue;
+      return { s: Math.abs(h + 2.2) + rng(), yaw, y: water };
+    }
+    return null;
+  });
+  if (ferry) sites.push({ kind: 'ferry', name: PLACE_NAMES.ferry, position: new THREE.Vector3(ferry.x, water, ferry.z), yaw: ferry.yaw, radius: 30 });
+
+  // Kapelle mit Friedhof: ebener Waldboden, ein Stück außerhalb von Altwasser.
+  const chapel = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.highland > 0.15 || b.swamp > 0.15 || b.cliffs > 0.3) return null;
+    const h = hm.heightAt(x, z);
+    if (h < 4 || h > 32 || taken(x, z, 28)) return null;
+    const { min, max } = spread(hm, x, z, 16);
+    if (max - min > 4) return null;
+    const d = town ? Math.hypot(x - town.x, z - town.z) : 300;
+    if (d < 170 || d > 520) return null;
+    return { s: Math.abs(d - 260) * 0.02 + (max - min) + rng(), yaw: town ? Math.atan2(town.x - x, town.z - z) : rng() * 6.28, y: h };
+  });
+  if (chapel) {
+    hm.flatten(chapel.x, chapel.z, 15, 10, chapel.y!);
+    sites.push({ kind: 'chapel', name: PLACE_NAMES.chapel, position: new THREE.Vector3(chapel.x, chapel.y!, chapel.z), yaw: chapel.yaw, radius: 26 });
+  }
+
+  // Labor: hoch im Gebirge, auf einer Schulter mit Platz für Gebäude und Landeplatz.
+  const lab = search(12, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.highland < 0.5) return null;
+    const h = hm.heightAt(x, z);
+    if (h < 50 || h > 98 || taken(x, z, 25)) return null;
+    const { min, max } = spread(hm, x, z, 12);
+    if (max - min > 7) return null;
+    return { s: max - min + Math.abs(h - 72) * 0.04 + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (lab) {
+    hm.flatten(lab.x, lab.z, 13, 9, lab.y!);
+    sites.push({ kind: 'lab', name: PLACE_NAMES.lab, position: new THREE.Vector3(lab.x, lab.y!, lab.z), yaw: lab.yaw, radius: 24 });
+  }
+
+  // Steinkreis: auf einer Kuppe, die über den Wald hinausragt.
+  const stones = search(14, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.highland > 0.45 || b.swamp > 0.2 || b.cliffs > 0.3) return null;
+    const h = hm.heightAt(x, z);
+    if (h < 12 || h > 55 || taken(x, z, 40)) return null;
+    let ring = 0;
+    for (let i = 0; i < 8; i++) ring += hm.heightAt(x + Math.cos(i * 0.785) * 30, z + Math.sin(i * 0.785) * 30);
+    const prominence = h - ring / 8;
+    if (prominence < 4) return null;
+    const { min, max } = spread(hm, x, z, 8);
+    if (max - min > 4) return null;
+    return { s: -prominence + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (stones) {
+    hm.flatten(stones.x, stones.z, 9, 7, stones.y!);
+    sites.push({ kind: 'stones', name: PLACE_NAMES.stones, position: new THREE.Vector3(stones.x, stones.y!, stones.z), yaw: stones.yaw, radius: 26 });
+  }
   return sites;
 }
 
@@ -172,7 +253,9 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
   for (const s of sites) {
     const d = Math.hypot(x - s.position.x, z - s.position.z);
     if (s.kind === 'crash') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 8, 22));
-    else if (s.kind === 'radio') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 9, 14));
+    else if (s.kind === 'radio' || s.kind === 'lab') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 9, 14));
+    else if (s.kind === 'stones') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 4, 10)) * 0.8);
+    else if (s.kind === 'chapel') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 9)) * 0.6);
     else if (s.kind === 'mine') {
       const yx = s.position.x - Math.sin(s.yaw) * 12;
       const yz = s.position.z - Math.cos(s.yaw) * 12;

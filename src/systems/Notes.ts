@@ -161,6 +161,76 @@ export const NOTES: NoteDef[] = [
       'FESTLAND: … Bleiben Sie in Ihrer Station. Wiederhole: Niemand verlässt die Insel.\n' +
       'KLIPPENKOPF: Sie stehen am Zaun. Das rote Licht am Mast hält sie nicht fern, es lockt sie an. Ich mache es aus und —\n\n[Ende der Aufzeichnung]',
   },
+  {
+    id: 'faehre',
+    title: 'Logbuch der Fähre „Altwasser“',
+    style: 'paper',
+    text:
+      '12. September, 6:10 – Letzte Fahrt. 46 Menschen an Bord, zugelassen sind 30. Am Steg mussten wir die Leinen kappen, sie kamen aus dem Wald.\n\n' +
+      '9:30 – Vor Nordheim liegt ein Patrouillenboot. Warnschüsse. Wir dürfen nicht anlegen. Ich habe gebettelt.\n\n' +
+      '14:00 – Kehrt gemacht. Sturm aus West, das Ruder klemmt.\n\n' +
+      '19:45 – Auf das Riff vor der Küste gelaufen. Wer schwimmen kann, geht an Land. Ich bleibe beim Schiff.\n\n' +
+      'Nachtrag: Die Feuer am Strand sind nicht unsere.',
+  },
+  {
+    id: 'anne',
+    title: 'Brief an Mia',
+    style: 'paper',
+    text:
+      'Mia, mein Schatz,\n\nich habe dir versprochen, dass wir zusammen fahren. Als sie zum Steg kamen, hat Jonas dich auf den Arm genommen ' +
+      'und ist mit dir weggerannt. Ich habe es vom Deck aus gesehen, und ich war so froh, dass du nicht hier bist.\n\n' +
+      'Wir sind auf ein Riff gelaufen. Ich gehe an Land und suche dich. Wenn ich dich nicht finde, dann weil der Wald zu groß ist – nicht, weil ich aufgehört habe.\n\n' +
+      'An wen auch immer: Meine Tochter heißt Mia. Sie ist acht und hat Angst im Dunkeln. Sagen Sie ihr, dass ich sie lieb habe.\n\nMama',
+  },
+  {
+    id: 'pfarrer',
+    title: 'Tagebuch des Pfarrers',
+    style: 'paper',
+    text:
+      'Wir haben Henning Weber am Montag begraben, den ersten aus der Kammer. Seine Frau wollte den Sarg nicht öffnen lassen.\n\n' +
+      'Mittwoch – Das Grab ist offen. Die Erde liegt rings herum, als hätte jemand von innen gegraben. Keine Spuren, die zum Ort führen. Nur zum Wald.\n\n' +
+      'Freitag – Zwei weitere Gräber offen. Ich habe den Friedhof abgesperrt und läute nachts nicht mehr die Glocke. Sie kommen, wenn sie läutet.\n\n' +
+      'Herr, vergib uns. Wir haben sie lebendig begraben.',
+  },
+  {
+    id: 'labor1',
+    title: 'Forschungsbericht – Projekt Myzel',
+    style: 'paper',
+    text:
+      'VERTRAULICH – NUR FÜR DIE BETRIEBSLEITUNG\n\nErreger: Pilzmyzel (Arbeitsname M-7) aus Kammer B des neuen Stollens. Aufnahme über die Atemwege (Sporen).\n\n' +
+      'Verlauf: Fieber, Lichtempfindlichkeit, Verlust der Sprache. Der Wirt sucht Dunkelheit und die Nähe anderer Befallener.\n\n' +
+      'Wichtig: Eine Übertragung von Mensch zu Mensch konnte in keinem Fall nachgewiesen werden. Wer die Kammer nie betreten hat, ist nicht gefährdet.\n\n' +
+      'Empfehlung: Kammer versiegeln. Belegschaft vorerst NICHT unterrichten.',
+  },
+  {
+    id: 'labor2',
+    title: 'Notiz auf dem Schreibtisch',
+    style: 'paper',
+    text:
+      'Hubschrauber kommt um 14 Uhr. Nur die Proben und die Messreihen mitnehmen, alles andere bleibt hier.\n\n' +
+      'Der Gemeinde gegenüber gilt weiter: Grubengas, keine Krankheit. Die Akte im Tresor wird vernichtet – das übernehme ich selbst.\n\n' +
+      'Nachtrag, zittrige Schrift: Keine Zeit mehr. Sie stehen am Zaun. Die Akte bleibt im Tresor – möge sie niemand finden.',
+  },
+  {
+    id: 'steinkreis',
+    title: 'Aufzeichnungen eines Jägers',
+    style: 'paper',
+    text:
+      'Dritte Nacht auf dem Hochsitz. Sie kommen jede Nacht zum Kreis, immer kurz nach Mitternacht.\n\n' +
+      'Sie tragen die leuchtenden Pilze aus dem Stollen herauf und legen sie auf den flachen Stein in der Mitte. Dann stehen sie nur da. Stundenlang. Sie summen.\n\n' +
+      'Einer hat die Hände auf den Stein gelegt und zum Berg geschaut, als würde dort jemand rufen.\n\nIch gehe nicht wieder hin.',
+  },
+  {
+    id: 'funkspruch',
+    title: 'Funkspruch ans Festland',
+    style: 'radio',
+    text:
+      'KLIPPENKOPF: Festland, bitte kommen. Hier spricht ein Überlebender des Charterflugs D-EKLA. Ich habe die Akte der Betriebsleitung.\n' +
+      'FESTLAND: … Wiederholen Sie. Welche Akte?\n' +
+      'KLIPPENKOPF: Projekt Myzel. Es ist ein Pilz aus dem Stollen. Keine Ansteckung von Mensch zu Mensch – sie haben es gewusst und geschwiegen.\n' +
+      'FESTLAND: [lange Pause] Verstanden. Wenn das stimmt, ändert es alles. Wir schicken keine Fähre. Aber ein Boot mit Gesunden darf in Nordheim anlegen.\n' +
+      'FESTLAND: Kommen Sie bei Tagesanbruch. Und bringen Sie diese Akte mit.\n\n[Ende der Verbindung]',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -176,7 +246,10 @@ export const TOWN_NOTES = {
 } as const;
 
 /** Notizen an den besonderen Orten (Absturzstelle, Zeche, Hütte im Moor, Funkstation). */
-export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3'] as const;
+export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehre', 'anne', 'pfarrer', 'labor1', 'labor2', 'steinkreis'] as const;
+
+/** Notizen, die keine Fundstelle haben, sondern entstehen (Funkspruch an der Funkstation). */
+export const STORY_NOTES = ['funkspruch'] as const;
 
 /** Notizen in den Höhlen (je neben der ersten Vorratskiste), nach Höhlen-Index. */
 export const CAVE_NOTES = ['hoehle1', 'hoehle2', 'schichtbuch'];

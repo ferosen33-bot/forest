@@ -36,6 +36,7 @@ export type InteractionTarget =
   | { type: 'note'; id: string; hit: RaycastHit }
   | { type: 'event'; event: EventTarget; hit: RaycastHit }
   | { type: 'npc'; npc: NpcDef; hit: RaycastHit }
+  | { type: 'use'; id: string; hit: RaycastHit }
   | { type: 'water' };
 
 export interface InteractionDeps {
@@ -79,6 +80,9 @@ export interface InteractionDeps {
   isNoteRead: (id: string) => boolean;
   /** Gespräch mit einem Überlebenden beginnen. */
   onTalk: (npc: NpcDef) => void;
+  /** Benutzbares Ding an einem Ort (Funkgerät): Hinweis und Aktion. */
+  usePrompt?: (id: string) => Prompt;
+  onUse?: (id: string) => void;
 }
 
 /** Was `E` an einem Lagerfeuer gerade bewirkt. */
@@ -171,6 +175,8 @@ export class InteractionSystem {
       if (note) return { type: 'note', id: note, hit };
       const container = this.deps.settlement?.getContainer(hit.collider);
       if (container) return { type: 'loot', container, hit };
+      const use = this.deps.places?.getUse(hit.collider);
+      if (use) return { type: 'use', id: use.id, hit };
       const placeNote = this.deps.places?.getNote(hit.collider);
       if (placeNote) return { type: 'note', id: placeNote, hit };
       const placeLoot = this.deps.places?.getContainer(hit.collider);
@@ -270,6 +276,9 @@ export class InteractionSystem {
         const title = getNote(target.id)?.title ?? 'Notiz';
         return { key: 'E', action: this.deps.isNoteRead(target.id) ? 'Noch einmal lesen' : 'Lesen', label: title };
       }
+      case 'use':
+        if (target.hit.distance > INTERACT_REACH) return null;
+        return this.deps.usePrompt?.(target.id) ?? null;
       case 'loot': {
         if (target.hit.distance > INTERACT_REACH) return null;
         const c = target.container;
@@ -429,6 +438,9 @@ export class InteractionSystem {
       }
       case 'note':
         this.deps.onReadNote(target.id);
+        break;
+      case 'use':
+        this.deps.onUse?.(target.id);
         break;
       case 'npc':
         this.deps.onTalk(target.npc);

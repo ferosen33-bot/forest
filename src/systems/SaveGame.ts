@@ -65,6 +65,8 @@ export interface SaveData {
   town?: SettlementSave;
   /** Seit Meilenstein 45: entdeckte Orte und Gebiete, durchsuchte Behälter dort. */
   places?: PlacesSave;
+  /** Seit Meilenstein 46: Hauptgeschichte (Funkspruch, Abfahrt) und Bilanz. */
+  story?: { transmitted: boolean; ended: boolean; kills: number; hansen: boolean };
   /** Seit Meilenstein 24: Erfahrung je Fertigkeit. */
   skills?: SkillsSave;
   /** Seit Meilenstein 27: Versorgungsabwürfe und verlassene Lager. */

@@ -46,6 +46,7 @@ export type SoundId =
   | 'slam'
   | 'fireWhoosh'
   | 'rattle'
+  | 'radioStatic'
   | 'pitFall'
   | 'throw'
   | 'sizzle'
@@ -374,6 +375,12 @@ export class Audio {
         this.tone(t, 'sine', 70, 45, 0.6, 0.5);
         break;
       // Klapperleine: Knochen und Steine schlagen aneinander.
+      // Funkrauschen mit Knacksern und einem kurzen Pfeifton.
+      case 'radioStatic':
+        this.noise(t, 1.4, 'bandpass', 2200, 0.6, 0.35);
+        for (let i = 0; i < 5; i++) this.noise(t + Math.random() * 1.2, 0.03, 'highpass', 3000, 1, 0.4);
+        this.tone(t + 0.3, 'sine', 1400, 900, 0.4, 0.06);
+        break;
       case 'rattle':
         for (let i = 0; i < 10; i++) {
           const at = t + i * 0.06 + Math.random() * 0.04;

@@ -101,6 +101,10 @@ export interface SurvivorsDeps {
   markObstacle: (x: number, z: number, yaw: number, halfX: number, halfZ: number) => void;
   /** Animierte Figuren (fehlen sie, bleiben die Quader-Figuren). */
   characters?: CharacterLibrary | null;
+  /** Ist der Kutter bereit und die Geschichte noch nicht zu Ende? */
+  canDepart?: () => boolean;
+  /** Ablegen: das Ende der Geschichte. */
+  onDepart?: () => void;
 }
 
 interface Npc {
@@ -335,6 +339,16 @@ export class Survivors {
     const q = this.d.quests;
     const inv = this.d.inventory;
     const out: DialogueOption[] = [];
+    if (def.id === 'jonas' && q.state('boat') === 'completed' && this.d.canDepart?.()) {
+      out.push({
+        text: '[Ablegen] Ich bin bereit. Bringen wir euch nach Hause.',
+        run: () => {
+          this.d.onDepart?.();
+          return { close: true };
+        },
+      });
+    }
+    let offered = false;
     for (const quest of QUESTS.filter((x) => x.giver === def.id)) {
       const state = q.state(quest.id, inv);
       if (state === 'ready') {
@@ -342,7 +356,9 @@ export class Survivors {
       } else if (state === 'active') {
         const p = q.progress(quest.id, inv);
         out.push({ text: `Wegen „${quest.title}“ … (${p.have}/${p.need})`, run: () => ({ text: quest.waiting }) });
-      } else if (state === 'available') {
+      } else if (state === 'available' && !offered) {
+        // Ein Angebot nach dem anderen – laufende und fertige Aufträge erscheinen trotzdem alle.
+        offered = true;
         out.push({
           text: 'Kann ich irgendwie helfen?',
           run: () => {
@@ -352,7 +368,6 @@ export class Survivors {
             return { text: quest.offer };
           },
         });
-        break; // ein Angebot nach dem anderen
       }
     }
     out.push({ text: 'Wer bist du?', run: () => ({ text: def.who }) });

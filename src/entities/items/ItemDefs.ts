@@ -38,7 +38,9 @@ export type ItemId =
   | 'jacket'
   | 'watch'
   | 'lampOil'
-  | 'molotov';
+  | 'molotov'
+  | 'enginePart'
+  | 'documents';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -286,6 +288,20 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'resource',
     maxStack: 1,
     use: 'clothing',
+  },
+  enginePart: {
+    id: 'enginePart',
+    name: 'Motorteile',
+    description: 'Zündkerzen, eine Benzinpumpe und ein Satz Dichtungen aus dem Maschinenraum der Fähre. Damit könnte ein alter Kutter wieder laufen.',
+    category: 'resource',
+    maxStack: 1,
+  },
+  documents: {
+    id: 'documents',
+    name: 'Forschungsakte',
+    description: 'Eine Mappe der Betriebsleitung mit dem Stempel „VERTRAULICH – Projekt Myzel“. Messreihen, Fotos, Namen. Der Beweis, dass sie es wussten.',
+    category: 'resource',
+    maxStack: 1,
   },
   watch: {
     id: 'watch',

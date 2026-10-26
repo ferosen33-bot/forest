@@ -40,6 +40,8 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   watch: new THREE.Euler(1.2, 0, 0.2),
   lampOil: new THREE.Euler(0.25, 0.6, 0),
   molotov: new THREE.Euler(0.2, 0.3, -0.4),
+  enginePart: new THREE.Euler(0.7, 0.5, 0),
+  documents: new THREE.Euler(0.9, 0.3, 0),
 };
 
 export interface IconSets {

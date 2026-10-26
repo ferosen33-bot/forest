@@ -74,6 +74,8 @@ import { Fireflies } from '../world/Fireflies';
 import { LightningBolt } from '../world/LightningBolt';
 import { Blood } from '../systems/Blood';
 import { Places } from '../systems/Places';
+import { EndingUI } from '../ui/EndingUI';
+import { NOTES } from '../systems/Notes';
 import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 
@@ -99,7 +101,7 @@ const AUTOSAVE_INTERVAL = 90;
  * - `paused`    Pausenmenü, Simulation angehalten
  * - `dead`      Todesbildschirm
  */
-export type GameMode = 'loading' | 'playing' | 'inventory' | 'paused' | 'dead';
+export type GameMode = 'loading' | 'playing' | 'inventory' | 'paused' | 'dead' | 'ending';
 
 /** Lässt den Browser einen Frame zeichnen (z. B. damit der Ladetext erscheint). */
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -212,6 +214,9 @@ export class Game {
   journal!: Journal;
   private journalUI!: JournalUI;
   private noteUI!: NoteUI;
+  private endingUI!: EndingUI;
+  /** Fortschritt der Hauptgeschichte (Funkspruch, Abfahrt) und Bilanz für den Abspann. */
+  private story = { transmitted: false, ended: false, kills: 0, hansen: false };
   private skillsUI!: SkillsUI;
   private stealthTimer = 0;
   /** Wo die offene Notiz gelesen wurde (weggehen legt sie weg). */
@@ -411,6 +416,14 @@ export class Game {
         : null,
       harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
       avoidAreas: this.world.places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
+      // Neben dem Steinkreis lagern die Schrate, die ihn bewachen.
+      extraCamps: this.world.places
+        .filter((p) => p.kind === 'stones')
+        .map((p) => {
+          const x = p.position.x + Math.sin(p.yaw) * 17;
+          const z = p.position.z + Math.cos(p.yaw) * 17;
+          return new THREE.Vector3(x, this.world.heightMap.heightAt(x, z), z);
+        }),
       extraFire: (pos, radius) => this.defenses?.fireNear(pos, radius) ?? null,
     });
     this.scene.add(this.enemies.group);
@@ -629,6 +642,8 @@ export class Game {
         audio: this.audio,
         events: this.events,
         markObstacle: (x, z, yaw, hx, hz) => this.enemies.nav.markBox(x, z, yaw, hx, hz, 1),
+        canDepart: () => !this.story.ended,
+        onDepart: () => this.depart(),
       });
       this.scene.add(this.survivors.group);
     }
@@ -654,6 +669,8 @@ export class Game {
       events: this.events,
       config: cfg,
       onTalk: (npc) => this.talkTo(npc),
+      usePrompt: (id) => this.usePrompt(id),
+      onUse: (id) => this.useThing(id),
       onCave: (target) => this.startCaveTransition(target),
       onReadNote: (id) => this.readNote(id),
       isNoteRead: (id) => this.journal.notes.has(id),
@@ -703,6 +720,11 @@ export class Game {
     this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.horror.group);
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
+    this.events.on('enemy:hit', ({ killed, name }) => {
+      if (!killed) return;
+      this.story.kills++;
+      if (name === 'Hansen, der Erste') this.story.hansen = true;
+    });
     // Wer blutet, hinterlässt Spuren: Bisse und Schläge spritzen Blut auf den Boden.
     this.events.on('player:damaged', ({ amount, source, from }) => {
       if (source !== 'enemy' || amount < 6) return;
@@ -737,6 +759,7 @@ export class Game {
       this.crafting,
     );
     this.noteUI = new NoteUI(document.getElementById('note')!);
+    this.endingUI = new EndingUI();
     this.dialogueUI = new DialogueUI(document.getElementById('dialogue')!);
     this.skillsUI = new SkillsUI(document.getElementById('skills')!, this.skills);
     this.events.on('skill:levelUp', ({ id, level }) => {
@@ -847,6 +870,7 @@ export class Game {
       caves: this.caves.serialize(),
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
       places: this.places.serialize(),
+      story: { ...this.story },
       skills: this.skills.serialize(),
       worldEvents: this.worldEvents.serialize(),
       quests: this.quests.serialize(),
@@ -877,6 +901,7 @@ export class Game {
     if (d.skills) this.skills.load(d.skills);
     if (d.worldEvents) this.worldEvents.load(d.worldEvents);
     if (d.quests) this.quests.load(d.quests);
+    if (d.story) this.story = { ...this.story, ...d.story };
     if (d.survivors) this.survivors?.load(d.survivors);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
@@ -897,6 +922,7 @@ export class Game {
     if (d.weather) this.climate.weather.load(d.weather);
     if (typeof d.explored === 'string') this.exploration.load(d.explored);
     if (d.journal) this.journal.load(d.journal);
+    this.quests.markRead(this.journal.notes);
     for (const c of d.camps ?? []) if (Number.isInteger(c) && this.enemies.camps[c]) this.discoveredCamps.add(c);
     this.respawnPoint.set(...p.respawn);
     this.tools.select(Math.max(0, Math.min(this.inventory.hotbarSize - 1, p.selected | 0)));
@@ -1223,6 +1249,73 @@ export class Game {
   }
 
   /** Notiz lesen: Leseansicht öffnen, beim ersten Mal ins Tagebuch übernehmen. */
+  /** Hinweis am Funkgerät der Station. */
+  private usePrompt(id: string): { key: 'E' | null; action: string; label?: string } {
+    if (id !== 'transmitter') return { key: null, action: '…' };
+    if (this.story.transmitted) return { key: null, action: 'Funkgerät', label: 'Nur noch Rauschen' };
+    return { key: 'E', action: 'Funkspruch absetzen', label: 'Funkgerät' };
+  }
+
+  /** Funkgerät benutzen: braucht Strom und einen Beweis, dann antwortet das Festland. */
+  private useThing(id: string): void {
+    if (id !== 'transmitter' || this.story.transmitted) return;
+    const inv = this.inventory;
+    if (inv.count('battery') < 2) {
+      this.events.emit('hud:message', { text: 'Das Funkgerät ist tot. Es braucht Strom – zwei Batterien.' });
+      return;
+    }
+    if (inv.count('documents') < 1) {
+      this.audio.play('radioStatic', { volume: 0.5 });
+      this.events.emit('hud:message', {
+        text: '„Festland, bitte kommen …“ – Rauschen, dann: „Die Insel ist gesperrt. Ende.“ Ohne Beweise glaubt dir niemand.',
+      });
+      return;
+    }
+    inv.remove('battery', 2);
+    this.story.transmitted = true;
+    this.audio.play('radioStatic', { volume: 0.6 });
+    this.events.emit('hud:message', { text: 'Verbindung zum Festland!' });
+    this.readNote('funkspruch');
+  }
+
+  /** Mit der Möwe ablegen: Abspann. Danach kann man auf der Insel weiterspielen. */
+  private depart(): void {
+    this.mode = 'ending';
+    this.dialogueUI.hide();
+    this.noteUI.hide();
+    this.mapUI.hide();
+    this.journalUI.hide();
+    this.saveNow();
+    this.hud.visible = false;
+    this.input.exitLock();
+    this.audio.play('craft', { volume: 0.4 });
+    const notes = this.journal.notes;
+    const mama = notes.has('anne');
+    const paragraphs = [
+      'Im ersten Licht legt die Möwe ab. Jonas steht am Ruder und flucht leise auf den Motor, der hustet, aber läuft. ' +
+        'Dr. Albers hält die Akte mit beiden Armen fest, als könnte der Wind sie ihr noch nehmen.',
+      mama
+        ? 'Mia sitzt am Heck und liest den Brief ihrer Mutter, wieder und wieder, bis die Insel hinter ihnen im Nebel verschwindet. Dann faltet sie ihn sorgfältig zusammen.'
+        : 'Mia sitzt am Heck und schaut zum Wald zurück. Sie fragt nicht mehr nach ihrer Mama. Noch nicht.',
+      this.story.hansen
+        ? 'Im Berg ist es still geworden, seit Hansen, der Erste, gefallen ist. Ob die Schrate das spüren, weiß niemand.'
+        : 'Hinter ihnen, tief im Berg, ruft etwas nach den Seinen. Am Steinkreis brennt das Feuer weiter.',
+      'In Nordheim wartet ein Ausschuss. Die Akte reicht, um die Zeche für immer zu versiegeln und die Betriebsleitung vor Gericht zu bringen. ' +
+        'Die Insel bleibt gesperrt. Aber ihr seid frei.',
+      'Für die Welt ist der Charterflug D-EKLA verschollen. Du weißt es besser.',
+    ];
+    const days = this.dayNight.day;
+    const kills = this.story.kills;
+    const stats = `${days} ${days === 1 ? 'Tag' : 'Tage'} überlebt · ${kills} ${kills === 1 ? 'Schrat' : 'Schrate'} besiegt · ${notes.size} von ${NOTES.length} Notizen gefunden`;
+    this.endingUI.show({ title: 'Heimweg', paragraphs, stats }, () => {
+      this.story.ended = true;
+      this.hud.visible = true;
+      this.events.emit('story:ended', {});
+      this.events.emit('hud:message', { text: 'Die Insel lässt dich nicht ganz los. Es gibt noch Orte, die du nicht gesehen hast …' });
+      void this.input.requestLock();
+    });
+  }
+
   private readNote(id: string): void {
     const first = !this.journal.notes.has(id);
     this.noteUI.show(id);

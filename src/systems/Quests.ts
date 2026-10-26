@@ -97,6 +97,36 @@ export const QUESTS: QuestDef[] = [
     requires: ['samples'],
   },
   {
+    id: 'lab',
+    giver: 'albers',
+    title: 'Was sie wussten',
+    offer:
+      'Die Betriebsleitung hatte oben am Berg eine Station – „Labor Nordwand“, angeblich für Wettermessungen. Ein Hubschrauber flog dort jede Woche hin. ' +
+      'Wenn irgendwo steht, was im Stollen wirklich los war, dann dort. Finden Sie heraus, was sie wussten.',
+    task: 'Im Labor Nordwand herausfinden, was die Betriebsleitung wusste',
+    waiting: 'Das Labor liegt hoch oben im Gebirge, über der Zeche. Folgen Sie den Hängen nach Norden.',
+    thanks:
+      'Keine Übertragung von Mensch zu Mensch … Mein Gott. Dann hätte man die Gesunden längst herausholen können. ' +
+      'Haben Sie die Akte selbst? Behalten Sie sie! Damit glaubt man uns auf dem Festland. Hier, Batterien – Sie werden sie brauchen.',
+    goal: { type: 'note', id: 'labor1' },
+    reward: { items: [['battery', 3]], xp: [['survival', 15]] },
+    requires: ['shiftbook'],
+  },
+  {
+    id: 'radio',
+    giver: 'albers',
+    title: 'Ein Funkspruch',
+    offer:
+      'Die Funkstation auf den Klippen hat den stärksten Sender der Insel. Bringen Sie die Akte dorthin und rufen Sie das Festland. ' +
+      'Das Gerät braucht Strom – zwei Batterien sollten für einen Funkspruch reichen. Sagen Sie ihnen, was wir wissen.',
+    task: 'Mit der Forschungsakte von der Funkstation aus das Festland rufen',
+    waiting: 'Die Funkstation Klippenkopf, an der Ostküste. Akte und zwei Batterien. Und sprechen Sie deutlich.',
+    thanks: 'Sie lassen uns anlegen? … Entschuldigen Sie. Ich habe so lange nicht mehr geweint. Gehen Sie zu Jonas – er weiß, wie wir hier wegkommen.',
+    goal: { type: 'note', id: 'funkspruch' },
+    reward: { items: [['medkit', 1]], xp: [['survival', 20]] },
+    requires: ['lab'],
+  },
+  {
     id: 'watch',
     giver: 'mia',
     title: 'Papas Uhr',
@@ -119,7 +149,39 @@ export const QUESTS: QuestDef[] = [
     reward: { items: [['arrow', 10], ['medkit', 1], ['cannedFood', 2]], xp: [['melee', 20]] },
     requires: ['watch'],
   },
+  {
+    id: 'mama',
+    giver: 'mia',
+    title: 'Mama',
+    offer:
+      'Mama ist mit der Fähre gefahren. Jonas sagt, die Fähre ist nie drüben angekommen. Er sagt, sie liegt irgendwo an der Küste, auf den Steinen. ' +
+      'Kannst du nachsehen? Vielleicht hat Mama mir was dagelassen. Sie lässt mir immer Zettel da.',
+    task: 'Die gestrandete Fähre finden und nach Mias Mama suchen',
+    waiting: 'Die Fähre heißt „Altwasser“, wie unser Ort. Sie ist ganz groß und hat einen roten Streifen am Schornstein.',
+    thanks:
+      '… „Nicht, weil ich aufgehört habe.“ … Dann sucht sie mich noch. Oder? … Ich heb den Brief gut auf. Danke, dass du ihn geholt hast.',
+    goal: { type: 'note', id: 'anne' },
+    reward: { items: [['arrow', 12], ['berries', 4]], xp: [['stealth', 15]] },
+    requires: ['papa'],
+  },
 ];
+
+/** Jonas' letzter Auftrag: Erst wenn der Kutter läuft und das Festland Ja gesagt hat, geht es heim. */
+export const BOAT_QUEST: QuestDef = {
+  id: 'boat',
+  giver: 'jonas',
+  title: 'Die Möwe',
+  offer:
+    'Das Festland lässt uns anlegen? Dann brauchen wir nur noch ein Boot, das schwimmt. Die alte Möwe am Steg war mein Kutter – der Motor ist hin, seit dem Sturm. ' +
+    'In der gestrandeten Fähre gibt es einen Maschinenraum. Bring mir die Ersatzteile von dort. Und Sprit: Vier Kanister Lampenöl, zur Not läuft sie damit.',
+  task: 'Jonas Motorteile von der Fähre und 4 Lampenöl bringen',
+  waiting: 'Motorteile aus der Fähre und vier Lampenöl. Dann schrauben wir die Nacht durch, und im ersten Licht legen wir ab.',
+  thanks: 'Hörst du das? Sie läuft. Sie läuft! … Pack, was du tragen kannst. Sag mir Bescheid, wenn du bereit bist – dann legen wir ab.',
+  goal: { type: 'deliver', items: [{ item: 'enginePart', count: 1 }, { item: 'lampOil', count: 4 }] },
+  reward: { items: [['cannedFood', 2], ['waterBottle', 2]], xp: [['crafting', 20]] },
+  requires: ['radio', 'supplies'],
+};
+QUESTS.push(BOAT_QUEST);
 
 export type QuestState = 'locked' | 'available' | 'active' | 'ready' | 'completed';
 
@@ -140,9 +202,12 @@ export class Quests {
   /** Laufende Aufträge mit Fortschritt (Ereignis-Aufträge). */
   private readonly active = new Map<string, number>();
   private readonly completed = new Set<string>();
+  /** Schon gelesene Notizen: Ein Notiz-Auftrag ist auch erfüllt, wenn man sie vor der Annahme gefunden hat. */
+  private readonly notesRead = new Set<string>();
 
   constructor(events?: EventBus) {
     if (!events) return;
+    events.on('note:read', ({ id }) => void this.notesRead.add(id));
     events.on('enemy:hit', ({ killed, name }) => killed && this.advance((g) => g.type === 'kill' && (!g.name || g.name === name)));
     events.on('structure:placed', ({ id }) => this.advance((g) => g.type === 'build' && g.structure === id));
     events.on('note:read', ({ id }) => this.advance((g) => g.type === 'note' && g.id === id));
@@ -166,7 +231,8 @@ export class Quests {
       return { have, need };
     }
     if (g.type === 'collect') return { have: Math.min(g.count, stock?.count(g.item) ?? 0), need: g.count };
-    const need = g.type === 'note' ? 1 : g.count;
+    if (g.type === 'note') return { have: this.notesRead.has(g.id) || this.completed.has(id) ? 1 : Math.min(1, this.active.get(id) ?? 0), need: 1 };
+    const need = g.count;
     return { have: Math.min(need, this.active.get(id) ?? (this.completed.has(id) ? need : 0)), need };
   }
 
@@ -204,6 +270,11 @@ export class Quests {
       const g = getQuest(id)!.goal;
       if (match(g)) this.active.set(id, n + 1);
     }
+  }
+
+  /** Nach dem Laden: bereits gelesene Notizen (aus dem Tagebuch). */
+  markRead(ids: Iterable<string>): void {
+    for (const id of ids) this.notesRead.add(id);
   }
 
   serialize(): QuestsSave {
