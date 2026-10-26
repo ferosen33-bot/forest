@@ -72,6 +72,10 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   `A`/`D` lenken, `Shift` paddelt kräftiger (kostet Ausdauer). Paddelschläge plätschern und spritzen, das Floß
   schaukelt auf den Wellen und läuft im flachen Wasser auf Grund. `E` steigt ab – aufs nächste Ufer, ins
   flache Wasser oder notfalls ins Meer. Position und Richtung bleiben im Spielstand erhalten.
+- **Kletterseil** (3 Felle, 2 Stöcke): ein Pflock mit Lederseil, nur an einer Steilkante baubar – der Bauplan
+  dreht sich von selbst zur Kante. Das Seil hängt der Wand entlang bis zum Grund (3,5 bis 45 m). Oben seilt `E`
+  dich ab, unten am Seilende klettert `E` wieder hinauf (das kostet Ausdauer). So werden Klippen und Gebirgsstufen
+  zu Abkürzungen.
 
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 2: Lager ausbauen)
 

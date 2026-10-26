@@ -55,7 +55,12 @@ export class Rafts implements PlayerCarrier {
     return { key: 'E', action: 'Floß besteigen', label: s.def.name };
   }
 
-  /** Hinweis während der Fahrt (ersetzt das anvisierte Ziel). */
+  /** Während der Fahrt: Absteigen ersetzt das anvisierte Ziel. */
+  override(): { prompt: Prompt; run: () => void } | null {
+    const prompt = this.ridePrompt;
+    return prompt ? { prompt, run: () => this.dismount() } : null;
+  }
+
   get ridePrompt(): Prompt | null {
     if (!this.riding) return null;
     const action = this.landNear() ? 'An Land gehen' : this.shallow() ? 'Absteigen (flaches Wasser)' : 'Ins Wasser springen';

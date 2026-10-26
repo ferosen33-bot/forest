@@ -25,6 +25,7 @@ import type { EventTarget, WorldEvents } from './WorldEvents';
 import type { NpcDef, Survivors } from './Survivors';
 import type { Camp } from './Camp';
 import type { Rafts } from './Rafts';
+import type { Ropes } from './Ropes';
 
 /** Was der Spieler gerade anvisiert. */
 export type InteractionTarget =
@@ -55,6 +56,7 @@ export interface InteractionDeps {
   cooking: Cooking;
   camp: Camp;
   rafts: Rafts;
+  ropes: Ropes;
   caves: Caves;
   settlement: Settlement | null;
   places?: Places | null;
@@ -120,6 +122,7 @@ const INTERACT_REACH = 3.0;
 export class InteractionSystem {
   target: InteractionTarget | null = null;
   prompt: Prompt | null = null;
+  private overrideRun: (() => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
@@ -221,11 +224,12 @@ export class InteractionSystem {
    * @param tool Werkzeug in der Hand (oder undefined) – bestimmt, welche Aktion angeboten wird.
    */
   update(tool: ToolStats | undefined): void {
-    // Auf dem Floß gibt es nur eines: absteigen.
-    const ride = this.deps.rafts.ridePrompt;
-    if (ride) {
+    // Auf dem Floß, am Seil oder am Seilende hat dessen Aktion Vorrang vor allem Anvisierten.
+    const override = this.deps.rafts.override() ?? this.deps.ropes.override();
+    this.overrideRun = override?.run ?? null;
+    if (override) {
       this.target = null;
-      this.prompt = ride;
+      this.prompt = override.prompt;
       return;
     }
     const reach = Math.max(INTERACT_REACH, tool?.reach ?? 0);
@@ -341,6 +345,7 @@ export class InteractionSystem {
     const label = s.def.name;
     if (s.def.interaction === 'camp') return this.deps.camp.prompt(s);
     if (s.def.interaction === 'raft') return this.deps.rafts.prompt(s);
+    if (s.def.interaction === 'rope') return this.deps.ropes.prompt(s);
     if (s.def.interaction === 'fire') {
       const cooking = this.deps.cooking;
       const n = cooking.cookingCount(s);
@@ -388,8 +393,8 @@ export class InteractionSystem {
 
   /** Führt die `E`-Aktion für das aktuelle Ziel aus. */
   interact(): void {
-    if (this.deps.rafts.riding) {
-      this.deps.rafts.dismount();
+    if (this.overrideRun) {
+      if (this.prompt?.key === 'E') this.overrideRun();
       return;
     }
     const target = this.target;
@@ -420,6 +425,7 @@ export class InteractionSystem {
         const s = target.structure;
         if (s.def.interaction === 'camp') this.deps.camp.interact(s);
         else if (s.def.interaction === 'raft') this.deps.rafts.board(s);
+        else if (s.def.interaction === 'rope') this.deps.ropes.interact(s);
         else if (s.def.interaction === 'fire') {
           const action = this.fireAction(s);
           if (action === 'take') this.deps.cooking.take(s);

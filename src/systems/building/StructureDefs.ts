@@ -28,7 +28,8 @@ export type StructureId =
   | 'gardenBed'
   | 'cookingPot'
   | 'bed'
-  | 'raft';
+  | 'raft'
+  | 'climbRope';
 
 /** Lager-Bauwerke mit eigenem Zustand (Camp-System). */
 export type CampKind = 'workbench' | 'rack' | 'barrel' | 'garden' | 'pot';
@@ -59,7 +60,9 @@ export interface StructureDef {
   /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
   snap?: 'wall' | 'floor' | 'stairs';
   /** Interaktion per `E`. */
-  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp' | 'raft';
+  interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp' | 'raft' | 'rope';
+  /** Nur an einer Steilkante (Kletterseil): lokales +Z zeigt über die Kante. */
+  edge?: boolean;
   /** Art des Lager-Bauwerks (nur `interaction: 'camp'`). */
   camp?: CampKind;
   /** Bett: Schlaf heilt vollständig und kostet weniger Hunger und Durst. */
@@ -1067,6 +1070,36 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'Raft');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(1.0, 0.16, 1.4).setTranslation(0, 0.06, 0)],
+  },
+
+  climbRope: {
+    id: 'climbRope',
+    name: 'Kletterseil',
+    description:
+      'Ein geflochtenes Lederseil an einem tief eingeschlagenen Pflock. Nur an einer Steilkante (Vorderseite über den Abgrund): oben E zum Abseilen, unten am Seilende E zum Hochklettern.',
+    cost: [
+      { item: 'hide', count: 3 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(0.3, 0.4, 0.3),
+    maxStep: 0.8,
+    maxHealth: 60,
+    interaction: 'rope',
+    walkable: true,
+    edge: true,
+    build() {
+      const g = new THREE.Group();
+      g.add(stake(v(0, -0.4, 0), v(0, 1, 0.12), 1.0, 0.06));
+      g.add(stake(v(0.18, -0.3, -0.2), v(-0.2, 1, 0.3), 0.6, 0.035));
+      for (let i = 0; i < 3; i++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.022, 4, 10), M.rope);
+        coil.position.set(0, 0.32 + i * 0.05, 0.03);
+        coil.rotation.x = Math.PI / 2;
+        g.add(coil);
+      }
+      return finish(g, 'ClimbRope');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.18, 0.4, 0.18).setTranslation(0, 0.4, 0)],
   },
 
   bed: {

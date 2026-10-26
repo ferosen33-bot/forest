@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ropePath } from '../Ropes';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../../core/Physics';
 import type { EventBus } from '../../core/EventBus';
 import type { HeightMap } from '../../world/HeightMap';
@@ -305,6 +306,21 @@ export class BuildingSystem {
       if (min < this.heightMap.waterLevel + 0.15) return { ...result, valid: false, reason: 'Nicht im Wasser' };
     }
     if (!this.heightMap.isInside(position.x, position.z)) return { ...result, valid: false, reason: 'Außerhalb der Insel' };
+    if (def.edge) {
+      // Kletterseil: zur nächstgelegenen Richtung drehen, in der es über eine Kante hängt.
+      let best: number | null = null;
+      for (let i = 0; i < 24 && best === null; i++) {
+        for (const sign of i === 0 ? [1] : [1, -1]) {
+          const r = rotation + sign * i * (Math.PI / 12);
+          if (ropePath(this.heightMap, position, r)) {
+            best = r;
+            break;
+          }
+        }
+      }
+      if (best === null) return { ...result, valid: false, reason: 'Nur an einer Steilkante' };
+      result.rotation = best;
+    }
 
     const blocker = this.findBlocker(def, position, rotation, snapped);
     if (blocker === 'player') return { ...result, valid: false, reason: 'Du stehst im Weg' };
