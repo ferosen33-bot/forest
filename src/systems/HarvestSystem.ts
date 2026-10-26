@@ -40,6 +40,9 @@ interface FallingTree {
  * zurück bleibt ein begehbarer Baumstumpf.
  */
 export class HarvestSystem {
+  /** Talente: zusätzliche Stämme je Baum, Lautstärke von Hacken und Fällen. */
+  extraLogs = 0;
+  noiseFactor = 1;
   readonly group = new THREE.Group();
   private readonly treeHealth = new Map<number, number>();
   private readonly rockStones = new Map<number, number>();
@@ -102,7 +105,7 @@ export class HarvestSystem {
     this.particles.burst(point, { count: 4, color: 0x3d2a18, direction: normal, speed: 2.5, size: 0.04 });
     this.vegetation.shake(tree, from, 1);
     this.events.emit('tool:hit', { target: 'tree' });
-    this.events.emit('noise', { position: point.clone(), radius: 30 });
+    this.events.emit('noise', { position: point.clone(), radius: 30 * this.noiseFactor });
 
     if (health > 0) return false;
     this.treeHealth.delete(tree.id);
@@ -206,7 +209,7 @@ export class HarvestSystem {
     const s = f.instance.scale.y;
 
     const trunk = TRUNK_LENGTH[f.kind] * s;
-    const logs = Math.max(2, Math.min(4, Math.round(trunk / LOG_LENGTH)));
+    const logs = Math.max(2, Math.min(4, Math.round(trunk / LOG_LENGTH))) + this.extraLogs;
     for (let i = 0; i < logs; i++) {
       const pos = base.clone().addScaledVector(axis, LOG_LENGTH * (i + 0.5) + 0.05).add(new THREE.Vector3(0, 0.25, 0));
       this.worldItems.spawn('log', 1, pos, { rotation: rot });
@@ -311,7 +314,7 @@ export class HarvestSystem {
         f.body.setAngularDamping(4);
         f.body.setLinearDamping(1.5);
         this.audio.play('treeFall', { position: f.object.position });
-        this.events.emit('noise', { position: f.object.position.clone(), radius: 45 });
+        this.events.emit('noise', { position: f.object.position.clone(), radius: 45 * this.noiseFactor });
         this.events.emit('tree:landed', { position: f.object.position.clone() });
       } else if (f.landedFor >= 0) {
         f.landedFor += dt;

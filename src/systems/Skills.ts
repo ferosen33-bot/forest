@@ -48,8 +48,74 @@ export function xpToReach(level: number): number {
 
 export type SkillsSave = Partial<Record<SkillId, number>>;
 
+// --- Talente --------------------------------------------------------------------
+
+/** Ab diesen Stufen darf man je Fertigkeit ein Talent wählen (eins von zwei). */
+export const PERK_LEVELS = [3, 7] as const;
+
+export type PerkId =
+  | 'heavySwing' | 'tireless' | 'lumberjack' | 'quietAxe'
+  | 'quarry' | 'pebbles' | 'flintEye' | 'firekeeper'
+  | 'brute' | 'parry' | 'stagger' | 'bloodlust'
+  | 'steadyHand' | 'recover' | 'headhunter' | 'pyro'
+  | 'shadow' | 'lure' | 'assassin' | 'silent'
+  | 'frugal' | 'hardy' | 'hunter' | 'cook'
+  | 'careful' | 'trapper' | 'builder' | 'autoTrap'
+  | 'runner' | 'swimmer' | 'tough' | 'climber';
+
+export interface PerkDef {
+  id: PerkId;
+  skill: SkillId;
+  /** 0 = ab Stufe 3, 1 = ab Stufe 7. */
+  tier: 0 | 1;
+  name: string;
+  text: string;
+}
+
+const perk = (skill: SkillId, tier: 0 | 1, id: PerkId, name: string, text: string): PerkDef => ({ id, skill, tier, name, text });
+
+export const PERKS: PerkDef[] = [
+  perk('woodcutting', 0, 'heavySwing', 'Kraftschlag', '+20 % Schaden an Bäumen'),
+  perk('woodcutting', 0, 'tireless', 'Unermüdlich', 'Schläge mit Werkzeug und Waffe kosten 30 % weniger Ausdauer'),
+  perk('woodcutting', 1, 'lumberjack', 'Holzfäller', 'Jeder gefällte Baum gibt einen Stamm mehr'),
+  perk('woodcutting', 1, 'quietAxe', 'Leise Axt', 'Hacken und Fällen sind nur halb so weit zu hören'),
+  perk('mining', 0, 'quarry', 'Steinbrecher', '+25 % Ausbeute an Felsen'),
+  perk('mining', 0, 'pebbles', 'Kieselsammler', 'Vom Boden aufgelesene Steine und Stöcke zählen doppelt'),
+  perk('mining', 1, 'flintEye', 'Feuersteinkenner', '+50 % Ausbeute an Feuersteinadern'),
+  perk('mining', 1, 'firekeeper', 'Feuerhüter', 'Lagerfeuer und Fackeln trotzen dem Regen doppelt so lange'),
+  perk('melee', 0, 'brute', 'Wucht', '+15 % Nahkampfschaden'),
+  perk('melee', 0, 'parry', 'Parade', 'Blocken fängt 90 % statt 80 % ab und kostet halb so viel Ausdauer'),
+  perk('melee', 1, 'stagger', 'Taumelschlag', 'Jeder Nahkampftreffer lässt Gegner kurz taumeln'),
+  perk('melee', 1, 'bloodlust', 'Blutrausch', 'Jeder erlegte Gegner gibt dir 12 Gesundheit zurück'),
+  perk('archery', 0, 'steadyHand', 'Ruhige Hand', '−25 % Spannzeit'),
+  perk('archery', 0, 'recover', 'Sorgsamer Schütze', 'Pfeile brechen nie'),
+  perk('archery', 1, 'headhunter', 'Kopfjäger', 'Kopftreffer mit Pfeil und Speer richten 50 % mehr Schaden an'),
+  perk('archery', 1, 'pyro', 'Zündler', 'Brandpfeile und Brandflaschen entfachen größere Feuer'),
+  perk('stealth', 0, 'shadow', 'Schattengänger', '−20 % Sichtbarkeit'),
+  perk('stealth', 0, 'lure', 'Lockruf', 'Geworfene Steine locken Gegner aus doppelter Entfernung an'),
+  perk('stealth', 1, 'assassin', 'Meuchler', 'Schleichangriffe richten 50 % mehr Schaden an'),
+  perk('stealth', 1, 'silent', 'Lautlos', '−40 % Geräusche beim Gehen und Rennen'),
+  perk('survival', 0, 'frugal', 'Genügsam', '−15 % Hunger und Durst'),
+  perk('survival', 0, 'hardy', 'Abgehärtet', 'Kälte und Nässe schaden nur halb so viel'),
+  perk('survival', 1, 'hunter', 'Jäger', 'Ausnehmen gibt ein Stück Fleisch und ein Fell mehr'),
+  perk('survival', 1, 'cook', 'Feldkoch', 'Gebratenes, Trockenfleisch und Eintopf machen 50 % satter'),
+  perk('crafting', 0, 'careful', 'Sorgfalt', '+20 % Haltbarkeit hergestellter Werkzeuge'),
+  perk('crafting', 0, 'trapper', 'Fallensteller', 'Fallen und Stachelwände richten 50 % mehr Schaden an'),
+  perk('crafting', 1, 'builder', 'Baumeister', 'Bauwerke nehmen durch Gegner ein Drittel weniger Schaden'),
+  perk('crafting', 1, 'autoTrap', 'Selbstspanner', 'Schlingfallen und Fallgruben spannen sich nach einer Minute selbst neu'),
+  perk('athletics', 0, 'runner', 'Läufer', '+12 % Sprinttempo'),
+  perk('athletics', 0, 'swimmer', 'Schwimmer', 'Schwimmen kostet halb so viel Ausdauer, auch im offenen Meer'),
+  perk('athletics', 1, 'tough', 'Zäh', '−20 % Schaden durch Gegner'),
+  perk('athletics', 1, 'climber', 'Kletterer', 'Fallschaden erst aus größerer Höhe, Seilklettern doppelt so schnell'),
+];
+
+const PERK_BY_ID = new Map(PERKS.map((p) => [p.id, p]));
+export const getPerk = (id: PerkId): PerkDef => PERK_BY_ID.get(id)!;
+export const isPerkId = (id: string): id is PerkId => PERK_BY_ID.has(id as PerkId);
+
 export class Skills {
   private readonly xp = new Map<SkillId, number>();
+  private readonly perks = new Set<PerkId>();
 
   constructor(private readonly events?: EventBus) {}
 
@@ -80,39 +146,88 @@ export class Skills {
     if (after > before) this.events?.emit('skill:levelUp', { id, level: after });
   }
 
+  // --- Talente -------------------------------------------------------------------
+
+  has(id: PerkId): boolean {
+    return this.perks.has(id);
+  }
+
+  /** Gewähltes Talent einer Stufe (oder null). */
+  chosen(skill: SkillId, tier: 0 | 1): PerkId | null {
+    for (const p of this.perks) {
+      const def = getPerk(p);
+      if (def.skill === skill && def.tier === tier) return p;
+    }
+    return null;
+  }
+
+  /** Darf dieses Talent jetzt gewählt werden? (Stufe erreicht, auf dieser Stufe noch keins gewählt.) */
+  canChoose(id: PerkId): boolean {
+    const def = getPerk(id);
+    return this.level(def.skill) >= PERK_LEVELS[def.tier] && this.chosen(def.skill, def.tier) === null;
+  }
+
+  choose(id: PerkId): boolean {
+    if (!this.canChoose(id)) return false;
+    this.perks.add(id);
+    this.events?.emit('skill:perk', { id });
+    return true;
+  }
+
+  /** Wie viele Talente gerade zur Wahl stehen. */
+  get openChoices(): number {
+    let n = 0;
+    for (const s of SKILLS) for (const tier of [0, 1] as const) if (this.level(s.id) >= PERK_LEVELS[tier] && this.chosen(s.id, tier) === null) n++;
+    return n;
+  }
+
+  serializePerks(): PerkId[] {
+    return [...this.perks];
+  }
+
+  loadPerks(data: unknown): void {
+    this.perks.clear();
+    if (!Array.isArray(data)) return;
+    for (const id of data) if (typeof id === 'string' && isPerkId(id) && this.chosen(getPerk(id).skill, getPerk(id).tier) === null) this.perks.add(id);
+  }
+
   // --- Wirkungen -----------------------------------------------------------------
 
   /** Schaden an Bäumen. */
   get treeDamage(): number {
-    return 1 + 0.06 * this.level('woodcutting');
+    return (1 + 0.06 * this.level('woodcutting')) * (this.has('heavySwing') ? 1.2 : 1);
   }
   /** Ausbeute an Felsen. */
   get rockYield(): number {
-    return 1 + 0.06 * this.level('mining');
+    return (1 + 0.06 * this.level('mining')) * (this.has('quarry') ? 1.25 : 1);
+  }
+  /** Ausbeute an Feuersteinadern. */
+  get flintYield(): number {
+    return this.rockYield * (this.has('flintEye') ? 1.5 : 1);
   }
   get meleeDamage(): number {
-    return 1 + 0.05 * this.level('melee');
+    return (1 + 0.05 * this.level('melee')) * (this.has('brute') ? 1.15 : 1);
   }
   get meleeStamina(): number {
-    return 1 - 0.03 * this.level('melee');
+    return (1 - 0.03 * this.level('melee')) * (this.has('tireless') ? 0.7 : 1);
   }
   get rangedDamage(): number {
     return 1 + 0.05 * this.level('archery');
   }
   get drawTime(): number {
-    return 1 - 0.035 * this.level('archery');
+    return (1 - 0.035 * this.level('archery')) * (this.has('steadyHand') ? 0.75 : 1);
   }
   get noise(): number {
-    return 1 - 0.05 * this.level('stealth');
+    return (1 - 0.05 * this.level('stealth')) * (this.has('silent') ? 0.6 : 1);
   }
   get visibility(): number {
-    return 1 - 0.035 * this.level('stealth');
+    return (1 - 0.035 * this.level('stealth')) * (this.has('shadow') ? 0.8 : 1);
   }
   get needs(): number {
-    return 1 - 0.035 * this.level('survival');
+    return (1 - 0.035 * this.level('survival')) * (this.has('frugal') ? 0.85 : 1);
   }
   get craftedDurability(): number {
-    return 1 + 0.06 * this.level('crafting');
+    return (1 + 0.06 * this.level('crafting')) * (this.has('careful') ? 1.2 : 1);
   }
   get staminaUse(): number {
     return 1 - 0.04 * this.level('athletics');

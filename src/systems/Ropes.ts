@@ -89,6 +89,8 @@ export class Ropes implements PlayerCarrier {
   private readonly ropes = new Map<Structure, Rope>();
   private climb: { path: THREE.Vector3[]; distance: number; length: number; up: boolean } | null = null;
   private readonly feet = new THREE.Vector3();
+  /** Talent Kletterer: schneller am Seil. */
+  speedFactor = 1;
 
   constructor(private readonly d: RopeDeps) {
     this.group.name = 'Ropes';
@@ -164,7 +166,7 @@ export class Ropes implements PlayerCarrier {
   carry(dt: number): THREE.Vector3 {
     const c = this.climb!;
     const player = this.d.player;
-    let speed = c.up ? CLIMB_UP_SPEED : CLIMB_DOWN_SPEED;
+    let speed = (c.up ? CLIMB_UP_SPEED : CLIMB_DOWN_SPEED) * this.speedFactor;
     if (c.up && !player.stats.useStamina(CLIMB_STAMINA * dt)) speed *= 0.4;
     c.distance = Math.min(c.length, c.distance + speed * dt);
     let rest = c.distance;

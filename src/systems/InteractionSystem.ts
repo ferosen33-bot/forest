@@ -86,6 +86,8 @@ export interface InteractionDeps {
   isNoteRead: (id: string) => boolean;
   /** Gespräch mit einem Überlebenden beginnen. */
   onTalk: (npc: NpcDef) => void;
+  /** Aktion, wenn nichts anvisiert ist (Schlamm im Moor). */
+  fallback?: () => { prompt: Prompt; run: () => void } | null;
   /** Benutzbares Ding an einem Ort (Funkgerät): Hinweis und Aktion. */
   usePrompt?: (id: string) => Prompt;
   onUse?: (id: string) => void;
@@ -123,6 +125,8 @@ export class InteractionSystem {
   target: InteractionTarget | null = null;
   prompt: Prompt | null = null;
   private overrideRun: (() => void) | null = null;
+  /** Talent Kieselsammler: aufgelesene Steine und Stöcke zählen doppelt. */
+  pickupCount = 1;
 
   private readonly origin = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
@@ -235,6 +239,13 @@ export class InteractionSystem {
     const reach = Math.max(INTERACT_REACH, tool?.reach ?? 0);
     this.target = this.player.stats.isDead ? null : this.raycast(reach);
     this.prompt = this.target ? this.promptFor(this.target, tool) : null;
+    if (!this.prompt && !this.player.stats.isDead) {
+      const fallback = this.deps.fallback?.();
+      if (fallback) {
+        this.prompt = fallback.prompt;
+        this.overrideRun = fallback.run;
+      }
+    }
   }
 
   private promptFor(target: InteractionTarget, tool: ToolStats | undefined): Prompt | null {
@@ -410,7 +421,7 @@ export class InteractionSystem {
       case 'ground': {
         const item = target.instance.kind === 'stick' ? 'stick' : 'stone';
         this.vegetation.remove(target.instance);
-        this.items.give(item, 1, this.player.position);
+        this.items.give(item, this.pickupCount, this.player.position);
         break;
       }
       case 'item': {

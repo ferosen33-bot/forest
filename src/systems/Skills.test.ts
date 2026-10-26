@@ -47,3 +47,28 @@ describe('Skills', () => {
     expect(t.experience('woodcutting')).toBe(7);
   });
 });
+
+describe('Talente', () => {
+  it('je Fertigkeit und Stufe genau ein Talent, erst ab Stufe 3 bzw. 7', async () => {
+    const { PERKS, xpToReach } = await import('./Skills');
+    const s = new Skills();
+    expect(PERKS.length).toBe(32);
+    expect(s.canChoose('heavySwing')).toBe(false);
+    s.gain('woodcutting', xpToReach(3));
+    expect(s.openChoices).toBe(1);
+    expect(s.choose('lumberjack')).toBe(false); // erst ab Stufe 7
+    expect(s.choose('heavySwing')).toBe(true);
+    expect(s.choose('tireless')).toBe(false); // die andere Wahl derselben Stufe ist vergeben
+    expect(s.openChoices).toBe(0);
+    expect(s.treeDamage).toBeCloseTo((1 + 0.06 * 3) * 1.2);
+    s.gain('woodcutting', xpToReach(7));
+    expect(s.choose('quietAxe')).toBe(true);
+    const copy = new Skills();
+    copy.load(s.serialize());
+    copy.loadPerks(JSON.parse(JSON.stringify(s.serializePerks())));
+    expect(copy.has('heavySwing') && copy.has('quietAxe')).toBe(true);
+    // Unsinn im Spielstand und doppelte Wahl derselben Stufe werden verworfen.
+    copy.loadPerks(['heavySwing', 'tireless', 'gibtsnicht']);
+    expect(copy.serializePerks()).toEqual(['heavySwing']);
+  });
+});

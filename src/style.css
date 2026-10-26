@@ -358,9 +358,35 @@ html, body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 10, 8, 0.55);
-  pointer-events: none;
 }
-.skill { margin: 0 0 11px; }
+.skills__book { width: min(980px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; }
+.skills__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); column-gap: 26px; }
+.skill { margin: 0 0 13px; }
+.perks { display: flex; gap: 6px; align-items: stretch; margin-top: 5px; }
+.perks__label { flex: 0 0 34px; font-size: 11px; opacity: 0.6; padding-top: 6px; }
+.perk {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.25;
+  padding: 5px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(60, 45, 25, 0.3);
+  background: rgba(60, 45, 25, 0.06);
+  color: inherit;
+  cursor: default;
+}
+.perk strong { font-size: 12.5px; }
+.perk.is-locked, .perk.is-passed { opacity: 0.42; }
+.perk.is-available { cursor: pointer; border-color: #7a5a2c; background: rgba(122, 90, 44, 0.14); box-shadow: 0 0 0 1px rgba(122, 90, 44, 0.25); }
+.perk.is-available:hover { background: rgba(122, 90, 44, 0.28); }
+.perk.is-chosen { border-color: #4d6b2e; background: rgba(77, 107, 46, 0.2); }
+.perk.is-chosen strong::after { content: ' ✔'; color: #4d6b2e; }
+@media (max-width: 520px) { .skills__list { grid-template-columns: 1fr; } }
 .skill__head { display: flex; justify-content: space-between; font-size: 16px; }
 .skill__level { font-size: 13px; opacity: 0.75; }
 .skill__bar { height: 6px; margin: 3px 0 3px; border-radius: 3px; background: rgba(60, 45, 25, 0.25); overflow: hidden; }
@@ -473,6 +499,7 @@ html, body {
 .stat--thirst .stat__fill { background: var(--thirst); }
 .stat--oxygen .stat__fill { background: var(--oxygen); }
 .stat--wet .stat__fill { background: #7f9fc2; }
+.stat--mud .stat__fill { background: #6b5a3a; }
 .stat--wet.is-freezing .stat__icon { color: #bfe4ff; animation: pulse 0.9s ease-in-out infinite alternate; }
 .stat.is-low .stat__icon { animation: pulse 0.9s ease-in-out infinite; }
 

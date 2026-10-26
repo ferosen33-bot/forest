@@ -46,6 +46,8 @@ export interface Structure {
   doorCollider?: RAPIER.Collider;
   /** Nur Fischreusen: gefangene Fische. */
   catch?: number;
+  /** Schlingfalle/Fallgrube: Sekunden seit dem Zuschnappen. */
+  unarmedFor?: number;
 }
 
 /** Ergebnis des Einrastens: Position wird verschoben, optional Höhe und Drehung vorgegeben. */
@@ -80,6 +82,8 @@ export interface Placement {
 const BUILD_REACH = 7;
 const ROTATE_STEP = THREE.MathUtils.degToRad(15);
 const SNAP_DISTANCE = 1.3;
+/** Talent Selbstspanner: nach so vielen Sekunden ist eine Falle wieder scharf. */
+const AUTO_REARM_TIME = 60;
 /** Radius, in dem ein Lagerfeuer wärmt (m). */
 export const FIRE_WARMTH_RADIUS = 4.5;
 
@@ -94,6 +98,9 @@ const UP = new THREE.Vector3(0, 1, 0);
 export class BuildingSystem {
   readonly group = new THREE.Group();
   readonly structures: Structure[] = [];
+  /** Talente: Schaden durch Gegner, Fallen spannen sich selbst. */
+  enemyDamageFactor = 1;
+  autoRearm = false;
 
   /** Aktiver Bauplan im Baumodus (null = kein Baumodus). */
   active: StructureDef | null = null;
@@ -669,6 +676,7 @@ export class BuildingSystem {
    * @param byPlayer false bei Angriffen von Gegnern (kein Treffer-Feedback im HUD).
    */
   damage(s: Structure, amount: number, point: THREE.Vector3, normal: THREE.Vector3, byPlayer = true): void {
+    if (!byPlayer) amount *= this.enemyDamageFactor;
     s.health -= amount;
     s.shake = 0.3;
     this.audio.play('chop', byPlayer ? 1 : { position: point });
@@ -717,6 +725,14 @@ export class BuildingSystem {
 
   update(dt: number, viewer: THREE.Vector3): void {
     for (const s of this.structures) {
+      // Talent Selbstspanner: zugeschnappte Fallen spannen sich nach einer Minute neu.
+      if (s.def.interaction === 'snare' || s.def.interaction === 'pit') {
+        s.unarmedFor = s.armed ? 0 : (s.unarmedFor ?? 0) + dt;
+        if (this.autoRearm && s.unarmedFor > AUTO_REARM_TIME) {
+          this.setArmed(s, true);
+          this.audio.play('place', { volume: 0.5, position: s.position });
+        }
+      }
       // Torflügel schwingt auf bzw. zu
       if (s.leaf && s.doorAngle !== undefined) {
         const target = s.open ? GATE_OPEN_ANGLE : 0;

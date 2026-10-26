@@ -76,6 +76,8 @@ export class Defenses {
   private readonly tmp = new THREE.Vector3();
   /** Regen (0..1) löscht Brände schneller. */
   rain = 0;
+  /** Talent Fallensteller: Fallen richten mehr Schaden an. */
+  trapFactor = 1;
 
   constructor(private readonly d: DefenseDeps) {
     this.group.name = 'Defenses';
@@ -171,7 +173,7 @@ export class Defenses {
     this.d.audio.play('pitFall', { position: s.position });
     this.d.particles.burst(this.tmp.copy(s.position).setY(s.position.y + 0.2), { count: 14, color: 0x3a2e1e, speed: 2, size: 0.04 });
     who.stun?.(PIT_STUN);
-    who.hurt(PIT_DAMAGE, s.position);
+    who.hurt(PIT_DAMAGE * this.trapFactor, s.position);
     if (s.position.distanceTo(this.d.player.position) < 90) {
       this.d.events.emit('hud:message', { text: who.kind === 'wolf' ? 'Ein Wolf ist in die Fallgrube gestürzt.' : 'Ein Schrat ist in die Fallgrube gestürzt!' });
     }

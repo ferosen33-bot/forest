@@ -99,6 +99,8 @@ const SOUND_RANGE: Record<AnimalSound, number> = { deerAlarm: 70, wolfHowl: 420,
  * Ausnehmen erlegter Tiere sowie das Nachwachsen der Bestände.
  */
 export class AnimalDirector {
+  /** Talent Jäger: ein Stück Fleisch und ein Fell mehr je Tier. */
+  bonusYield = 0;
   readonly group = new THREE.Group();
   readonly animals: Animal[] = [];
   private readonly renderers: Record<Species, RigRenderer<AnimalPart>>;
@@ -344,8 +346,8 @@ export class AnimalDirector {
   /** Erlegtes Tier ausnehmen → rohes Fleisch. */
   butcher(animal: Animal): void {
     if (!animal.isDead || !this.animals.includes(animal)) return;
-    const meat = Math.max(1, Math.round(animal.stats.meat * animal.rig.scale));
-    const hides = animal.species === 'rabbit' ? 1 : 2;
+    const meat = Math.max(1, Math.round(animal.stats.meat * animal.rig.scale)) + this.bonusYield;
+    const hides = (animal.species === 'rabbit' ? 1 : 2) + this.bonusYield;
     this.tmp.copy(animal.feet).add(new THREE.Vector3(0, 0.4, 0));
     this.d.particles.burst(this.tmp, { count: 14, color: 0x6a1010, direction: new THREE.Vector3(0, 1, 0), speed: 1.8, size: 0.03 });
     this.d.audio.play('fleshHit');

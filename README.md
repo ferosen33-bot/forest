@@ -61,6 +61,26 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 47 – Mehr Möglichkeiten (Teil 4: Spielstile & Talente)
+
+- **Talente:** Jede der acht Fertigkeiten hat zwei Talentstufen (ab Stufe 3 und ab Stufe 7). Auf jeder Stufe wählt
+  man eines von zwei Talenten – für immer. So entstehen eigene Spielstile, zum Beispiel:
+  - *Holzfällen:* Kraftschlag oder Unermüdlich, dann Holzfäller (+1 Stamm) oder Leise Axt.
+  - *Steinmetz:* Steinbrecher oder Kieselsammler, dann Feuersteinkenner oder Feuerhüter (Feuer trotzen dem Regen).
+  - *Nahkampf:* Wucht oder Parade, dann Taumelschlag (jeder Treffer betäubt) oder Blutrausch (Kills heilen).
+  - *Bogenschießen:* Ruhige Hand oder Sorgsamer Schütze (Pfeile brechen nie), dann Kopfjäger oder Zündler.
+  - *Schleichen:* Schattengänger oder Lockruf (Steine locken doppelt so weit), dann Meuchler oder Lautlos.
+  - *Überleben:* Genügsam oder Abgehärtet, dann Jäger (mehr Fleisch und Felle) oder Feldkoch.
+  - *Handwerk:* Sorgfalt oder Fallensteller (+50 % Fallenschaden), dann Baumeister oder Selbstspanner
+    (Fallen spannen sich neu).
+  - *Ausdauer:* Läufer oder Schwimmer, dann Zäh (−20 % Schaden) oder Kletterer.
+- Das Fertigkeiten-Fenster (`K`) hat jetzt einen Mauszeiger. Es zeigt alle Talente, markiert wählbare und
+  meldet, wie viele auf eine Wahl warten. Beim Stufenaufstieg kommt ein Hinweis.
+- **Steine werfen:** Ein Stein im Schnellzugriff fliegt per Linksklick. Sein Aufprall lockt Schrate im Umkreis
+  von 18 m an die Stelle – so lockt man Wachen von einem Lager weg.
+- **Schlammtarnung:** Im Moor auf den Schlamm zu den Füßen blicken und `E` drücken. Vier Minuten lang bist du
+  viel schwerer zu sehen (Anzeige 🌿 unten links). Regen wäscht den Schlamm schneller ab, Schwimmen sofort.
+
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 3: Floß & Nachbarinseln)
 
 - **Zwei Nachbarinseln** liegen in den Weltecken vor der Küste: flache Hügel mit Strand, jeweils gut 150 m

@@ -5,14 +5,15 @@ import { Input } from './Input';
 import { Physics } from './Physics';
 import { World } from '../world/World';
 import { DayNightCycle } from '../systems/DayNightCycle';
-import { Player } from '../entities/Player';
+import { MUD_TIME, Player } from '../entities/Player';
+import type { BiomeWeights } from '../world/Biomes';
 import { ViewModel } from '../entities/ViewModel';
 import { WorldItems } from '../entities/items/WorldItems';
 import { getItem } from '../entities/items/ItemDefs';
 import { Inventory } from '../systems/Inventory';
 import { ItemService } from '../systems/ItemService';
 import { HarvestSystem } from '../systems/HarvestSystem';
-import { InteractionSystem } from '../systems/InteractionSystem';
+import { InteractionSystem, type Prompt } from '../systems/InteractionSystem';
 import { ToolController } from '../systems/ToolController';
 import { Particles } from '../systems/Particles';
 import { Audio } from '../systems/Audio';
@@ -26,7 +27,8 @@ import { BuildingSystem, type Structure } from '../systems/building/BuildingSyst
 import { LightPool, type LightRequest } from '../systems/LightPool';
 import { EnemyDirector } from '../systems/ai/EnemyDirector';
 import { AnimalDirector } from '../systems/AnimalDirector';
-import { Projectiles } from '../systems/Projectiles';
+import { Projectiles, STONE_NOISE } from '../systems/Projectiles';
+import { Enemy } from '../entities/enemies/Enemy';
 import { Cooking } from '../systems/Cooking';
 import { Camp } from '../systems/Camp';
 import { Rafts } from '../systems/Rafts';
@@ -46,7 +48,7 @@ import { CHAPTERS, Journal } from '../systems/Journal';
 import { JournalUI } from '../ui/JournalUI';
 import { NoteUI } from '../ui/NoteUI';
 import { SkillsUI } from '../ui/SkillsUI';
-import { getSkill, Skills, wireSkillEvents } from '../systems/Skills';
+import { getPerk, getSkill, PERK_LEVELS, Skills, wireSkillEvents, type PerkId } from '../systems/Skills';
 import { Fear } from '../systems/Fear';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
@@ -219,6 +221,7 @@ export class Game {
   private sleepTimer = 0;
   private sleepApplied = false;
   private sleepComfort = false;
+  private readonly tmpBiome: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
   saves!: SaveStore;
   private readonly settingsStore = new SettingsStore();
   settings: Settings;
@@ -647,8 +650,8 @@ export class Game {
       waterLevel: this.world.heightMap.waterLevel,
       groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
       onPlayerHit: (killed, headshot) => this.skills.gain('archery', killed ? 8 : headshot ? 5 : 3),
-      onShatter: (point) => this.defenses.ignite(point),
-      onIgnite: (point) => this.defenses.ignite(point, 0.45),
+      onShatter: (point) => this.defenses.ignite(point, this.skills.has('pyro') ? 1.3 : 1),
+      onIgnite: (point) => this.defenses.ignite(point, this.skills.has('pyro') ? 0.75 : 0.45),
       hitPlayer: (damage, from) => {
         this.player.receiveHit(damage, from);
         this.audio.play('hurt');
@@ -724,6 +727,7 @@ export class Game {
       config: cfg,
       onTalk: (npc) => this.talkTo(npc),
       usePrompt: (id) => this.usePrompt(id),
+      fallback: () => this.mudAction(),
       onUse: (id) => this.useThing(id),
       onCave: (target) => this.startCaveTransition(target),
       onReadNote: (id) => this.readNote(id),
@@ -777,6 +781,10 @@ export class Game {
     this.events.on('enemy:hit', ({ killed, name }) => {
       if (!killed) return;
       this.story.kills++;
+      if (this.skills.has('bloodlust') && !this.player.stats.isDead) {
+        const st = this.player.stats;
+        st.health = Math.min(st.max, st.health + 12);
+      }
       if (name === 'Hansen, der Erste') this.story.hansen = true;
     });
     // Wer blutet, hinterlässt Spuren: Bisse und Schläge spritzen Blut auf den Boden.
@@ -820,8 +828,16 @@ export class Game {
       const s = getSkill(id);
       this.audio.play('craft', 0.8);
       this.events.emit('hud:message', { text: `${s.name} – Stufe ${level}: ${s.effect(level)}` });
+      if (PERK_LEVELS.some((l, tier) => level >= l && this.skills.chosen(id, tier as 0 | 1) === null)) this.events.emit('hud:message', { text: `Neues Talent für ${s.name} wählbar – K öffnet die Fertigkeiten.` });
       if (this.skillsUI.open) this.skillsUI.render();
     });
+    this.skillsUI.onChoose = (id) => {
+      if (!this.skills.choose(id)) return;
+      this.audio.play('craft');
+      this.events.emit('hud:message', { text: `Talent gelernt: ${getPerk(id).name} – ${getPerk(id).text}` });
+      this.skillsUI.render();
+      this.saveNow();
+    };
     this.journalUI = new JournalUI(document.getElementById('journal')!, this.hud.objectivesElement, this.journal, () =>
       this.quests.running.map((q) => {
         const p = this.quests.progress(q.id, this.inventory);
@@ -928,6 +944,7 @@ export class Game {
       places: this.places.serialize(),
       story: { ...this.story },
       skills: this.skills.serialize(),
+      talents: this.skills.serializePerks(),
       worldEvents: this.worldEvents.serialize(),
       quests: this.quests.serialize(),
       ...(this.survivors ? { survivors: this.survivors.serialize() } : {}),
@@ -957,6 +974,7 @@ export class Game {
     if (d.town) this.settlement?.load(d.town);
     if (d.places) this.places.load(d.places);
     if (d.skills) this.skills.load(d.skills);
+    this.skills.loadPerks(d.talents);
     if (d.worldEvents) this.worldEvents.load(d.worldEvents);
     if (d.quests) this.quests.load(d.quests);
     if (d.story) this.story = { ...this.story, ...d.story };
@@ -1107,6 +1125,7 @@ export class Game {
   private closeInventory(): void {
     this.openChest = null;
     this.inventoryUI.hide();
+    this.skillsUI.hide();
     this.hud.inventoryOpen = false;
     this.mode = 'playing';
     // Ohne gültige User-Geste (z. B. Esc) verweigert der Browser den Pointer Lock → Pausenmenü.
@@ -1208,12 +1227,71 @@ export class Game {
     }
   }
 
+  /** Im Moor: Blick auf den Schlamm zu den Füßen → damit einreiben (Tarnung). */
+  private mudAction(): { prompt: Prompt; run: () => void } | null {
+    const p = this.player;
+    if (this.caves.current || p.swimming || p.carrier || p.pitch > -0.55) return null;
+    const hm = this.world.heightMap;
+    const ground = hm.heightAt(p.position.x, p.position.z);
+    if (ground > hm.waterLevel + 0.9) return null;
+    if (hm.biomes.weights(p.position.x, p.position.z, this.tmpBiome).swamp < 0.5) return null;
+    return {
+      prompt: { key: 'E', action: p.mud > 0 ? 'Schlamm auffrischen' : 'Mit Schlamm tarnen', label: 'Moorschlamm' },
+      run: () => {
+        p.mud = MUD_TIME;
+        this.audio.play('stepWater', 0.9);
+        this.particles.burst(p.position.clone().setY(p.position.y + 0.3), { count: 14, color: 0x3a2e1e, speed: 1.6, size: 0.04 });
+        this.events.emit('hud:message', { text: 'Mit Schlamm eingerieben – Schrate sehen dich schlechter. Wasser und Regen waschen ihn ab.' });
+      },
+    };
+  }
+
+  /** Schlamm trocknet mit der Zeit ab; Regen wäscht ihn schneller, Schwimmen sofort ab. */
+  private updateMud(dt: number): void {
+    const p = this.player;
+    if (p.mud <= 0) return;
+    const rain = this.climate.sheltered ? 0 : this.climate.weather.rain;
+    p.mud = Math.max(0, p.mud - dt * (p.swimming ? 40 : 1 + 3 * rain));
+    if (p.mud === 0) this.events.emit('hud:message', { text: 'Der Schlamm ist abgewaschen.' });
+  }
+
+  /** Talente: setzt die Stellschrauben der betroffenen Systeme (billig, daher jedes Frame). */
+  private applyPerks(): void {
+    const has = (id: PerkId) => this.skills.has(id);
+    const p = this.player;
+    this.harvest.extraLogs = has('lumberjack') ? 1 : 0;
+    this.harvest.noiseFactor = has('quietAxe') ? 0.5 : 1;
+    this.interaction.pickupCount = has('pebbles') ? 2 : 1;
+    this.climate.fireRainFactor = has('firekeeper') ? 2 : 1;
+    p.blockFactor = has('parry') ? 0.1 : 0.2;
+    p.blockStamina = has('parry') ? 0.5 : 1;
+    this.tools.staggerAll = has('stagger');
+    this.projectiles.arrowsKeep = has('recover');
+    this.projectiles.headBonus = has('headhunter') ? 1.5 : 1;
+    this.projectiles.stoneNoise = STONE_NOISE * (has('lure') ? 2 : 1);
+    this.enemies.sneakFactor = has('assassin') ? 1.5 : 1;
+    p.stats.coldFactor = has('hardy') ? 0.5 : 1;
+    this.animals.bonusYield = has('hunter') ? 1 : 0;
+    this.tools.cookBonus = has('cook');
+    this.defenses.trapFactor = has('trapper') ? 1.5 : 1;
+    Enemy.trapFactor = this.defenses.trapFactor;
+    this.building.enemyDamageFactor = has('builder') ? 0.67 : 1;
+    this.building.autoRearm = has('autoTrap');
+    p.sprintFactor = has('runner') ? 1.12 : 1;
+    p.stats.swimFactor = has('swimmer') ? 0.5 : 1;
+    p.damageTaken = has('tough') ? 0.8 : 1;
+    p.fallFactor = has('climber') ? 1.4 : 1;
+    this.ropes.speedFactor = has('climber') ? 2 : 1;
+  }
+
   /** Fertigkeiten wirken auf den Spieler; Bewegung und Schleichen bringen laufend Erfahrung. */
   private updateSkills(dt: number, playing: boolean): void {
     const p = this.player;
     const sk = this.skills;
     p.stealthNoise = sk.noise;
     p.stealthVisibility = sk.visibility;
+    this.applyPerks();
+    if (playing) this.updateMud(dt);
     p.stats.needsFactor = sk.needs;
     p.stats.staminaFactor = sk.staminaUse;
     p.stats.regenFactor = sk.staminaRegen;
@@ -1660,11 +1738,18 @@ export class Game {
       this.skillsUI.hide();
       this.mapUI.toggle();
     }
-    if (this.mode === 'playing' && this.input.wasPressed('skills')) {
+    if (this.mode === 'playing' && this.input.wasPressed('skills') && this.sleepTimer <= 0) {
+      // Fertigkeiten mit Mauszeiger: Talente wählt man per Klick.
       this.mapUI.hide();
       this.journalUI.hide();
       this.noteUI.hide();
-      this.skillsUI.toggle();
+      this.building.cancel();
+      this.mode = 'inventory';
+      this.hud.inventoryOpen = true;
+      this.skillsUI.show();
+      this.input.exitLock();
+    } else if (this.mode === 'inventory' && this.skillsUI.open && this.input.wasPressed('skills')) {
+      this.closeInventory();
     }
     if (this.mode === 'playing' && this.input.wasPressed('journal')) {
       this.mapUI.hide();

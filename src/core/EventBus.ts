@@ -5,7 +5,7 @@
 import type { Vector3 } from 'three';
 import type { ItemId } from '../entities/items/ItemDefs';
 import type { StructureId } from '../systems/building/StructureDefs';
-import type { SkillId } from '../systems/Skills';
+import type { PerkId, SkillId } from '../systems/Skills';
 
 export type GameEvents = {
   /** `from`: Position des Angreifers (für die Richtungsanzeige). */
@@ -62,6 +62,7 @@ export type GameEvents = {
   'fever:survived': { number: number };
   /** Eine Fertigkeit ist eine Stufe aufgestiegen. */
   'skill:levelUp': { id: SkillId; level: number };
+  'skill:perk': { id: PerkId };
   /** Eine Notiz wurde gelesen (`first`: zum ersten Mal). */
   'note:read': { id: string; first: boolean };
   /** Fische gefangen (Angel) bzw. aus einer Reuse genommen. */

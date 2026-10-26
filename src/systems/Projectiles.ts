@@ -49,6 +49,8 @@ export interface ProjectileDeps {
 }
 
 const GRAVITY = PROJECTILE_GRAVITY;
+/** Wie weit ein aufschlagender Stein Gegner anlockt (m). */
+export const STONE_NOISE = 18;
 /** Abstand Mittelpunkt → Spitze je Geschoss (Speer 1,5 m, Pfeil 0,7 m). */
 const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38, fireArrow: 0.38, stone: 0.08 };
 const tipOf = (id: ItemId) => TIP[id] ?? 0.4;
@@ -63,6 +65,10 @@ const WEAR_PER_HIT = 2;
  * wieder ein normales, aufhebbares Item (im Boden/Baum steckend oder vom Ziel abprallend).
  */
 export class Projectiles {
+  /** Talente: Pfeile brechen nie, Kopftreffer-Bonus, Reichweite der Steinwurf-Ablenkung. */
+  arrowsKeep = false;
+  headBonus = 1;
+  stoneNoise = STONE_NOISE;
   readonly group = new THREE.Group();
   private readonly active: Projectile[] = [];
   private readonly dir = new THREE.Vector3();
@@ -157,7 +163,8 @@ export class Projectiles {
       }
       const enemy = this.d.enemies.getHitTarget(c);
       if (enemy) {
-        this.d.enemies.damage(enemy.enemy, p.damage, enemy.zone, p.prev, point, this.normal);
+        const head = !p.hostile && enemy.zone === 'head' ? this.headBonus : 1;
+        this.d.enemies.damage(enemy.enemy, p.damage * head, enemy.zone, p.prev, point, this.normal);
         if (!p.hostile) this.d.onPlayerHit?.(enemy.enemy.isDead, enemy.zone === 'head');
         this.bounce(p, point);
         return true;
@@ -205,7 +212,8 @@ export class Projectiles {
     if (structure) this.d.building.damage(structure, 3, point, this.normal, true);
     this.d.audio.play(structure ? 'chop' : 'stoneHit', { volume: 0.6, position: point });
     this.d.particles.burst(point, { count: 5, color: 0x6b5a45, direction: this.normal, speed: 1.5, size: 0.025 });
-    if (!p.hostile) this.d.events.emit('noise', { position: point, radius: 12 });
+    // Steine poltern: wer in der Nähe ist, sieht nach (Ablenkung).
+    if (!p.hostile) this.d.events.emit('noise', { position: point, radius: p.itemId === 'stone' ? this.stoneNoise : 12 });
     p.position.copy(point).addScaledVector(this.dir, -tipOf(p.itemId) + 0.12);
     // Steine prallen ab und bleiben liegen, statt stecken zu bleiben.
     if (p.itemId === 'stone') p.velocity.reflect(this.normal).multiplyScalar(0.25);
@@ -234,7 +242,7 @@ export class Projectiles {
       return;
     }
     // Pfeile gehen öfter zu Bruch – an Lebewesen eher als im Boden.
-    if (p.itemId === 'arrow' && Math.random() < (stuck ? 0.15 : 0.35)) return;
+    if (p.itemId === 'arrow' && !this.arrowsKeep && Math.random() < (stuck ? 0.15 : 0.35)) return;
     if (p.durability !== undefined) {
       p.durability -= WEAR_PER_HIT;
       if (p.durability <= 0) {

@@ -29,6 +29,10 @@ export interface PlayerCarrier {
   carry(dt: number, input: THREE.Vector2, sprint: boolean): THREE.Vector3;
 }
 
+/** Schlammtarnung: Dauer (s) und Sichtbarkeit. */
+export const MUD_TIME = 240;
+const MUD_VISIBILITY = 0.6;
+
 /** Ab dieser Wassertiefe (m) gilt man als im offenen Meer. */
 const OPEN_SEA_DEPTH = 12;
 
@@ -51,6 +55,14 @@ export class Player {
   inOpenSea = false;
   /** Fährt gerade mit (Floß): Bewegung übernimmt der Träger. */
   carrier: PlayerCarrier | null = null;
+  /** Talente: Blocken, erlittener Schaden, Sprinttempo, sichere Fallgeschwindigkeit. */
+  /** Schlammtarnung: verbleibende Sekunden. */
+  mud = 0;
+  blockFactor = 0.2;
+  blockStamina = 1;
+  damageTaken = 1;
+  sprintFactor = 1;
+  fallFactor = 1;
   sprinting = false;
   /** Atemluft, sinkt wenn der Kopf unter Wasser ist. */
   oxygen = MAX_OXYGEN;
@@ -196,7 +208,7 @@ export class Player {
   /** Faktor auf die Sichtweite der Gegner (geduckt schwerer zu entdecken). */
   get visibility(): number {
     // Klappernde Knochen machen auffälliger.
-    return (this.crouching ? 0.55 : 1) * this.stealthVisibility * (this.stats.armor ? ARMOR_VISIBILITY : 1);
+    return (this.crouching ? 0.55 : 1) * this.stealthVisibility * (this.stats.armor ? ARMOR_VISIBILITY : 1) * (this.mud > 0 ? MUD_VISIBILITY : 1);
   }
 
   /**
@@ -207,16 +219,17 @@ export class Player {
     const to = new THREE.Vector3(from.x - this.currFeet.x, 0, from.z - this.currFeet.z).normalize();
     const facing = to.dot(this.forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)));
     if (this.blocking && facing > 0.3) {
-      if (this.stats.useStamina(14)) {
+      if (this.stats.useStamina(14 * this.blockStamina)) {
         this.events.emit('player:blocked', { amount });
         this.addShake(0.25);
-        amount *= 0.2;
+        amount *= this.blockFactor;
       } else {
         amount *= 0.7; // Deckung durchbrochen
       }
     }
     // Knochenrüstung fängt ein Drittel ab.
     if (this.stats.armor) amount *= ARMOR_FACTOR;
+    amount *= this.damageTaken;
     this.stats.damage(amount, 'enemy', true, from.clone());
     this.addShake(0.6);
     // Leichter Rückstoß weg vom Angreifer.
@@ -316,7 +329,7 @@ export class Player {
     let speed = cfg.walkSpeed;
     if (this.swimming) speed = cfg.swimSpeed * (this.sprinting ? 1.35 : 1);
     else if (this.crouching) speed = cfg.crouchSpeed;
-    else if (this.sprinting) speed = cfg.sprintSpeed;
+    else if (this.sprinting) speed = cfg.sprintSpeed * this.sprintFactor;
     if (this.moveInput.y < 0) speed *= 0.75; // rückwärts langsamer
     if (this.blocking) speed *= 0.6;
 
@@ -382,8 +395,9 @@ export class Player {
     // Landung → Fallschaden & Kamera-Einfedern
     if (!wasGrounded && this.grounded && !this.swimming) {
       const impact = -this.velocity.y;
-      if (impact > cfg.fallDamageSpeed) {
-        this.stats.damage((impact - cfg.fallDamageSpeed) * cfg.fallDamagePerMs, 'fall');
+      const safe = cfg.fallDamageSpeed * this.fallFactor;
+      if (impact > safe) {
+        this.stats.damage((impact - safe) * cfg.fallDamagePerMs, 'fall');
       }
       this.landDipVel -= Math.min(impact * 0.12, 1.4);
       if (impact > 4) this.events.emit('player:landed', { impact });

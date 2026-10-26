@@ -72,6 +72,8 @@ export interface SaveData {
   story?: { transmitted: boolean; ended: boolean; kills: number; hansen: boolean };
   /** Seit Meilenstein 24: Erfahrung je Fertigkeit. */
   skills?: SkillsSave;
+  /** Gewählte Talente (seit Meilenstein 47). */
+  talents?: string[];
   /** Seit Meilenstein 27: Versorgungsabwürfe und verlassene Lager. */
   worldEvents?: WorldEventSave[];
   /** Seit Meilenstein 28: Aufträge und die Überlebenden in der Nordbucht. */

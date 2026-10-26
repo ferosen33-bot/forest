@@ -37,6 +37,9 @@ export class PlayerStats {
   clothing = false;
   /** Knochenrüstung angelegt: fängt einen Teil des Schadens durch Gegner ab. */
   armor = false;
+  /** Talente: Ausdauer beim Schwimmen, Schaden durch Kälte. */
+  swimFactor = 1;
+  coldFactor = 1;
   /** Grundkälte der Jahreszeit (0..1, nachts voll, tagsüber ein Drittel) – vom Klima gesetzt. */
   chill = 0;
   /** Fertigkeiten: Faktor auf Hunger/Durst (Überleben) und Ausdauer-Verbrauch/-Erholung (Ausdauer). */
@@ -74,8 +77,8 @@ export class PlayerStats {
     // Ausdauer
     let staminaDrain = 0;
     if (activity.sprinting) staminaDrain += c.staminaSprintCost;
-    if (activity.swimming) staminaDrain += c.staminaSwimCost;
-    if (activity.openSea) staminaDrain += OPEN_SEA_DRAIN;
+    if (activity.swimming) staminaDrain += c.staminaSwimCost * this.swimFactor;
+    if (activity.openSea) staminaDrain += OPEN_SEA_DRAIN * this.swimFactor;
     if (staminaDrain > 0) {
       this.stamina -= staminaDrain * this.staminaFactor * dt;
       this.regenDelay = c.staminaRegenDelay;
@@ -103,7 +106,7 @@ export class PlayerStats {
     if (this.thirst <= 0) this.damage(c.starveDamage * 1.5 * dt, 'dehydration', false);
 
     // Unterkühlung: nachts nass und fern vom Feuer verliert man langsam Gesundheit.
-    if (this.freezing) this.damage(c.coldDamage * dt, 'cold', false);
+    if (this.freezing) this.damage(c.coldDamage * this.coldFactor * dt, 'cold', false);
 
     // Natürliche Heilung, wenn gut versorgt (nicht, solange man friert).
     if (this.cold < 0.5 && this.hunger > c.regenNeedsThreshold && this.thirst > c.regenNeedsThreshold) {

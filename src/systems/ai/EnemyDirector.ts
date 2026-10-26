@@ -110,6 +110,8 @@ const MAX_HORDE = 14;
  * nächtliche Jagdgruppen, Treffer durch den Spieler und Leistungs-LOD.
  */
 export class EnemyDirector {
+  /** Talent Meuchler: Schleichangriffe richten mehr Schaden an. */
+  sneakFactor = 1;
   readonly group = new THREE.Group();
   readonly nav: NavGrid;
   readonly enemies: Enemy[] = [];
@@ -609,7 +611,7 @@ export class EnemyDirector {
     const wasAggressive = enemy.isAggressive;
     // Schleichangriff: wer den Spieler nicht bemerkt hat, trifft es dreifach – und leise.
     const sneak = enemy.unaware;
-    const total = amount * (headshot ? this.cfg.headshotMultiplier : 1) * (sneak ? SNEAK_MULTIPLIER : 1);
+    const total = amount * (headshot ? this.cfg.headshotMultiplier : 1) * (sneak ? SNEAK_MULTIPLIER * this.sneakFactor : 1);
     const killed = enemy.takeDamage(total, from, ctx);
 
     this.d.particles.burst(point, { count: headshot ? 16 : 10, color: 0x5c0f10, direction: normal, speed: 3, size: 0.035 });

@@ -56,6 +56,8 @@ export class Climate {
   readonly rain = new Rain();
   /** Spieler steht unter einem Dach. */
   sheltered = false;
+  /** Talent Feuerhüter: Feuer halten dem Regen länger stand. */
+  fireRainFactor = 1;
   /** Feuchtigkeit des Bodens (folgt dem Regen verzögert). */
   groundWet = 0;
   /** Fortschritt beim Befüllen der Schale im Regen (0..1); 1 = voll → vom Spiel umgewandelt. */
@@ -184,7 +186,7 @@ export class Climate {
       let t = this.fireRain.get(s) ?? 0;
       if (rain > 0.45 && !this.roofAbove(this.tmp.copy(s.position).setY(s.position.y + Math.max(1, s.def.flame.height + 0.3)))) t += dt * rain * (1 - 0.5 * this.season.snowfall);
       else t = Math.max(0, t - dt);
-      if (t > FIRE_RAIN_TIME) {
+      if (t > FIRE_RAIN_TIME * this.fireRainFactor) {
         t = 0;
         this.d.building.setLit(s, false);
         if (s.position.distanceTo(this.d.player.position) < 60) {

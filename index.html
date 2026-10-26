@@ -39,6 +39,7 @@
         <div class="stat stat--hunger"><span class="stat__icon">🍖</span><div class="stat__bar"><div class="stat__fill" data-ref="hunger"></div></div></div>
         <div class="stat stat--thirst"><span class="stat__icon">💧</span><div class="stat__bar"><div class="stat__fill" data-ref="thirst"></div></div></div>
         <div class="stat stat--wet hidden" data-ref="wetRow" title="Nässe"><span class="stat__icon">☔</span><div class="stat__bar"><div class="stat__fill" data-ref="wet"></div></div></div>
+        <div class="stat stat--mud hidden" data-ref="mudRow" title="Schlammtarnung"><span class="stat__icon">🌿</span><div class="stat__bar"><div class="stat__fill" data-ref="mud"></div></div></div>
         <div class="stat stat--oxygen" data-ref="oxygenRow"><span class="stat__icon">○</span><div class="stat__bar"><div class="stat__fill" data-ref="oxygen"></div></div></div>
       </div>
 
@@ -113,11 +114,11 @@
 
     <!-- Fertigkeiten (K) -->
     <div id="skills" class="hidden">
-      <div class="journal__book">
-        <h2 class="journal__title">Fertigkeiten</h2>
-        <p class="journal__summary">Was du oft tust, kannst du bald besser.</p>
-        <div data-ref="skillList"></div>
-        <p class="map__hint"><kbd>K</kbd> schließen</p>
+      <div class="journal__book skills__book">
+        <h2 class="journal__title">Fertigkeiten &amp; Talente</h2>
+        <p class="journal__summary" data-ref="skillSummary">Was du oft tust, kannst du bald besser.</p>
+        <div class="skills__list" data-ref="skillList"></div>
+        <p class="map__hint">Ab Stufe 3 und 7 wählst du je ein Talent – die Wahl gilt für immer. <kbd>K</kbd> schließen</p>
       </div>
     </div>
 

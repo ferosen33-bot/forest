@@ -144,7 +144,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   stone: {
     id: 'stone',
     name: 'Stein',
-    description: 'Ein handlicher Stein mit scharfer Kante.',
+    description: 'Ein handlicher Stein mit scharfer Kante. Im Schnellzugriff wirft ihn ein Linksklick – der Aufprall lockt Schrate an die Stelle.',
     category: 'resource',
     maxStack: 12,
   },

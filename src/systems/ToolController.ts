@@ -27,6 +27,9 @@ const AIM_RANGE = 40;
  * gehaltenen Werkzeug (Treffer wird im Moment des Aufpralls per Raycast geprüft) und
  * Essen von Nahrung aus der Hand.
  */
+/** Gegartes Essen (Talent Feldkoch). */
+const COOKED = new Set<ItemId>(['cookedMeat', 'cookedFish', 'jerky', 'stew']);
+
 export class ToolController {
   /** Ausgewählter Slot der Schnellzugriffsleiste. */
   selected = 0;
@@ -145,6 +148,11 @@ export class ToolController {
       if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwEquipped(def!);
       return;
     }
+    // Steine wirft man, um Gegner abzulenken: der Aufprall lockt sie an die Stelle.
+    if (stack.id === 'stone') {
+      if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwStone();
+      return;
+    }
     if (def?.tool && this.input.isMouseDown(0)) this.startSwing(def.tool);
     else if (def?.food && this.input.wasMousePressed(0)) this.startEating(def);
   }
@@ -204,7 +212,8 @@ export class ToolController {
       case 'enemy':
         this.enemies.damage(target.enemy, tool.damage * sk.meleeDamage, target.zone, this.player.position, this.point, this.normal);
         // Wuchtwaffen lassen den Getroffenen taumeln.
-        if (tool.stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(tool.stun);
+        const stun = tool.stun ?? (this.staggerAll ? 0.5 : 0);
+        if (stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(stun);
         sk.gain('melee', target.enemy.isDead ? 8 : 2);
         break;
       case 'animal':
@@ -216,7 +225,7 @@ export class ToolController {
         sk.gain('melee', target.animal.isDead ? 5 : 1.5);
         break;
       case 'cave':
-        if (target.cave.type === 'flint') this.caves.hitFlint(target.cave.feature, { ...tool, rockYield: tool.rockYield * sk.rockYield }, this.point, this.normal);
+        if (target.cave.type === 'flint') this.caves.hitFlint(target.cave.feature, { ...tool, rockYield: tool.rockYield * sk.flintYield }, this.point, this.normal);
         else if (target.cave.type === 'crate') this.audio.play('chop');
         else {
           this.audio.play('swing');
@@ -227,6 +236,10 @@ export class ToolController {
     this.viewModel.playHit();
     this.wearEquipped(1);
   }
+
+  /** Talente: jeder Nahkampftreffer betäubt kurz; Gekochtes macht satter. */
+  staggerAll = false;
+  cookBonus = false;
 
   /** Gewählte Munition für den Bogen: Brandpfeile, solange welche da sind und sie gewählt sind. */
   private fireAmmo = false;
@@ -331,6 +344,18 @@ export class ToolController {
     this.aiming = false;
   }
 
+  /** Stein werfen: wenig Schaden, aber ein lauter Aufprall. */
+  private throwStone(): void {
+    if (!this.player.stats.useStamina(3)) return;
+    if (!this.inventory.takeFromSlot(this.selected, 1)) return;
+    const { origin, dir } = this.aimRay(0.18, 0.05);
+    const velocity = dir.multiplyScalar(19).add(this.player.velocity);
+    velocity.y += 1.5;
+    this.projectiles.launch('stone', undefined, 6 * this.skills.rangedDamage, origin, velocity);
+    this.viewModel.playThrow();
+    this.throwCooldown = 0.5;
+  }
+
   /** Sofort essen (Rechtsklick im Inventar, ohne Animation). */
   consumeFromSlot(slot: number): boolean {
     const stack = this.inventory.get(slot);
@@ -354,7 +379,7 @@ export class ToolController {
   private applyFood(def: ItemDef): void {
     const food = def.food!;
     const stats = this.player.stats;
-    stats.eat(food.hunger);
+    stats.eat(food.hunger * (this.cookBonus && COOKED.has(def.id) ? 1.5 : 1));
     stats.thirst = Math.max(0, Math.min(stats.max, stats.thirst + food.thirst));
     this.audio.play(food.medicine ? 'craft' : food.hunger === 0 && food.thirst > 0 ? 'drink' : 'eat');
     if (food.medicine) this.events.emit('hud:message', { text: 'Wunden versorgt.' });

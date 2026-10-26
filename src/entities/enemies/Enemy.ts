@@ -82,6 +82,8 @@ const HEIGHT = 1.8;
  * Bewegung läuft im festen Physik-Takt; die Darstellung wird interpoliert.
  */
 export class Enemy {
+  /** Talent Fallensteller: Pfähle und Stachelwände verletzen stärker (für alle Schrate gleich). */
+  static trapFactor = 1;
   readonly rig: EnemyRig;
   /** Typ (Schrat, Späher, Koloss) mit seinen Kampf- und Wahrnehmungswerten. */
   readonly kind: EnemyKindDef;
@@ -639,7 +641,7 @@ export class Enemy {
       this.struck = true;
       ctx.damageStructure(s, this.kind.structureDamage, this.tmp.copy(this.curr).addScaledVector(this.forward, 0.8).setY(this.curr.y + 1));
       // Wer auf Spieße einschlägt, reißt sich selbst auf.
-      if (s.def.thorns) this.takeDamage(s.def.thorns * 0.5, s.position, ctx);
+      if (s.def.thorns) this.takeDamage(s.def.thorns * 0.5 * Enemy.trapFactor, s.position, ctx);
     }
     if (u >= 1) {
       this.attackTime = 0;
@@ -769,7 +771,7 @@ export class Enemy {
         // Hineingelaufen: Pfähle verletzen, die Falle nutzt sich ab.
         this.trapCooldown = 1.2;
         ctx.damageStructure(s, s.def.id === 'spikeTrap' ? 12 : 4, this.curr.clone().add(new THREE.Vector3(0, 0.5, 0)));
-        this.takeDamage(s.def.thorns, s.position, ctx);
+        this.takeDamage(s.def.thorns * Enemy.trapFactor, s.position, ctx);
         if (this.isDead) return;
       }
       if (s.def.id === 'spikeTrap') {

@@ -1,6 +1,6 @@
 import type { EventBus } from '../core/EventBus';
 import { ScreenBlood } from './ScreenBlood';
-import type { Player } from '../entities/Player';
+import { MUD_TIME, type Player } from '../entities/Player';
 import type { Prompt } from '../systems/InteractionSystem';
 import type { Inventory } from '../systems/Inventory';
 import { getItem, type ItemId } from '../entities/items/ItemDefs';
@@ -25,6 +25,8 @@ const REFS = [
   'oxygenRow',
   'wet',
   'wetRow',
+  'mud',
+  'mudRow',
   'compass',
   'objectives',
   'toasts',
@@ -42,7 +44,7 @@ const REFS = [
   'debug',
 ] as const;
 
-const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen', 'wet'] as const;
+const BARS = ['health', 'stamina', 'hunger', 'thirst', 'oxygen', 'wet', 'mud'] as const;
 type BarName = (typeof BARS)[number];
 type RefName = (typeof REFS)[number];
 
@@ -199,6 +201,8 @@ export class HUD {
     this.bar('wet', s.wetness, 0);
     this.toggle('wetRow', 'hidden', s.wetness < 0.03);
     this.toggle('wetRow', 'is-freezing', s.freezing);
+    this.bar('mud', player.mud / MUD_TIME, 0);
+    this.toggle('mudRow', 'hidden', player.mud <= 0);
 
     this.updatePrompt(prompt);
     this.text('clock', clockText);
