@@ -352,6 +352,9 @@ export class AnimalDirector {
     this.remove(animal);
     this.d.items.give('rawMeat', meat, this.tmp);
     this.d.items.give('hide', hides, this.tmp);
+    // Knochen für Keulen und Rüstungen: vom Hasen kaum etwas, vom Hirsch und Wolf ordentlich.
+    const bones = animal.species === 'rabbit' ? (Math.random() < 0.5 ? 1 : 0) : 2 + (Math.random() < 0.4 ? 1 : 0);
+    if (bones > 0) this.d.items.give('bone', bones, this.tmp);
   }
 
   private scareAround(position: THREE.Vector3, radius: number): void {

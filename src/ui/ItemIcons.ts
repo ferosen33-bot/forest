@@ -42,6 +42,10 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   molotov: new THREE.Euler(0.2, 0.3, -0.4),
   enginePart: new THREE.Euler(0.7, 0.5, 0),
   documents: new THREE.Euler(0.9, 0.3, 0),
+  bone: new THREE.Euler(0.5, 0.3, 0.3),
+  boneClub: new THREE.Euler(0, 0.3, -0.75),
+  fireArrow: new THREE.Euler(0, 0.2, -0.8),
+  boneArmor: new THREE.Euler(0.9, 0.3, 0),
 };
 
 export interface IconSets {

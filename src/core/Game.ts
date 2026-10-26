@@ -598,6 +598,7 @@ export class Game {
       groundAt: (x, z) => this.world.heightMap.heightAt(x, z),
       onPlayerHit: (killed, headshot) => this.skills.gain('archery', killed ? 8 : headshot ? 5 : 3),
       onShatter: (point) => this.defenses.ignite(point),
+      onIgnite: (point) => this.defenses.ignite(point, 0.45),
       hitPlayer: (damage, from) => {
         this.player.receiveHit(damage, from);
         this.audio.play('hurt');
@@ -852,6 +853,7 @@ export class Game {
         wetness: s.wetness,
         backpack: this.hasBackpack,
         clothing: s.clothing,
+        armor: s.armor,
         ...(this.caves.current ? { cave: this.caves.current.index } : {}),
       },
       time: { day: this.dayNight.day, hour: this.dayNight.hour },
@@ -883,6 +885,7 @@ export class Game {
     // Erst den Rucksack vergrößern, sonst würden die zusätzlichen Plätze beim Laden abgeschnitten.
     if (d.player.backpack) this.upgradeBackpack();
     this.player.stats.clothing = d.player.clothing === true;
+    this.player.stats.armor = d.player.armor === true;
     this.inventory.load(d.inventory, isItemId);
     this.world.vegetation.load(d.vegetation);
     this.harvest.load(d.harvest);
@@ -1491,6 +1494,17 @@ export class Game {
       this.player.stats.clothing = true;
       this.audio.play('craft');
       this.events.emit('hud:message', { text: `${getItem(stack.id).name} angezogen – Kälte und Nässe machen dir jetzt viel weniger aus.` });
+      return;
+    }
+    if (use === 'armor') {
+      if (this.player.stats.armor) {
+        this.events.emit('hud:message', { text: 'Du trägst schon eine Rüstung.' });
+        return;
+      }
+      this.inventory.takeFromSlot(slot, 1);
+      this.player.stats.armor = true;
+      this.audio.play('craft');
+      this.events.emit('hud:message', { text: 'Knochenrüstung angelegt – sie fängt Schläge ab, klappert aber hörbar.' });
       return;
     }
     if (use === 'battery') {

@@ -3,7 +3,7 @@ import type { Input, Action } from '../core/Input';
 import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
 import type { ViewModel } from '../entities/ViewModel';
-import { getItem, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
+import { getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
 import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
@@ -203,6 +203,8 @@ export class ToolController {
         break;
       case 'enemy':
         this.enemies.damage(target.enemy, tool.damage * sk.meleeDamage, target.zone, this.player.position, this.point, this.normal);
+        // Wuchtwaffen lassen den Getroffenen taumeln.
+        if (tool.stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(tool.stun);
         sk.gain('melee', target.enemy.isDead ? 8 : 2);
         break;
       case 'animal':
@@ -226,6 +228,23 @@ export class ToolController {
     this.wearEquipped(1);
   }
 
+  /** Gewählte Munition für den Bogen: Brandpfeile, solange welche da sind und sie gewählt sind. */
+  private fireAmmo = false;
+
+  private currentAmmo(base: ItemId): ItemId {
+    if (base !== 'arrow') return base;
+    if (this.fireAmmo && this.inventory.has('fireArrow')) return 'fireArrow';
+    if (!this.inventory.has('arrow') && this.inventory.has('fireArrow')) return 'fireArrow';
+    return 'arrow';
+  }
+
+  private toggleAmmo(): void {
+    this.fireAmmo = !this.fireAmmo;
+    const has = this.fireAmmo ? this.inventory.count('fireArrow') : this.inventory.count('arrow');
+    this.audio.play('pickup', 0.4);
+    this.events.emit('hud:message', { text: `Munition: ${this.fireAmmo ? 'Brandpfeile' : 'Pfeile'} (${has})` });
+  }
+
   /** Bogen: Linksklick halten = spannen, loslassen = schießen; Rechtsklick = Zielzoom. */
   private updateBow(dt: number, active: boolean, def: ItemDef): void {
     const r = def.ranged!;
@@ -238,8 +257,10 @@ export class ToolController {
       if (this.drawing) this.cancelDraw();
       return;
     }
+    if (this.input.wasPressed('ammo') && !this.drawing) this.toggleAmmo();
+    const ammo = this.currentAmmo(r.ammo);
     if (this.input.wasMousePressed(0) && !this.drawing) {
-      if (!this.inventory.has(r.ammo)) {
+      if (!this.inventory.has(ammo)) {
         this.audio.play('denied');
         this.events.emit('hud:message', { text: `Keine ${getItem(r.ammo).name}e – herstellen oder aufsammeln.` });
         return;
@@ -259,14 +280,15 @@ export class ToolController {
     this.drawing = false;
     this.drawCharge = 0;
     this.viewModel.setDraw(0);
-    if (charge < 0.15 || !this.inventory.remove(r.ammo, 1)) return;
+    if (charge < 0.15 || !this.inventory.remove(ammo, 1)) return;
     const speed = r.minSpeed + (r.maxSpeed - r.minSpeed) * charge;
     const damage = (r.minDamage + (r.maxDamage - r.minDamage) * charge * charge) * this.skills.rangedDamage;
     const { origin, dir } = this.aimRay(0.08, -0.02);
     const velocity = dir.multiplyScalar(speed).add(this.player.velocity);
     velocity.y += 0.6;
-    this.projectiles.launch(r.ammo, undefined, damage, origin, velocity);
+    this.projectiles.launch(ammo, undefined, damage, origin, velocity);
     this.audio.play('bowShot');
+    if (ammo === 'fireArrow') this.audio.play('ignite', 0.5);
     this.viewModel.playHit();
     this.wearEquipped(1);
   }

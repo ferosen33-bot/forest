@@ -106,6 +106,18 @@ describe('Defenses', () => {
     expect(defenses.fireNear(new THREE.Vector3(0, 0, 0), 5)).toBeNull();
   });
 
+  it('Brandpfeil: kleinerer, kürzerer Brand', () => {
+    const { defenses, intruders } = setup();
+    const edge = intruder(2, 0);
+    intruders.push(edge);
+    defenses.ignite(new THREE.Vector3(0, 0, 0), 0.45);
+    for (let t = 0; t < 2; t += 0.1) defenses.update(0.1);
+    // 2 m vom Einschlag ist es beim Brandpfeil noch sicher, bei der Brandflasche nicht.
+    expect(edge.damage).toBe(0);
+    for (let t = 0; t < FIRE_TIME * 0.7; t += 0.1) defenses.update(0.1);
+    expect(defenses.zones.length).toBe(0);
+  });
+
   it('Regen löscht Brände schneller', () => {
     const dry = setup().defenses;
     const wet = setup().defenses;

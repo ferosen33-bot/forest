@@ -54,6 +54,23 @@ export const RECIPES: Recipe[] = [
     ],
     4,
   ),
+  item('boneClub', [
+    { item: 'log', count: 1 },
+    { item: 'bone', count: 3 },
+    { item: 'hide', count: 1 },
+  ]),
+  item(
+    'fireArrow',
+    [
+      { item: 'arrow', count: 3 },
+      { item: 'lampOil', count: 1 },
+    ],
+    3,
+  ),
+  item('boneArmor', [
+    { item: 'bone', count: 6 },
+    { item: 'hide', count: 3 },
+  ]),
   item('molotov', [
     { item: 'bottle', count: 1 },
     { item: 'lampOil', count: 1 },

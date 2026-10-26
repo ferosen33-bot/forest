@@ -42,6 +42,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 | `J`                 | Tagebuch & Ziele                      |
 | `K`                 | Fertigkeiten                          |
 | `R` / Mausrad       | Bauvorschau drehen                    |
+| `V`                 | Bogen: Munition wechseln (Pfeile ↔ Brandpfeile) |
 | Rechtsklick         | Blocken (mit Waffe) / Speer zum Wurf anlegen / Bogen: zielen / Bauen abbrechen |
 | `F3`                | Debug-Anzeige (FPS, Draw Calls, …)    |
 | `F4`                | Nachbearbeitung an/aus                |
@@ -59,6 +60,20 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > Horden-Nächten wie in *7 Days to Die*, Rollenspiel durch Fertigkeiten – und später **Koop-Mehrspieler**
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
+
+### Meilenstein 47 – Mehr Möglichkeiten (Teil 1: Waffen & Ausrüstung)
+
+- **Knochen:** Wer Wild ausnimmt, bekommt jetzt auch Knochen – zwei bis drei vom Hirsch und vom Wolf, ab und zu
+  einen vom Hasen.
+- **Knochenkeule** (1 Holzstamm, 3 Knochen, 1 Fell): ein Oberschenkelknochen an einem Stiel. Langsamer und teurer
+  an Ausdauer als die Axt, schlägt aber härter zu und lässt jeden Getroffenen (außer Bossen) gut eine Sekunde
+  taumeln.
+- **Brandpfeile** (3 Pfeile, 1 Lampenöl → 3 Stück): Mit `V` wechselt der Bogen die Munition. Ein Brandpfeil
+  verbrennt beim Einschlag und setzt den Boden in Brand – ein kleinerer, kürzerer Brand als bei der
+  Brandflasche, der Schrate und Wölfe trotzdem zurückweichen lässt. Sind die gewählten Pfeile aus, nimmt der
+  Bogen die anderen.
+- **Knochenrüstung** (6 Knochen, 3 Felle): per Rechtsklick anlegen. Sie fängt ein Drittel jedes Treffers ab,
+  klappert aber und macht dich ein Viertel auffälliger. Sie bleibt im Spielstand erhalten.
 
 ### Meilenstein 46 – Heimweg
 

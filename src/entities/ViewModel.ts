@@ -58,6 +58,7 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   molotov: { position: new THREE.Vector3(0.24, -0.3, -0.45), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.08, 0), scale: 1 },
   painkillers: { position: new THREE.Vector3(0.22, -0.26, -0.42), rotation: new THREE.Euler(0.4, 0.5, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.3 },
   machete: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.24, 0), scale: 1 },
+  boneClub: { position: new THREE.Vector3(0.32, -0.38, -0.52), rotation: new THREE.Euler(-0.8, 0.2, -0.25), grip: new THREE.Vector3(0, -0.2, 0), scale: 0.95 },
   // Lampe zeigt nach vorne (Längsachse +Y → Blickrichtung); die Faust umschließt den Bügel unter dem Gehäuse.
   // Der Bügel läuft nach vorne – die Faust umschließt ihn von unten, der Unterarm hängt darunter.
   flashlight: {

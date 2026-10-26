@@ -38,6 +38,8 @@ const MATERIALS = {
   rawMeat: mat(0xa8343a, { roughness: 0.55 }),
   cookedMeat: mat(0x6b3a1e, { roughness: 0.75 }),
   bone: mat(0xe6dcc6, { roughness: 0.7 }),
+  /** Vergilbter, verschmierter Knochen für Waffen. */
+  oldBone: new THREE.MeshStandardMaterial({ color: 0xb8a684, roughness: 0.75 }),
   fish: mat(0x7f9298, { roughness: 0.35, metalness: 0.15 }),
   fishBack: mat(0x4a5d63, { roughness: 0.45 }),
   cookedFish: mat(0x9b6a3c, { roughness: 0.7 }),
@@ -459,6 +461,74 @@ function build(id: ItemId): THREE.Object3D {
       g.add(lamp);
       break;
     }
+    case 'bone': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.015, 0.26, 7), MATERIALS.bone);
+      shaft.rotation.z = Math.PI / 2;
+      g.add(shaft);
+      for (const s of [-1, 1]) {
+        const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 7, 5), MATERIALS.bone);
+        knob.position.x = s * 0.13;
+        knob.scale.set(1, 0.8, 1.2);
+        g.add(knob);
+      }
+      break;
+    }
+    case 'boneClub': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.021, 0.36, 7), MATERIALS.handle);
+      handle.position.y = -0.1;
+      g.add(handle);
+      // Ein Oberschenkelknochen: schlanker Schaft, der oben in zwei Gelenkhöcker ausläuft.
+      const profile = [
+        [0.024, 0], [0.028, 0.03], [0.022, 0.08], [0.02, 0.14], [0.024, 0.2], [0.036, 0.25], [0.046, 0.28],
+      ].map(([r, y]) => new THREE.Vector2(r, y));
+      const shaft = new THREE.Mesh(new THREE.LatheGeometry(profile, 9), MATERIALS.oldBone);
+      shaft.position.y = 0.06;
+      g.add(shaft);
+      for (const s of [-1, 1]) {
+        const condyle = new THREE.Mesh(new THREE.SphereGeometry(0.034, 9, 7), MATERIALS.oldBone);
+        condyle.position.set(s * 0.024, 0.35, 0.004);
+        condyle.scale.set(0.9, 0.85, 1.1);
+        g.add(condyle);
+      }
+      for (let i = 0; i < 3; i++) {
+        const strap = new THREE.Mesh(new THREE.TorusGeometry(0.027, 0.006, 4, 10), MATERIALS.binding);
+        strap.rotation.x = Math.PI / 2;
+        strap.rotation.y = (i - 1) * 0.25;
+        strap.position.y = 0.06 + i * 0.025;
+        g.add(strap);
+      }
+      break;
+    }
+    case 'fireArrow': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.68, 4), MATERIALS.lightWood);
+      g.add(shaft);
+      const rag = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.018, 0.07, 6), mat(0x5a2a12, { emissive: 0xff5a10, emissiveIntensity: 2.4 }));
+      rag.position.y = 0.32;
+      g.add(rag);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 4), MATERIALS.stone);
+      tip.position.y = 0.38;
+      g.add(tip);
+      for (let i = 0; i < 3; i++) {
+        const vane = new THREE.Mesh(new THREE.PlaneGeometry(0.025, 0.08), MATERIALS.feather);
+        vane.position.y = -0.29;
+        vane.rotation.y = (i / 3) * Math.PI;
+        g.add(vane);
+      }
+      break;
+    }
+    case 'boneArmor': {
+      const fur = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.4), MATERIALS.fur);
+      g.add(fur);
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.1), MATERIALS.bone);
+          plate.position.set(-0.1 + c * 0.1, 0.04, -0.12 + r * 0.12);
+          plate.rotation.y = (r + c) % 2 ? 0.15 : -0.15;
+          g.add(plate);
+        }
+      }
+      break;
+    }
     case 'enginePart': {
       // Ölverschmierter Lappen mit Zündkerzen und einer Pumpe darauf.
       const rag = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.16), MATERIALS.cloth);
@@ -617,6 +687,14 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.008, 0.036).setDensity(3000);
     case 'enginePart':
       return RAPIER.ColliderDesc.cuboid(0.11, 0.04, 0.08).setDensity(1500);
+    case 'bone':
+      return RAPIER.ColliderDesc.capsule(0.12, 0.025).setRotation({ x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }).setDensity(1800);
+    case 'boneClub':
+      return RAPIER.ColliderDesc.cylinder(0.28, 0.045).setDensity(900);
+    case 'fireArrow':
+      return RAPIER.ColliderDesc.cylinder(0.35, 0.012).setDensity(600);
+    case 'boneArmor':
+      return RAPIER.ColliderDesc.cuboid(0.17, 0.04, 0.2).setDensity(700);
     case 'documents':
       return RAPIER.ColliderDesc.cuboid(0.11, 0.015, 0.15).setDensity(600);
     case 'rawFish':

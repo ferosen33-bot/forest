@@ -64,6 +64,8 @@ interface FireZone {
   readonly flames: FireEffect[];
   readonly light: LightRequest;
   tick: number;
+  readonly radius: number;
+  readonly duration: number;
 }
 
 export class Defenses {
@@ -79,8 +81,11 @@ export class Defenses {
     this.group.name = 'Defenses';
   }
 
-  /** Brandflasche zerschellt: Brandherd am Boden unter `point`. */
-  ignite(point: THREE.Vector3): void {
+  /**
+   * Brandflasche zerschellt: Brandherd am Boden unter `point`.
+   * `scale` < 1 ergibt einen kleineren, kürzeren Brand (Brandpfeile).
+   */
+  ignite(point: THREE.Vector3, scale = 1): void {
     const ground = this.d.heightMap.heightAt(point.x, point.z);
     // Unter Tage (Höhlen schweben hoch über der Insel) brennt es dort, wo die Flasche zerschellt.
     const underground = point.y > ground + 6;
@@ -91,11 +96,15 @@ export class Defenses {
     }
     const center = new THREE.Vector3(point.x, underground ? point.y : Math.max(ground, Math.min(point.y, ground + 3)), point.z);
     const flames: FireEffect[] = [];
-    for (let i = 0; i < 6; i++) {
+    const radius = FIRE_RADIUS * scale;
+    const duration = FIRE_TIME * (0.4 + 0.6 * scale);
+    const count = Math.max(2, Math.round(6 * scale));
+    for (let i = 0; i < count; i++) {
       // Rauch nur aus dem Hauptherd, Funken aus jedem zweiten – sonst wird es zu viel.
-      const f = new FireEffect(i === 0 ? 1.1 : 0.5 + Math.random() * 0.4, { smoke: i === 0, sparks: i % 2 === 0, heat: i === 0 });
-      const a = (i / 6) * Math.PI * 2 + Math.random();
-      const r = i === 0 ? 0 : FIRE_RADIUS * (0.35 + Math.random() * 0.45);
+      const size = (i === 0 ? 1.1 : 0.5 + Math.random() * 0.4) * (0.6 + 0.4 * scale);
+      const f = new FireEffect(size, { smoke: i === 0, sparks: i % 2 === 0, heat: i === 0 });
+      const a = (i / count) * Math.PI * 2 + Math.random();
+      const r = i === 0 ? 0 : radius * (0.35 + Math.random() * 0.45);
       const x = center.x + Math.cos(a) * r;
       const z = center.z + Math.sin(a) * r;
       const y = underground ? center.y : Math.max(this.d.heightMap.heightAt(x, z), center.y - 0.5);
@@ -105,18 +114,20 @@ export class Defenses {
     }
     this.zones.push({
       center,
-      time: FIRE_TIME,
+      time: duration,
       flames,
-      light: { position: center.clone().setY(center.y + 1), color: new THREE.Color(0xff7a2a), intensity: 0, distance: 20 },
+      light: { position: center.clone().setY(center.y + 1), color: new THREE.Color(0xff7a2a), intensity: 0, distance: 20 * (0.5 + 0.5 * scale) },
       tick: 0,
+      radius,
+      duration,
     });
-    this.d.audio.play('fireWhoosh', { position: center });
-    this.d.events.emit('noise', { position: center, radius: 25 });
+    this.d.audio.play('fireWhoosh', { position: center, volume: 0.5 + 0.5 * scale });
+    this.d.events.emit('noise', { position: center, radius: 25 * scale });
   }
 
   /** Nächster Brandherd, der `pos` im Umkreis `radius` erreicht (für die Feuerscheu von Schraten und Wölfen). */
   fireNear(pos: THREE.Vector3, radius: number): THREE.Vector3 | null {
-    for (const z of this.zones) if (z.center.distanceTo(pos) < radius + FIRE_RADIUS) return z.center;
+    for (const z of this.zones) if (z.center.distanceTo(pos) < radius + z.radius) return z.center;
     return null;
   }
 
@@ -181,12 +192,12 @@ export class Defenses {
     for (let i = this.zones.length - 1; i >= 0; i--) {
       const z = this.zones[i];
       z.time -= dt * (1 + 2 * this.rain);
-      const strength = Math.min(1, z.time / 2.5) * Math.min(1, (FIRE_TIME - z.time) / 0.25 + 0.2);
+      const strength = Math.min(1, z.time / 2.5) * Math.min(1, (z.duration - z.time) / 0.25 + 0.2);
       for (const f of z.flames) {
         f.update(dt);
         f.object.scale.setScalar(Math.max(0.01, strength));
       }
-      z.light.intensity = 30 * strength * (z.flames[0]?.flicker ?? 1);
+      z.light.intensity = 30 * (z.radius / FIRE_RADIUS) * strength * (z.flames[0]?.flicker ?? 1);
       this.d.lights.request(z.light);
       // Schaden in halben Sekunden.
       z.tick -= dt;
@@ -205,6 +216,6 @@ export class Defenses {
   }
 
   private inFire(z: FireZone, p: THREE.Vector3): boolean {
-    return Math.hypot(p.x - z.center.x, p.z - z.center.z) < FIRE_RADIUS && Math.abs(p.y - z.center.y) < 2;
+    return Math.hypot(p.x - z.center.x, p.z - z.center.z) < z.radius && Math.abs(p.y - z.center.y) < 2;
   }
 }

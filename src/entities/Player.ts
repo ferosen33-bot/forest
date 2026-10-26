@@ -23,6 +23,10 @@ const MAX_OXYGEN = 100;
  * Der Rigidbody-Ursprung liegt an den FÜSSEN; die Kapsel sitzt darüber. So bleibt die
  * Fußposition beim Ducken (Kapsel schrumpft) unverändert.
  */
+/** Knochenrüstung: Schadensfaktor bei Treffern und Auffälligkeit. */
+export const ARMOR_FACTOR = 0.67;
+export const ARMOR_VISIBILITY = 1.25;
+
 export class Player {
   readonly stats: PlayerStats;
   /** Interpolierte Fußposition (für Kamera, Schatten, Audio ...). */
@@ -178,7 +182,8 @@ export class Player {
 
   /** Faktor auf die Sichtweite der Gegner (geduckt schwerer zu entdecken). */
   get visibility(): number {
-    return (this.crouching ? 0.55 : 1) * this.stealthVisibility;
+    // Klappernde Knochen machen auffälliger.
+    return (this.crouching ? 0.55 : 1) * this.stealthVisibility * (this.stats.armor ? ARMOR_VISIBILITY : 1);
   }
 
   /**
@@ -197,6 +202,8 @@ export class Player {
         amount *= 0.7; // Deckung durchbrochen
       }
     }
+    // Knochenrüstung fängt ein Drittel ab.
+    if (this.stats.armor) amount *= ARMOR_FACTOR;
     this.stats.damage(amount, 'enemy', true, from.clone());
     this.addShake(0.6);
     // Leichter Rückstoß weg vom Angreifer.

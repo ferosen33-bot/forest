@@ -40,6 +40,7 @@ export interface SaveData {
     /** Seit Meilenstein 16: großer Rucksack / Fellmantel. */
     backpack?: boolean;
     clothing?: boolean;
+    armor?: boolean;
     /** Seit Meilenstein 20: in dieser Höhle gespeichert. */
     cave?: number;
   };

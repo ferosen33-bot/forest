@@ -44,11 +44,13 @@ export interface ProjectileDeps {
   onPlayerHit?: (killed: boolean, headshot: boolean) => void;
   /** Eine Brandflasche ist zerschellt. */
   onShatter?: (point: THREE.Vector3) => void;
+  /** Ein Brandpfeil hat eingeschlagen: kleiner Brand am Treffpunkt. */
+  onIgnite?: (point: THREE.Vector3) => void;
 }
 
 const GRAVITY = PROJECTILE_GRAVITY;
 /** Abstand Mittelpunkt → Spitze je Geschoss (Speer 1,5 m, Pfeil 0,7 m). */
-const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38, stone: 0.08 };
+const TIP: Partial<Record<ItemId, number>> = { spear: 0.75, arrow: 0.38, fireArrow: 0.38, stone: 0.08 };
 const tipOf = (id: ItemId) => TIP[id] ?? 0.4;
 const UP = new THREE.Vector3(0, 1, 0);
 /** Abnutzung des Speers pro Treffer. */
@@ -98,7 +100,7 @@ export class Projectiles {
       age: 0,
       hostile,
     });
-    if (itemId !== 'arrow') this.d.audio.play('throw', hostile ? { volume: 0.8, position: origin } : 1);
+    if (itemId !== 'arrow' && itemId !== 'fireArrow') this.d.audio.play('throw', hostile ? { volume: 0.8, position: origin } : 1);
   }
 
   fixedUpdate(dt: number): void {
@@ -223,6 +225,12 @@ export class Projectiles {
       this.d.audio.play('glassBreak', { position: p.position });
       this.d.particles.burst(p.position, { count: 10, color: 0x6f8a5a, speed: 2.5, size: 0.02 });
       this.d.onShatter?.(p.position.clone());
+      return;
+    }
+    // Brandpfeile verbrennen beim Einschlag und lassen ein kleines Feuer zurück.
+    if (p.itemId === 'fireArrow') {
+      this.d.particles.burst(p.position, { count: 8, color: 0xffa040, speed: 2, size: 0.02 });
+      this.d.onIgnite?.(p.position.clone());
       return;
     }
     // Pfeile gehen öfter zu Bruch – an Lebewesen eher als im Boden.

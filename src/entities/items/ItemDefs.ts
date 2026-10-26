@@ -40,7 +40,11 @@ export type ItemId =
   | 'lampOil'
   | 'molotov'
   | 'enginePart'
-  | 'documents';
+  | 'documents'
+  | 'bone'
+  | 'boneClub'
+  | 'fireArrow'
+  | 'boneArmor';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -65,6 +69,8 @@ export interface ToolStats {
   reach: number;
   /** Bewegungsablauf in der Hand: seitlicher Hieb oder Stoß nach vorne. */
   animation: 'swing' | 'thrust';
+  /** Wuchtwaffen: betäubt getroffene Gegner so viele Sekunden. */
+  stun?: number;
 }
 
 /** Lichtquelle, solange das Item in der Hand gehalten wird. */
@@ -108,7 +114,7 @@ export interface ItemDef {
   /** Kann geworfen werden (rechte Maustaste zielen, linke werfen). */
   throwable?: { speed: number; damageMultiplier: number };
   /** Rechtsklick im Inventar: dauerhaft anlegen bzw. benutzen (wird dabei verbraucht). */
-  use?: 'backpack' | 'clothing' | 'battery';
+  use?: 'backpack' | 'clothing' | 'battery' | 'armor';
   /** Leeres Gefäß: am Wasser mit `E` zu diesem Item füllen. */
   fillsTo?: ItemId;
   /** Fernwaffe: Linksklick gedrückt halten zum Spannen, loslassen zum Schießen. */
@@ -430,6 +436,47 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     maxStack: 1,
     durability: 150,
     ranged: { ammo: 'arrow', drawTime: 0.9, minSpeed: 16, maxSpeed: 46, minDamage: 10, maxDamage: 42 },
+  },
+  bone: {
+    id: 'bone',
+    name: 'Knochen',
+    description: 'Schwere Röhrenknochen von erlegtem Wild. Hart wie Stein – gut für Keulen und Rüstungen.',
+    category: 'resource',
+    maxStack: 20,
+  },
+  boneClub: {
+    id: 'boneClub',
+    name: 'Knochenkeule',
+    description: 'Ein Hirschknochen, mit Lederriemen an einen Ast gebunden. Langsam und schwer – ein Treffer lässt Schrate taumeln.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 140,
+    tool: {
+      treeDamage: 5,
+      rockYield: 0,
+      damage: 44,
+      swingTime: 0.78,
+      impactAt: 0.5,
+      staminaCost: 10,
+      reach: 2.4,
+      animation: 'swing',
+      stun: 1.1,
+    },
+  },
+  fireArrow: {
+    id: 'fireArrow',
+    name: 'Brandpfeil',
+    description: 'Ein Pfeil mit ölgetränktem Lappen an der Spitze. Fängt beim Abschuss Feuer und setzt alles in Brand, was er trifft. V wechselt die Munition.',
+    category: 'resource',
+    maxStack: 15,
+  },
+  boneArmor: {
+    id: 'boneArmor',
+    name: 'Knochenrüstung',
+    description: 'Knochenplatten auf Fell geschnürt. Rechtsklick: anlegen – fängt ein Drittel jedes Treffers ab, klappert aber und macht dich auffälliger.',
+    category: 'resource',
+    maxStack: 1,
+    use: 'armor',
   },
   arrow: {
     id: 'arrow',

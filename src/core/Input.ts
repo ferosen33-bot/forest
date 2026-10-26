@@ -30,6 +30,8 @@ export const KEY_BINDINGS = {
   rotate: ['KeyR'],
   /** Beschädigtes Bauwerk reparieren (außerhalb des Baumodus). */
   repair: ['KeyR'],
+  /** Bogen: Munition wechseln (Pfeile ↔ Brandpfeile). */
+  ammo: ['KeyV'],
   /** Im Pointer Lock fängt der Browser Esc selbst ab; hier nur für offene Fenster (Inventar). */
   cancel: ['Escape'],
   debug: ['F3'],

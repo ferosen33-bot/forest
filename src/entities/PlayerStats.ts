@@ -28,6 +28,8 @@ export class PlayerStats {
   night = false;
   /** Fellmantel angezogen: Nässe kühlt deutlich weniger aus. */
   clothing = false;
+  /** Knochenrüstung angelegt: fängt einen Teil des Schadens durch Gegner ab. */
+  armor = false;
   /** Grundkälte der Jahreszeit (0..1, nachts voll, tagsüber ein Drittel) – vom Klima gesetzt. */
   chill = 0;
   /** Fertigkeiten: Faktor auf Hunger/Durst (Überleben) und Ausdauer-Verbrauch/-Erholung (Ausdauer). */
