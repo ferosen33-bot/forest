@@ -16,6 +16,8 @@ export interface Settings {
   quality: Quality;
   /** Lichtstrahlen, Bloom, Vignette. */
   postProcessing: boolean;
+  /** Bewegungsunschärfe beim Umsehen. */
+  motionBlur: boolean;
 }
 
 export interface QualityPreset {
@@ -45,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fov: 75,
   quality: 'high',
   postProcessing: true,
+  motionBlur: true,
 };
 
 const STORAGE_KEY = 'wildwood.settings';
@@ -64,6 +67,7 @@ export function sanitizeSettings(data: unknown): Settings {
     fov: num(d.fov, def.fov, 60, 100),
     quality: d.quality === 'low' || d.quality === 'medium' || d.quality === 'high' ? d.quality : def.quality,
     postProcessing: typeof d.postProcessing === 'boolean' ? d.postProcessing : def.postProcessing,
+    motionBlur: typeof d.motionBlur === 'boolean' ? d.motionBlur : def.motionBlur,
   };
 }
 

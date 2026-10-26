@@ -223,6 +223,8 @@ export class Game {
   private sleepTimer = 0;
   private sleepApplied = false;
   private sleepComfort = false;
+  /** Dauer des letzten Bildes (s) – für Augenanpassung und Bewegungsunschärfe. */
+  private frameDt = 1 / 60;
   private readonly tmpBiome: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
   saves!: SaveStore;
   private readonly settingsStore = new SettingsStore();
@@ -285,7 +287,8 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, g.maxPixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Khronos PBR Neutral: natürlichere Grün- und Himmelstöne als ACES, kräftigere Abendfarben (verglichen mit ACES und AgX).
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -1732,6 +1735,7 @@ export class Game {
   private frame = (now: number): void => {
     const dt = Math.min((now - this.lastTime) / 1000, 0.1); // lange Hänger nicht nachholen
     this.lastTime = now;
+    this.frameDt = dt;
     if (dt > 0) this.fps += (1 / dt - this.fps) * 0.05;
 
     if (this.input.wasPressed('debug')) this.hud.toggleDebug();
@@ -2118,6 +2122,14 @@ export class Game {
         volumetric: this.volumetric(),
         heat: this.heatSources(),
         water: this.settings.quality === 'low' || this.caves.current ? null : this.world.water,
+        cinema: {
+          dt: this.frameDt,
+          motionBlur: this.settings.motionBlur && this.mode === 'playing' ? 1 : 0,
+          // Beim Zielen mit dem Bogen verschwimmt, was nicht im Fadenkreuz liegt.
+          dof: this.mode === 'playing' ? THREE.MathUtils.smoothstep(this.player.zoom, 0.15, 0.9) : 0,
+          adapt: this.mode !== 'dead',
+        },
+        lens: this.dayNight.daylight > 0.3 ? 0.05 : 0.08,
       });
       return;
     }

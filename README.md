@@ -61,6 +61,27 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 48 – Grafik wie aus einem Guss (Teil 3: Kino-Look)
+
+- **Bloom wie in Unreal:** Statt eines kleinen Weichzeichners eine Mip-Kette über sechs Stufen bis 1/64
+  Auflösung (13-Tap-Verkleinerung, Zelt-Vergrößerung). Feuer, Lampen und Gegenlicht leuchten weit und weich
+  nach, ohne Blockmuster; einzelne extrem helle Pixel werden gedämpft.
+- **Augenanpassung, relativ zur Bildstimmung:** Das Spiel misst die mittlere Helligkeit, zur Bildmitte hin
+  stärker gewichtet. Die Belichtung ist √(jetzt ÷ woran das Auge gewöhnt ist). Im Gleichgewicht bleibt sie 1,
+  Tag und Nacht sehen also aus wie gestaltet. Wer aus einer dunklen Höhle tritt, ist kurz geblendet (gut eine
+  Sekunde). Wer hineingeht, sieht erst einmal fast nichts. Nach einem Blitz ist die Nacht kurz noch schwärzer.
+- **Linsenreflexe:** Helle Lichter, vor allem die Sonne, werfen gefärbte „Geister“ zur Bildmitte und einen
+  schwachen Ring.
+- **Tiefenunschärfe beim Zielen** mit dem Bogen: Scharf ist, was im Fadenkreuz liegt. Davor und dahinter wird es
+  weich (16 Abtastungen auf einer Spirale). Scharfes blutet nicht in Unscharfes.
+- **Bewegungsunschärfe** der Kamera beim schnellen Umsehen, aus Tiefe und Kameramatrix des letzten Bildes und
+  auf 60 Bilder/s normiert. Nach Teleports wird nichts verschmiert. Der Gegenstand in der Hand bleibt scharf (das
+  Ergebnisbild hat dafür eine eigene Tiefe). In den Einstellungen abschaltbar.
+- **Tone Mapping „Khronos PBR Neutral“** statt ACES (direkt verglichen mit ACES und AgX): natürlichere Grün- und
+  Himmelstöne, kräftigere Abendfarben.
+- Schutz vor ungültigen Pixeln (NaN/Inf): Sie würden sonst über Bloom und Belichtung das ganze Bild schwärzen.
+- `systems/CinemaFX.ts` enthält alle Kino-Effekte; `PostFX` ruft sie zwischen Nebel und Endmischung auf.
+
 ### Meilenstein 48 – Grafik wie aus einem Guss (Teil 2: Materialien & Himmel)
 
 - **Volumetrische Wolken:** Statt einer flachen Wolkenschicht läuft der Himmels-Shader per Raymarching durch eine

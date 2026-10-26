@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TERRAIN_GLSL, WAVE_GLSL } from '../world/Water';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { N8AOPass } from 'n8ao';
+import { CinemaFX, type CinemaParams } from './CinemaFX';
 
 /** Farbstimmung wie im Horrorfilm (wird nach dem Tone Mapping im Anzeige-Farbraum angewandt). */
 export interface Grade {
@@ -54,6 +55,10 @@ export interface PostFXParams {
   heat?: readonly HeatSource[];
   /** Wasserspiegel und Geländehöhen für die Spiegelungen (null = keine). */
   water?: WaterReflections | null;
+  /** Bewegungs- und Tiefenunschärfe, Augenanpassung. */
+  cinema?: CinemaParams;
+  /** Linsenreflexe heller Lichter (0 = aus). */
+  lens?: number;
 }
 
 export interface WaterReflections {
@@ -502,6 +507,9 @@ const compositeFragment = /* glsl */ `
 uniform sampler2D tColor;
 uniform sampler2D tRays;
 uniform sampler2D tBloom;
+uniform sampler2D tLens;
+uniform sampler2D tExposure;
+uniform float uLens;
 uniform vec3 uRayColor;
 uniform float uRays;
 uniform float uBloom;
@@ -516,6 +524,26 @@ uniform float uAberration;
 uniform float uTime;
 uniform vec2 uRes;
 varying vec2 vUv;
+
+// Linsenreflexe: gespiegelte "Geister" heller Lichter zur Bildmitte hin und ein schwacher Ring.
+vec3 lensFlare(vec2 uv) {
+  vec2 gv = vec2(0.5) - uv;
+  vec3 acc = vec3(0.0);
+  vec3 tint[4];
+  tint[0] = vec3(1.0, 0.78, 0.55);
+  tint[1] = vec3(0.55, 0.78, 1.0);
+  tint[2] = vec3(0.75, 1.0, 0.7);
+  tint[3] = vec3(1.0, 0.6, 0.9);
+  for (int i = 0; i < 4; i++) {
+    vec2 s = uv + gv * (0.6 + float(i) * 0.45);
+    float w = pow(max(0.0, 1.0 - length(s - 0.5) / 0.7), 4.0);
+    acc += texture2D(tLens, s).rgb * w * tint[i];
+  }
+  vec2 hv = normalize(gv + 1e-5) * 0.4;
+  float hw = pow(max(0.0, 1.0 - length(uv + hv - 0.5) / 0.7), 5.0);
+  acc += texture2D(tLens, uv + hv).rgb * hw * vec3(0.9, 0.75, 1.0) * 0.7;
+  return acc;
+}
 
 float hash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -533,6 +561,9 @@ void main() {
   c.b = texture2D(tColor, vUv + off).b;
   c += texture2D(tRays, vUv).rgb * uRayColor * uRays;
   c += texture2D(tBloom, vUv).rgb * uBloom;
+  if (uLens > 0.0) c += lensFlare(vUv) * uLens;
+  // Augenanpassung
+  c *= texture2D(tExposure, vec2(0.5)).g;
   // Feuer und Lampen sind nachts die einzigen Farben im Bild – sie werden nicht mit entsättigt.
   float hdrLum = dot(c, vec3(0.2126, 0.7152, 0.0722));
   float glow = uGlowKeep * smoothstep(0.06, 0.5, hdrLum);
@@ -589,6 +620,7 @@ export class PostFX {
   private readonly bloomB: THREE.WebGLRenderTarget;
   private readonly quad = new FullScreenQuad();
   private readonly mats;
+  readonly cinema: CinemaFX;
   private aoPass: N8AOPass | null = null;
   private readonly sunUv = new THREE.Vector2();
   private readonly tmp = new THREE.Vector3();
@@ -603,7 +635,13 @@ export class PostFX {
       depthTexture: new THREE.DepthTexture(size.x, size.y),
     });
     this.aoOut = new THREE.WebGLRenderTarget(size.x, size.y, hdr);
-    this.lit = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, depthBuffer: true });
+    // Eigene Tiefe: markiert den Gegenstand in der Hand (bleibt von Unschärfe verschont).
+    this.lit = new THREE.WebGLRenderTarget(size.x, size.y, {
+      type: THREE.HalfFloatType,
+      depthBuffer: true,
+      depthTexture: new THREE.DepthTexture(size.x, size.y),
+    });
+    this.cinema = new CinemaFX(size.x, size.y);
     this.mask = new THREE.WebGLRenderTarget(1, 1, hdr);
     this.vol = new THREE.WebGLRenderTarget(1, 1, hdr);
     this.rays = new THREE.WebGLRenderTarget(1, 1, hdr);
@@ -693,6 +731,9 @@ export class PostFX {
           tColor: { value: this.lit.texture },
           tRays: { value: this.rays.texture },
           tBloom: { value: this.bloomA.texture },
+          tLens: { value: this.blank },
+          tExposure: { value: this.blank },
+          uLens: { value: 0 },
           uRayColor: { value: new THREE.Color() },
           uRays: { value: 0 },
           uBloom: { value: 0 },
@@ -728,6 +769,7 @@ export class PostFX {
     const qh = Math.max(1, Math.floor(height / 4));
     this.bloomA.setSize(qw, qh);
     this.bloomB.setSize(qw, qh);
+    this.cinema?.setSize(width, height);
     this.mats.occlusion.uniforms.uAspect.value = width / height;
     this.mats.composite.uniforms.uRes.value.set(width, height);
   }
@@ -812,19 +854,18 @@ export class PostFX {
       renderer.autoClear = auto;
     }
 
-    // Bloom: Schwelle → 2 × (horizontal + vertikal) weichzeichnen
-    this.pass(renderer, this.mats.bright, this.bloomA);
-    const blur = this.mats.blur.uniforms;
-    for (let i = 0; i < 2; i++) {
-      blur.tInput.value = this.bloomA.texture;
-      blur.uDir.value.set((1 + i) / this.bloomA.width, 0);
-      this.pass(renderer, this.mats.blur, this.bloomB);
-      blur.tInput.value = this.bloomB.texture;
-      blur.uDir.value.set(0, (1 + i) / this.bloomA.height);
-      this.pass(renderer, this.mats.blur, this.bloomA);
-    }
+    // Kino: Bewegungs-/Tiefenunschärfe, Bloom als Mip-Kette, Augenanpassung.
+    const cin = p.cinema ?? { dt: 1 / 60, motionBlur: 0, dof: 0, adapt: false };
+    const image = this.cinema.blur(renderer, this.lit.texture, this.scene.depthTexture!, this.lit.depthTexture!, camera, cin);
+    const glow = this.cinema.bloom(renderer, image, this.mats.bright.uniforms.uThreshold.value);
+    const exposure = this.cinema.adapt(renderer, image, cin);
 
     const c = this.mats.composite.uniforms;
+    c.tColor.value = image;
+    c.tBloom.value = glow.bloom;
+    c.tLens.value = glow.lens;
+    c.uLens.value = p.lens ?? 0;
+    c.tExposure.value = exposure;
     const g = p.grade;
     c.uRays.value = rays;
     c.uRayColor.value.copy(p.lightColor);
@@ -960,6 +1001,7 @@ export class PostFX {
 
   dispose(): void {
     for (const rt of [this.scene, this.aoOut, this.lit, this.mask, this.vol, this.rays, this.bloomA, this.bloomB]) rt.dispose();
+    this.cinema.dispose();
     this.dummyShadow?.dispose();
     Object.values(this.mats).forEach((m) => m.dispose());
     this.quad.dispose();
