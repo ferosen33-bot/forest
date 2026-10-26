@@ -23,6 +23,8 @@ export interface LookContext {
   fear: number;
   /** Regen 0..1. */
   rain: number;
+  /** Schneesturm 0..1: weißer, dichter Schleier. */
+  blizzard?: number;
   /** Höhe der Kamera (Welt-Y). */
   cameraY: number;
   /** Nebelfarbe der Szene (linear). */
@@ -68,19 +70,22 @@ export function morningMist(hour: number): number {
   return smoothstep(3, 5.5, hour) * (1 - smoothstep(7, 9.5, hour));
 }
 
+const WHITEOUT = new THREE.Color();
+
 export function filmLook(c: LookContext, out?: Look): Look {
   let tone = mixTone(NIGHT, DAY, smoothstep(0.15, 0.7, c.daylight));
   if (c.cave) tone = CAVE;
   if (c.fever > 0) tone = mixTone(tone, FEVER, c.fever);
   if (c.underwater) tone = WATER;
   const fear = clamp(c.fear, 0, 1);
+  const blizzard = c.cave || c.underwater ? 0 : clamp(c.blizzard ?? 0, 0, 1);
 
   const look = out ?? {
     grade: { saturation: 1, contrast: 1, shadows: new THREE.Color(), highlights: new THREE.Color(), grain: 0, vignette: 0, aberration: 0 },
     mist: { color: new THREE.Color(), density: 0, height: 6, base: 0 },
   };
   const g = look.grade;
-  g.saturation = tone.saturation * (1 - 0.35 * fear);
+  g.saturation = tone.saturation * (1 - 0.35 * fear) * (1 - 0.3 * blizzard);
   g.contrast = tone.contrast + 0.06 * fear;
   g.shadows.setRGB(...tone.shadows);
   g.highlights.setRGB(...tone.highlights);
@@ -99,6 +104,10 @@ export function filmLook(c: LookContext, out?: Look): Look {
     const night = 1 - smoothstep(0.1, 0.6, c.daylight);
     m.density = 0.0015 + 0.011 * night + 0.032 * morningMist(c.hour) + 0.01 * c.rain + 0.01 * c.fever;
     m.height = 5 + 3 * c.rain;
+    // Schneesturm: Sicht nur noch wenige Dutzend Meter, alles verschwimmt im fahlen Weiß.
+    m.density += 0.05 * blizzard;
+    m.height += 14 * blizzard;
+    m.color.lerp(WHITEOUT.setRGB(0.6, 0.64, 0.7).multiplyScalar(0.12 + 0.88 * c.daylight), 0.65 * blizzard);
     // Der Nebel folgt dem Gelände unter dem Spieler (Bezug knapp unter den Füßen) und sammelt sich in Senken.
     m.base = c.cameraY - 2.2;
   }

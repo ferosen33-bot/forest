@@ -4,7 +4,7 @@ import type { NavGrid } from '../../systems/ai/NavGrid';
 import { AnimalRig, type Species } from './AnimalRig';
 import { clamp } from '../../utils/math';
 
-export type AnimalState = 'graze' | 'wander' | 'alert' | 'flee' | 'dead';
+export type AnimalState = 'graze' | 'wander' | 'alert' | 'flee' | 'dead' | 'stalk' | 'attack' | 'hunt' | 'feed' | 'howl';
 
 interface SpeciesStats {
   name: string;
@@ -23,18 +23,41 @@ interface SpeciesStats {
 export const SPECIES: Record<Species, SpeciesStats> = {
   deer: { name: 'Hirsch', health: 60, walkSpeed: 1.3, runSpeed: 9, fear: 22, radius: 0.38, height: 1.5, meat: 3, wanderRadius: 30 },
   rabbit: { name: 'Hase', health: 12, walkSpeed: 0.9, runSpeed: 6.5, fear: 9, radius: 0.16, height: 0.34, meat: 1, wanderRadius: 15 },
+  // Wölfe sind schneller als der rennende Spieler (≈ 6 m/s) – weglaufen hilft nicht, Feuer schon.
+  wolf: { name: 'Wolf', health: 45, walkSpeed: 1.4, runSpeed: 8.5, fear: 0, radius: 0.26, height: 0.8, meat: 2, wanderRadius: 45 },
 };
 
 export interface AnimalContext {
   time: number;
   physics: Physics;
   nav: NavGrid;
-  player: { position: THREE.Vector3; crouching: boolean; sprinting: boolean; isDead: boolean };
+  player: {
+    position: THREE.Vector3;
+    crouching: boolean;
+    sprinting: boolean;
+    isDead: boolean;
+    /** In einer Höhle (für Wild über Tage unerreichbar). */
+    hidden: boolean;
+    /** Hält eine brennende Fackel. */
+    torch: boolean;
+  };
   allowPathPlan(): boolean;
   /** Warnruf eines Hirsches erreicht die Herde. */
   warnHerd(source: Animal, threat: THREE.Vector3): void;
-  sound(id: 'deerAlarm', position: THREE.Vector3): void;
+  sound(id: AnimalSound, position: THREE.Vector3): void;
+  /** Nacht (Wölfe jagen dann). */
+  isNight: boolean;
+  /** Kühnheit der Wölfe: Winter, Schneesturm und Hunger machen sie dreister (≈ 1 im Sommer). */
+  boldness: number;
+  /** Biss eines Wolfs trifft den Spieler. */
+  hitPlayer(amount: number, from: THREE.Vector3): void;
+  /** Brennendes Lagerfeuer oder Fackel im Umkreis? */
+  fireNear(pos: THREE.Vector3, radius: number): boolean;
+  /** Lebende Beute (Hirsch) nahe `pos`. */
+  prey(pos: THREE.Vector3, radius: number): Animal | null;
 }
+
+export type AnimalSound = 'deerAlarm' | 'wolfHowl' | 'wolfGrowl' | 'wolfBite';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -63,17 +86,17 @@ export class Animal {
   private readonly groups = interactionGroups(CollisionGroup.ANIMAL, 0xffff & ~CollisionGroup.ITEM);
   private readonly prev = new THREE.Vector3();
   private readonly curr = new THREE.Vector3();
-  private readonly velocity = new THREE.Vector3();
-  private readonly desired = new THREE.Vector3();
-  private readonly target = new THREE.Vector3();
-  private readonly threat = new THREE.Vector3();
-  private desiredSpeed = 0;
-  private timer = Math.random() * 4;
-  private senseTimer = Math.random() * 0.2;
-  private path: { x: number; z: number }[] | null = null;
+  protected readonly velocity = new THREE.Vector3();
+  protected readonly desired = new THREE.Vector3();
+  protected readonly target = new THREE.Vector3();
+  protected readonly threat = new THREE.Vector3();
+  protected desiredSpeed = 0;
+  protected timer = Math.random() * 4;
+  protected senseTimer = Math.random() * 0.2;
+  protected path: { x: number; z: number }[] | null = null;
   private pathIndex = 0;
   private grounded = false;
-  private hitTimer = 0;
+  protected hitTimer = 0;
 
   constructor(
     readonly id: number,
@@ -168,7 +191,7 @@ export class Animal {
     this.curr.set(t.x, t.y, t.z);
   }
 
-  private sense(dt: number, ctx: AnimalContext): void {
+  protected sense(dt: number, ctx: AnimalContext): void {
     this.senseTimer -= dt;
     if (this.senseTimer > 0) return;
     this.senseTimer = 0.2;
@@ -189,7 +212,7 @@ export class Animal {
     }
   }
 
-  private think(dt: number, ctx: AnimalContext): void {
+  protected think(dt: number, ctx: AnimalContext): void {
     this.timer -= dt;
     this.hitTimer -= dt;
     this.desiredSpeed = 0;
@@ -234,7 +257,7 @@ export class Animal {
     }
   }
 
-  private pickWander(ctx: AnimalContext): void {
+  protected pickWander(ctx: AnimalContext): void {
     for (let i = 0; i < 6; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 3 + Math.random() * this.stats.wanderRadius;
@@ -250,7 +273,7 @@ export class Animal {
     this.timer = 2;
   }
 
-  private pickFleeTarget(): void {
+  protected pickFleeTarget(): void {
     const away = new THREE.Vector3().subVectors(this.curr, this.threat).setY(0);
     if (away.lengthSq() < 0.01) away.set(Math.random() - 0.5, 0, Math.random() - 0.5);
     away.normalize().applyAxisAngle(UP, (Math.random() - 0.5) * 0.8);
@@ -259,7 +282,7 @@ export class Animal {
   }
 
   /** Läuft zum Ziel; bei Hindernissen per A*. @returns true bei Ankunft. */
-  private moveTo(goal: THREE.Vector3, speed: number, ctx: AnimalContext): boolean {
+  protected moveTo(goal: THREE.Vector3, speed: number, ctx: AnimalContext): boolean {
     const dx = goal.x - this.curr.x;
     const dz = goal.z - this.curr.z;
     const dist = Math.hypot(dx, dz);
@@ -290,18 +313,18 @@ export class Animal {
     return false;
   }
 
-  private move(dt: number, ctx: AnimalContext): void {
+  protected move(dt: number, ctx: AnimalContext): void {
     if (this.desiredSpeed > 0.05) {
       const turnTo = Math.atan2(this.desired.x, this.desired.z);
       let diff = turnTo - this.yaw;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      const rate = this.state === 'flee' ? 6 : 2.5;
+      const rate = this.urgent ? 6 : 2.5;
       this.yaw += clamp(diff, -rate * dt, rate * dt);
     }
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const align = Math.max(0, forward.dot(this.desired));
     const speed = this.hitTimer > 0 ? this.desiredSpeed * 0.3 : this.desiredSpeed * (0.25 + 0.75 * align);
-    const accel = (this.state === 'flee' ? 14 : 5) * dt;
+    const accel = (this.urgent ? 14 : 5) * dt;
     this.velocity.x += clamp(forward.x * speed - this.velocity.x, -accel, accel);
     this.velocity.z += clamp(forward.z * speed - this.velocity.z, -accel, accel);
     this.velocity.y = this.grounded ? -1 : this.velocity.y - 20 * dt;
@@ -318,6 +341,22 @@ export class Animal {
     }
     this.body.setNextKinematicTranslation({ x: this.curr.x + mv.x, y: this.curr.y + mv.y, z: this.curr.z + mv.z });
     this.rig.anim.speed = Math.hypot(mv.x, mv.z) / dt;
+  }
+
+  /** Schnelle Wendungen und Antritte (Flucht, Angriff, Jagd). */
+  protected get urgent(): boolean {
+    return this.state === 'flee' || this.state === 'attack' || this.state === 'hunt' || this.state === 'stalk';
+  }
+
+  get maxHealth(): number {
+    return this.stats.health * this.rig.scale;
+  }
+
+  /** Auf der Stelle zu einem Punkt drehen. */
+  protected faceTowards(p: THREE.Vector3, dt: number, rate = 6): void {
+    let diff = Math.atan2(p.x - this.curr.x, p.z - this.curr.z) - this.yaw;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    this.yaw += clamp(diff, -rate * dt, rate * dt);
   }
 
   private die(): void {

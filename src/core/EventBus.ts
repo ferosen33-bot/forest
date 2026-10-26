@@ -33,7 +33,7 @@ export type GameEvents = {
   /** Lautes Ereignis, das Gegner im Umkreis `radius` hören. */
   noise: { position: Vector3; radius: number };
   'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean; sneak: boolean; name: string };
-  'animal:killed': { species: 'deer' | 'rabbit' };
+  'animal:killed': { species: 'deer' | 'rabbit' | 'wolf' };
   'player:slept': Record<string, never>;
   'camp:discovered': { index: number };
   'food:cooked': { count: number };

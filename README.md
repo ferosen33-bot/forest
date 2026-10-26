@@ -60,6 +60,48 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, das Fieber, Wölfe und
 > Winter, Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 36 – Wölfe & Winter
+
+- **Wolfsrudel:** Drei Rudel mit je drei bis vier Wölfen leben fern vom Strand. Der Leitwolf ist der größte.
+  - Sie ziehen gemeinsam durch ihr Revier und heulen nachts. Das Heulen trägt über 400 m.
+  - Wenn sie Hunger haben, jagen sie Hirsche. Am Riss fressen sie eine Weile, danach liegt der Kadaver zum Ausnehmen
+    da.
+- **Wölfe stellen dir nach:** Sie wittern dich nachts auf rund 50 m, am Tag auf etwa 25 m. Geduckt ist es nur gut
+  die Hälfte.
+  - Das Rudel kreist dich ein und knurrt. Der Kreis zieht sich langsam zu.
+  - Es beißt immer nur ein Wolf auf einmal: Er rennt an, schnappt zu und setzt sich wieder ab. Dann ist der nächste dran.
+  - Am Tag verlieren Wölfe bald das Interesse, im Winter nicht.
+  - Weglaufen hilft nicht, denn Wölfe sind schneller als du.
+- **Feuer schützt:**
+  - Mit Fackel oder an einem Lagerfeuer halten Wölfe mindestens 11 m Abstand und greifen nicht an.
+  - Wer ihnen die Fackel entgegenstreckt, schlägt sie kurz in die Flucht.
+- **Gegenwehr:**
+  - Verletzte Wölfe fliehen, gesunde greifen nach einem Treffer erst recht an.
+  - Fällt die Hälfte des Rudels, flieht der Rest und meidet dich eine Weile.
+  - Erlegte Wölfe geben Fleisch und zwei Felle.
+- **Winter macht sie kühner:** Im Schnee wittern Wölfe weiter und greifen öfter an. Im Schneesturm sind sie am
+  dreistesten.
+- **Das Wolfsmodell:** Ein freier Wolf mit Skelett (OpenGameArt, CC0), den ich realistischer gemacht habe:
+  - graues Fell statt der Comic-Farben, helle Schnauze, kleinere bernsteinfarbene Augen,
+  - nachts leuchten die Augen gelbgrün, wenn ein Wolf dich ansieht.
+
+  Alle Bewegungen werden im Spiel berechnet (`WolfPose.ts`):
+  - Schritt, Trab und Galopp mit federndem Rücken,
+  - geducktes Anschleichen mit gefletschten Zähnen und Biss mit Sprung,
+  - Heulen mit erhobenem Kopf, Fressen, Sturz zur Seite beim Tod.
+- **Klänge:** Heulen, Knurren und Biss sind wie alle Geräusche des Spiels synthetisiert. Das Heulen gleitet an und
+  ab und hat ein leichtes Vibrato.
+- **Spuren im Schnee:** Im Winter bleiben Abdrücke im Schnee: Stiefel, nackte Füße der Schrate, Hufe, Pfoten und
+  Hasenläufe.
+  - Einer frischen Fährte kann man folgen.
+  - Neuschnee deckt die Spuren schneller zu, bei Tauwetter verschwinden sie.
+  - Die Abdrücke dunkeln den Schnee darunter ab, so bleiben sie auf grellem Schnee und nachts gleich gut lesbar.
+- **Schneesturm:** Ein Gewitter im Winter wird zum Schneesturm.
+  - Ein dichter, fahler Schleier nimmt die Sicht.
+  - Blitze gibt es keine.
+  - Die Kälte beißt auch am Tag.
+- **Atemwolken:** Bei Kälte siehst du deinen Atem, beim Rennen schneller und kräftiger.
+
 ### Meilenstein 35 – Horrorfilm-Optik (Teil 7: Tiere)
 
 - **Echte Tiere:** Statt kantiger Körper laufen Hirsch, Hirschkuh und Hase als fertig modellierte, texturierte Tiere
@@ -856,7 +898,7 @@ src/
 29. ~~Die Nordbucht: Überlebende & Aufträge~~ ✓
 30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · ~~Teil 7: Tiere~~ ✓
 31. Das Fieber: Infektion, Heilmittel, Forschungsstation
-32. Wölfe & Winter: Rudel, Spuren im Schnee
+32. ~~Wölfe & Winter: Rudel, Spuren im Schnee~~ ✓
 33. Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen
 34. Neue Schrecken: neue Gegner, ein Boss in der Mine
 35. Koop-Mehrspieler (Server, bis zu 50 Spieler)

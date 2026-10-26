@@ -47,6 +47,15 @@ CONFIG = {
         'alpha': {'Fur'},
         'walk': False,
     },
+    'wolf': {
+        'clips': {},
+        'materials': {'dog2Mat': ('Texture1', 'Normal1')},
+        # Graues Wolfsfell aus `prepare-wolf-texture.py` (liegt neben der .blend-Datei).
+        'images': {'Texture1': '//dog2Color_wolf.png'},
+        # Die Comic-Augäpfel verkleinern – Wolfsaugen sind klein und schmal.
+        'shrink': {'b_LeftEye': 0.72, 'b_RightEye': 0.72},
+        'walk': False,
+    },
 }[kind]
 
 # --- Szene säubern -------------------------------------------------------------------------------
@@ -61,6 +70,24 @@ for o in bpy.data.objects:
 # Bei der Ricke heißt der linke Vorderfuß anders als in ihren Bewegungen – sonst bliebe das Bein steif.
 if 'IK-Frontleg_L' in arm.data.bones and 'IK-Fronleg_L' not in arm.data.bones:
     arm.data.bones['IK-Frontleg_L'].name = 'IK-Fronleg_L'
+
+for name, path in CONFIG.get('images', {}).items():
+    bpy.data.images[name].filepath = path
+    bpy.data.images[name].reload()
+
+for bone_name, factor in CONFIG.get('shrink', {}).items():
+    # Alle Punkte, die überwiegend an diesem Knochen hängen, zum Knochenkopf hin skalieren.
+    center = arm.matrix_world @ arm.data.bones[bone_name].head_local
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or bone_name not in o.vertex_groups:
+            continue
+        gi = o.vertex_groups[bone_name].index
+        inv = o.matrix_world.inverted()
+        for v in o.data.vertices:
+            best = max(v.groups, key=lambda g: g.weight, default=None)
+            if best is not None and best.group == gi:
+                w = o.matrix_world @ v.co
+                v.co = inv @ (center + (w - center) * factor)
 
 # --- Materialien ---------------------------------------------------------------------------------
 def image(name):

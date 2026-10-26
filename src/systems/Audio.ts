@@ -38,6 +38,9 @@ export type SoundId =
   | 'stepWater'
   | 'hoof'
   | 'deerAlarm'
+  | 'wolfHowl'
+  | 'wolfGrowl'
+  | 'wolfBite'
   | 'throw'
   | 'sizzle'
   | 'thunder'
@@ -200,12 +203,15 @@ export class Audio {
     const destination = position ? this.createSpatialOutput(position) : this.sfx;
     this.out.connect(destination!);
     if (position) {
-      // Längster Effekt ≈ 1,2 s – danach Knoten lösen, damit der Audio-Graph nicht wächst.
+      // Längster Effekt ≈ 1,2 s (Heulen ≈ 4 s) – danach Knoten lösen, damit der Audio-Graph nicht wächst.
       const out = this.out;
-      setTimeout(() => {
-        out.disconnect();
-        destination!.disconnect();
-      }, 2500);
+      setTimeout(
+        () => {
+          out.disconnect();
+          destination!.disconnect();
+        },
+        id === 'wolfHowl' ? 5500 : 2500,
+      );
     }
 
     switch (id) {
@@ -323,6 +329,21 @@ export class Audio {
           this.noise(t + dt, 0.2, 'bandpass', 1300, 2, 0.25);
         }
         break;
+      // Wolf: langgezogenes Heulen – steigt an, hält mit leichtem Vibrato und fällt am Ende ab.
+      case 'wolfHowl':
+        this.howl(t, pitch);
+        break;
+      // Knurren: tiefes, rasselndes Grollen (schnelle Lautstärke-Schwankung über Rauschen).
+      case 'wolfGrowl':
+        this.tone(t, 'sawtooth', 95 * pitch, 80, 0.9, 0.22, 420);
+        for (let i = 0; i < 9; i++) this.noise(t + i * 0.09, 0.08, 'bandpass', 260 + Math.random() * 120, 3, 0.22);
+        break;
+      // Biss: Zähne schnappen zusammen.
+      case 'wolfBite':
+        this.noise(t, 0.04, 'highpass', 2200, 0.8, 0.9);
+        this.tone(t, 'square', 320 * pitch, 140, 0.06, 0.18, 1800);
+        this.noise(t + 0.03, 0.15, 'bandpass', 600, 1.2, 0.35);
+        break;
       case 'throw':
         this.noise(t, 0.35, 'bandpass', 500, 1.2, 0.45, 1800);
         break;
@@ -406,6 +427,44 @@ export class Audio {
         this.noise(t + 0.4, 0.12, 'lowpass', 500, 1, 0.5);
         break;
     }
+  }
+
+  /** Wolfsgeheul: ein Ton mit Formantfilter, Gleiten und Vibrato. */
+  private howl(t: number, pitch: number): void {
+    const ctx = this.ctx!;
+    const base = 330 * pitch;
+    const dur = 3.6 + Math.random() * 0.8;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(base * 0.72, t);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.18, t + 0.6);
+    osc.frequency.setValueAtTime(base * 1.18, t + dur * 0.62);
+    osc.frequency.exponentialRampToValueAtTime(base * 0.62, t + dur);
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.value = 5.2;
+    const depth = ctx.createGain();
+    depth.gain.value = base * 0.012;
+    vibrato.connect(depth).connect(osc.frequency);
+    // Zwei Formanten wie bei einem offenen „u“: dumpf und klagend.
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'bandpass';
+    f1.frequency.value = 520;
+    f1.Q.value = 2.5;
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'lowpass';
+    f2.frequency.value = 1400;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.5, t + 0.45);
+    env.gain.setValueAtTime(0.5, t + dur * 0.7);
+    env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(f1).connect(f2).connect(env).connect(this.out!);
+    // Etwas Atem dazu.
+    this.noise(t, dur, 'bandpass', 900, 1.5, 0.05);
+    osc.start(t);
+    vibrato.start(t);
+    osc.stop(t + dur + 0.05);
+    vibrato.stop(t + dur + 0.05);
   }
 
   /** Grollen des Donners (zwei überlagerte, tiefe Rauschwellen). */

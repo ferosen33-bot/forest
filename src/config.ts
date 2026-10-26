@@ -109,6 +109,9 @@ export const CONFIG = {
     herds: 7,
     perHerd: 3,
     rabbits: 18,
+    /** Wolfsrudel und Wölfe je Rudel (Grundzahl; manchmal einer mehr). */
+    wolfPacks: 3,
+    wolvesPerPack: 3,
     /** Innerhalb dieses Radius denken/bewegen sich Tiere (m). */
     activeRadius: 150,
     /** Sekunden bis ein fehlendes Tier fernab des Spielers nachwächst. */

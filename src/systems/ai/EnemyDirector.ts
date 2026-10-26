@@ -115,7 +115,7 @@ export class EnemyDirector {
   /** Feindliche Würfe (vom Spiel an das Geschoss-System angebunden). */
   onThrow: ((origin: THREE.Vector3, velocity: THREE.Vector3, damage: number) => void) | null = null;
   /** Wird bei jedem Schritt eines Gegners in Hörweite aufgerufen. */
-  onEnemyStep: ((position: THREE.Vector3, speed: number) => void) | null = null;
+  onEnemyStep: ((position: THREE.Vector3, speed: number, heading: number) => void) | null = null;
   private noiseTimer = 0;
   /** A*-Anfragen im aktuellen Takt (Budget gegen Lastspitzen). */
   private pathPlansThisTick = 0;
@@ -665,7 +665,7 @@ export class EnemyDirector {
         e.updateVisual(dt, alpha, player.position);
         if (e.rig.steps !== (this.stepCounts.get(e) ?? 0)) {
           this.stepCounts.set(e, e.rig.steps);
-          this.onEnemyStep?.(e.position, e.rig.anim.speed);
+          this.onEnemyStep?.(e.position, e.rig.anim.speed, e.yaw);
         }
         visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind, enemy: e });
       }
@@ -683,7 +683,7 @@ export class EnemyDirector {
         // Schritte hörbar machen (nur in der Nähe – leise genug, um Schleichende zu verraten).
         if (e.rig.steps !== (this.stepCounts.get(e) ?? 0)) {
           this.stepCounts.set(e, e.rig.steps);
-          if (dist < 35) this.onEnemyStep?.(e.position, e.rig.anim.speed);
+          if (dist < 35) this.onEnemyStep?.(e.position, e.rig.anim.speed, e.yaw);
         }
         visible.push({ rig: e.rig, tone: e.tone, kind: e.kind.kind, enemy: e });
       }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { AnimalRig } from './AnimalRig';
+import { WolfPose } from './WolfPose';
 
 /**
  * Realistische Tiere von OpenGameArt („created for the wonderful world of Kelgar“, CC0): Hirsch mit
@@ -9,12 +10,22 @@ import type { AnimalRig } from './AnimalRig';
  * `scripts/prepare-animals.py` (dem Rotwild fehlte ein Schritt – der Gang wurde dort über die Fuß-IK
  * erzeugt) und `scripts/compress-animals.mjs`.
  *
+ * Der Wolf stammt aus „3d wolf“ (OpenGameArt, CC0): ein Hundemodell mit Skelett, dessen gemalte Textur
+ * `scripts/prepare-wolf-texture.py` in ein graues Wolfsfell verwandelt. Bewegungen hat es keine – die
+ * berechnet {@link WolfPose}.
+ *
  * Wie bei den Schraten bleibt die KI samt Prozedur-Skelett (Position, Schritte für die Hufgeräusche)
  * unverändert; hier wird ihr Zustand in überblendete Bewegungen übersetzt.
  */
 
-export type AnimalModelId = 'stag' | 'doe' | 'rabbit';
-const MODEL_IDS: AnimalModelId[] = ['stag', 'doe', 'rabbit'];
+export type AnimalModelId = 'stag' | 'doe' | 'rabbit' | 'wolf';
+const MODEL_IDS: AnimalModelId[] = ['stag', 'doe', 'rabbit', 'wolf'];
+
+/** Höhe des Wolfs bis zu den Ohrspitzen bei Skalierung 1 (Schulter ≈ 0,7 m). */
+const WOLF_HEIGHT = 0.95;
+/** Augenleuchten: das Restlicht spiegelt sich gelbgrün im Augenhintergrund. */
+const EYESHINE = new THREE.Color(0xc8d860);
+const EYE_GEOMETRY = new THREE.SphereGeometry(1, 6, 4);
 
 interface Cast {
   /** Höhe im Ruhezustand bei Skalierung 1 (m). */
@@ -44,7 +55,7 @@ const DEER = {
   runFrom: [2.2, 4.2] as [number, number],
 };
 
-const CAST: Record<AnimalModelId, Cast> = {
+const CAST: Record<Exclude<AnimalModelId, 'wolf'>, Cast> = {
   // Der erste Tod des Hirschs endet liegend mit erhobenem Haupt – wirkt wie Ruhen, nicht wie erlegt.
   stag: { ...DEER, height: 1.9, deaths: ['Die2'] },
   doe: { ...DEER, height: 1.5 },
@@ -147,6 +158,10 @@ export class AnimalAvatar {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.object);
     for (const m of this.materials) m.dispose();
+    this.object.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && !(mesh as THREE.SkinnedMesh).isSkinnedMesh) (mesh.material as THREE.Material).dispose();
+    });
     this.object.removeFromParent();
   }
 }
@@ -160,7 +175,11 @@ export interface AnimalTarget {
 
 interface Driven {
   avatar: AnimalAvatar;
-  cast: Cast;
+  /** Bewegungen aus Animationen (Rotwild, Hase) … */
+  cast: Cast | null;
+  /** … oder prozedural (Wolf). */
+  pose: WolfPose | null;
+  eyes: THREE.MeshBasicMaterial | null;
   idle: string;
   death: string;
   wasDead: boolean;
@@ -174,6 +193,9 @@ const damp = (a: number, b: number, rate: number, dt: number) => b + (a - b) * M
 export class AnimalAvatars {
   readonly group = new THREE.Group();
   private readonly driven = new Map<number, Driven>();
+  /** Dunkelheit (0..1) – nur dann leuchten Wolfsaugen auf. */
+  night = 0;
+  private readonly toViewer = new THREE.Vector3();
 
   constructor(private readonly models: AnimalModels) {
     this.group.name = 'AnimalAvatars';
@@ -204,6 +226,7 @@ export class AnimalAvatars {
   }
 
   private create(t: AnimalTarget): Driven {
+    if (t.model === 'wolf') return this.createWolf(t);
     const cast = CAST[t.model];
     const avatar = this.models.create(t.model, cast.height * t.rig.scale, t.tint);
     this.group.add(avatar.object);
@@ -220,6 +243,8 @@ export class AnimalAvatars {
     return {
       avatar,
       cast,
+      pose: null,
+      eyes: null,
       idle,
       death: cast.deaths[t.id % cast.deaths.length],
       wasDead: false,
@@ -229,12 +254,43 @@ export class AnimalAvatars {
     };
   }
 
+  private createWolf(t: AnimalTarget): Driven {
+    const height = WOLF_HEIGHT * t.rig.scale;
+    const avatar = this.models.create('wolf', height, t.tint);
+    this.group.add(avatar.object);
+    const model = avatar.object.children[0];
+    // Augen: kleine leuchtende Kugeln am Kopf, an der Stelle der Augapfel-Knochen.
+    model.updateMatrixWorld(true);
+    let head: THREE.Bone | null = null;
+    const eyeBones: THREE.Bone[] = [];
+    model.traverse((o) => {
+      if (o.name === 'b_Head') head = o as THREE.Bone;
+      if (o.name === 'b_LeftEye' || o.name === 'b_RightEye') eyeBones.push(o as THREE.Bone);
+    });
+    let eyes: THREE.MeshBasicMaterial | null = null;
+    if (head) {
+      const h = head as THREE.Bone;
+      eyes = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
+      const headScale = new THREE.Vector3().setFromMatrixScale(h.matrixWorld).x;
+      for (const b of eyeBones) {
+        const eye = new THREE.Mesh(EYE_GEOMETRY, eyes);
+        const p = b.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0, 0.032 * height));
+        eye.position.copy(h.worldToLocal(p));
+        eye.scale.setScalar((0.012 * height) / headScale);
+        eye.visible = false;
+        h.add(eye);
+      }
+    }
+    const pose = new WolfPose(model, height * 0.55);
+    return { avatar, cast: null, pose, eyes, idle: '', death: '', wasDead: false, weights: new Map(), used: true, pending: 0 };
+  }
+
   private drive(d: Driven, t: AnimalTarget, dt: number, viewer: THREE.Vector3): void {
-    const { cast } = d;
     const a = t.rig.anim;
     const obj = d.avatar.object;
     obj.position.copy(t.rig.root.position);
     obj.quaternion.copy(t.rig.root.quaternion);
+    if (d.eyes) this.updateEyes(d, t, viewer);
 
     const dist = obj.position.distanceTo(viewer);
     d.pending += dt;
@@ -242,6 +298,11 @@ export class AnimalAvatars {
     if (d.pending < step) return;
     const frame = d.pending;
     d.pending = 0;
+    if (d.pose) {
+      d.pose.update(frame, a, t.rig.scale);
+      return;
+    }
+    const cast = d.cast!;
 
     const target = new Map<string, number>();
     const add = (name: string, w: number) => target.set(name, (target.get(name) ?? 0) + w);
@@ -292,6 +353,23 @@ export class AnimalAvatars {
       if (!action.isRunning() && w > 0.001 && name !== d.death) action.play();
     }
     d.avatar.mixer.update(frame);
+  }
+
+  /** Wolfsaugen leuchten nur nachts und nur, wenn der Wolf zum Betrachter schaut. */
+  private updateEyes(d: Driven, t: AnimalTarget, viewer: THREE.Vector3): void {
+    const obj = d.avatar.object;
+    // Die Wurzel dreht nur um die Hochachse.
+    const yaw = 2 * Math.atan2(obj.quaternion.y, obj.quaternion.w) + t.rig.anim.lookYaw * 0.9;
+    this.toViewer.subVectors(viewer, obj.position).setY(0);
+    const dist = this.toViewer.length();
+    const facing = (Math.sin(yaw) * this.toViewer.x + Math.cos(yaw) * this.toViewer.z) / Math.max(0.01, dist);
+    const alive = t.rig.anim.death < 0 ? 1 : 0;
+    const glow = this.night * alive * Math.max(0, (facing - 0.55) / 0.45) ** 2 * THREE.MathUtils.clamp(1.4 - dist / 60, 0, 1);
+    d.eyes!.color.copy(EYESHINE).multiplyScalar(glow * 2.2);
+    const visible = glow > 0.02;
+    obj.traverse((o) => {
+      if ((o as THREE.Mesh).material === d.eyes) o.visible = visible;
+    });
   }
 
   dispose(): void {

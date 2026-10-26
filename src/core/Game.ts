@@ -65,6 +65,9 @@ import { loadItemModels } from '../entities/items/ItemModels';
 import { CharacterLibrary } from '../entities/characters/CharacterLibrary';
 import { FirstPersonArm } from '../entities/characters/FirstPersonArm';
 import { AnimalModels } from '../entities/animals/AnimalAvatars';
+import { wolfBoldness } from '../entities/animals/Wolf';
+import { SnowTracks } from '../world/SnowTracks';
+import { Breath } from '../world/Breath';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -162,6 +165,9 @@ export class Game {
   private caveTransition: { timer: number; target: CaveTarget; applied: boolean } | null = null;
   ambience!: Ambience;
   footsteps!: Footsteps;
+  /** Abdrücke im Schnee. */
+  snowTracks!: SnowTracks;
+  private readonly breath = new Breath();
   hud!: HUD;
   inventoryUI!: InventoryUI;
 
@@ -361,7 +367,15 @@ export class Game {
     this.scene.add(this.enemies.group);
     this.ambience = new Ambience(this.audio, this.world.heightMap, this.world.vegetation);
     this.footsteps = new Footsteps(this.audio, this.world.heightMap, this.physics, this.building, this.events);
-    this.enemies.onEnemyStep = (pos, speed) => this.footsteps.enemyStep(pos, speed);
+    this.snowTracks = new SnowTracks(this.world.heightMap);
+    this.scene.add(this.snowTracks.mesh, this.breath.group);
+    let enemyFoot = 1;
+    this.enemies.onEnemyStep = (pos, speed, yaw) => {
+      this.footsteps.enemyStep(pos, speed);
+      enemyFoot = -enemyFoot;
+      this.snowTracks.add('boot', pos, yaw, enemyFoot * 0.11, 0.95);
+    };
+    this.footsteps.onStep = (pos, foot) => this.snowTracks.add('boot', pos, this.player.yaw + Math.PI, foot * 0.11);
     console.info(
       `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
     );
@@ -379,6 +393,15 @@ export class Game {
       spawnPoint: this.world.spawnPoint,
       avoid: this.enemies.camps.map((c) => c.center),
       snares: () => this.building.structures.filter((s) => s.def.interaction === 'snare'),
+      hitPlayer: (amount, from) => {
+        this.player.receiveHit(amount, from);
+        this.audio.play('hurt');
+      },
+      fireNear: (pos, radius) => this.building.structures.some((s) => s.lit && !!s.def.flame && s.position.distanceTo(pos) < radius),
+      playerTorch: () => this.tools.equipped?.id === 'torch',
+      playerHidden: () => !!this.caves?.current,
+      isNight: () => this.dayNight.isNight,
+      wolfBoldness: () => wolfBoldness(this.climate.season.snow, this.climate.weather.storm),
       onSnared: (snare) => {
         const s = this.building.structures.find((x) => x.position === snare.position);
         if (s) this.building.setArmed(s, false);
@@ -388,6 +411,7 @@ export class Game {
       },
     });
     this.scene.add(this.animals.group);
+    this.animals.onTrack = (kind, pos, heading, side, scale) => this.snowTracks.add(kind, pos, heading, side, scale);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
     this.menu.setLoading('Höhlen werden vermessen …');
     await nextFrame();
@@ -1512,7 +1536,7 @@ export class Game {
     const climate = this.climate;
     if (this.hud.debugVisible && this.input.wasPressed('weather')) {
       climate.weather.advance();
-      this.events.emit('hud:message', { text: `Wetter: ${climate.weather.name}` });
+      this.events.emit('hud:message', { text: `Wetter: ${climate.weatherName}` });
     }
     climate.update({
       dt,
@@ -1533,6 +1557,18 @@ export class Game {
     }
     // Im Regen brennt die Fackel deutlich schneller herunter.
     this.tools.torchBurnRate = 1 + 2 * climate.exposure(this.ambience.env.forest);
+    const tracks = this.snowTracks;
+    tracks.snow = climate.season.snow;
+    tracks.snowfall = climate.season.snowfall * climate.weather.rain;
+    tracks.enabled = !this.caves.current;
+    tracks.update(dt);
+    // Atemwolken: im Winter immer, im Herbst in kalten Nächten; nicht im Wasser und nicht in Höhlen.
+    const p = this.player;
+    const season = climate.season;
+    const cold = this.caves.current || p.headUnderwater ? 0 : (season.chill * (this.dayNight.isNight ? 1 : 0.6) + 0.3 * climate.blizzard - 0.22) / 0.4;
+    const moving = Math.hypot(p.velocity.x, p.velocity.z) > 0.6;
+    const light = Math.max(this.dayNight.daylight, this.heldLight() ? 0.6 : 0);
+    this.breath.update(dt, this.camera, THREE.MathUtils.clamp(cold, 0, 1), p.sprinting && moving ? 1 : moving ? 0.3 : 0, light);
   }
 
   /** Baumodus: Drehen, Ghost nachführen, Bauen (Linksklick) und Abbrechen (Rechtsklick/Schnellzugriff). */
@@ -1580,6 +1616,7 @@ export class Game {
           underwater: this.player.headUnderwater,
           fear: this.fear?.value ?? 0,
           rain: this.climate?.weather.rain ?? 0,
+          blizzard: this.climate?.blizzard ?? 0,
           cameraY: this.camera.position.y,
           fogColor: this.dayNight.fog.color,
         },
@@ -1626,7 +1663,7 @@ export class Game {
       `Ziel       ${this.interaction.target?.type ?? '–'}`,
       `Schrate    ${this.enemies.aliveCount} lebend · ${this.enemies.aggressiveCount} aggressiv · Sicht ${this.enemies.sightRange.toFixed(0)} m`,
       `Terrain-LOD ${this.world.terrain.lodHistogram.join(' / ')} Chunks (Stufe 0–3)`,
-      `Wetter     ${this.climate.weather.name} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
+      `Wetter     ${this.climate.weatherName} · Wolken ${(this.climate.weather.clouds * 100).toFixed(0)} % · Regen ${(this.climate.weather.rain * 100).toFixed(0)} % · Nässe ${(this.player.stats.wetness * 100).toFixed(0)} %${this.climate.sheltered ? ' · unter Dach' : ''} (Y: weiter)`,
       `Wild       ${this.animals.aliveCount} Tiere · ${this.projectiles.count} Geschosse in der Luft`,
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
       `Ereignisse ${this.worldEvents.active} aktiv`,

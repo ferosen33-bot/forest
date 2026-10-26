@@ -56,6 +56,8 @@ export class Weather {
   wind = PHASES.clear.wind;
   /** Helligkeit des aktuellen Blitzes (0 = keiner), klingt schnell ab. */
   flash = 0;
+  /** Gewitter mit Blitz und Donner – im Schneesturm aus. */
+  lightningEnabled = true;
 
   /** Wird beim Blitz aufgerufen. */
   onLightning: ((l: Lightning) => void) | null = null;
@@ -100,7 +102,7 @@ export class Weather {
     this.wind = approach(this.wind, def.wind, dt / 25);
 
     this.flash = Math.max(0, this.flash - dt * 6);
-    if (this.storm > 0.3) {
+    if (this.storm > 0.3 && this.lightningEnabled) {
       this.lightningTimer -= dt * this.storm;
       if (this.lightningTimer <= 0) {
         this.lightningTimer = 5 + this.rng() * 14;

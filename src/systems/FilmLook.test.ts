@@ -54,4 +54,13 @@ describe('FilmLook', () => {
     const again = filmLook({ ...base, daylight: 0 }, out);
     expect(again).toBe(out);
   });
+
+  it('Schneesturm: dichter, hoher, heller Schleier', () => {
+    const calm = filmLook(base).mist;
+    const storm = filmLook({ ...base, blizzard: 1 }).mist;
+    expect(storm.density).toBeGreaterThan(calm.density + 0.04);
+    expect(storm.height).toBeGreaterThan(calm.height + 10);
+    // In der Höhle zählt der Sturm nicht.
+    expect(filmLook({ ...base, blizzard: 1, cave: true }).mist.density).toBe(filmLook({ ...base, cave: true }).mist.density);
+  });
 });

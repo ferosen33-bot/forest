@@ -64,6 +64,8 @@ export class Climate {
   season: SeasonState = seasonAt(1, 8);
 
   private shelterTimer = 0;
+  private blizzardWarned = false;
+  private tracksHinted = false;
   private readonly fireRain = new WeakMap<Structure, number>();
   private readonly up = new THREE.Vector3(0, 1, 0);
   private readonly tmp = new THREE.Vector3();
@@ -77,6 +79,21 @@ export class Climate {
   get look(): WeatherLook {
     const w = this.weather;
     return { clouds: w.clouds, rain: w.rain, wind: w.wind, flash: w.flash };
+  }
+
+  /** Schneesturm (0..1): Sturm, während Niederschlag als Schnee fällt. */
+  get blizzard(): number {
+    return this.season.snowfall * this.weather.storm;
+  }
+
+  /** Name des Wetters, im Winter mit Schnee statt Regen. */
+  get weatherName(): string {
+    const w = this.weather;
+    if (this.season.snowfall > 0.5) {
+      if (w.phase === 'storm') return 'Schneesturm';
+      if (w.phase === 'rain') return 'Schneefall';
+    }
+    return w.name;
   }
 
   /** Wie stark der Regen den Spieler gerade trifft (0..1) – Schnee durchnässt deutlich weniger. */
@@ -134,6 +151,18 @@ export class Climate {
   /** Jahreszeit: Laub, Schnee, Gras, Kälte und Beeren. */
   private applySeason(f: ClimateFrame): void {
     const s = (this.season = seasonAt(f.day, f.hour));
+    // Hinweise: erster tiefer Schnee, aufziehender Schneesturm.
+    if (!this.tracksHinted && s.snow > 0.55) {
+      this.tracksHinted = true;
+      this.d.events.emit('hud:message', { text: 'Im Schnee bleiben Spuren – deine und die der Tiere. Auch die der Wölfe.' });
+    }
+    const blizzard = this.blizzard;
+    if (!this.blizzardWarned && blizzard > 0.4) {
+      this.blizzardWarned = true;
+      this.d.events.emit('hud:message', { text: 'Ein Schneesturm! Such Schutz am Feuer – die Wölfe werden dreist.' });
+    } else if (blizzard < 0.05) {
+      this.blizzardWarned = false;
+    }
     const u = seasonUniforms;
     u.uAutumn.value = s.autumn;
     u.uBare.value = s.bare;
@@ -142,7 +171,9 @@ export class Climate {
     u.uSnowLine.value = this.d.world.heightMap.waterLevel + 0.8;
     this.d.world.grass?.setSeason(s.grass, s.snow);
     this.d.world.vegetation.berriesAvailable = s.snow < 0.4;
-    this.d.player.stats.chill = s.chill;
+    // Im Schneesturm beißt die Kälte auch am Tag.
+    this.d.player.stats.chill = s.chill + 0.35 * this.blizzard;
+    this.weather.lightningEnabled = s.snowfall < 0.5;
   }
 
   /** Ungeschützte Lagerfeuer gehen bei anhaltendem Starkregen aus. */

@@ -12,7 +12,7 @@ export type Trigger =
   | { on: 'fell' }
   | { on: 'kill'; name?: string }
   | { on: 'sneakKill' }
-  | { on: 'hunt'; species?: 'deer' | 'rabbit' }
+  | { on: 'hunt'; species?: 'deer' | 'rabbit' | 'wolf' }
   | { on: 'cook' }
   | { on: 'fish' }
   | { on: 'cave' }

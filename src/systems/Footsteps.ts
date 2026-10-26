@@ -38,6 +38,8 @@ export class Footsteps {
   private readonly origin = new THREE.Vector3();
   /** In einer Höhle klingt jeder Schritt nach Fels. */
   cave = false;
+  /** Jeder Schritt des Spielers (für Spuren im Schnee); `foot` = ±1 für links/rechts. */
+  onStep: ((position: THREE.Vector3, foot: number) => void) | null = null;
   /** Stadt: Dielen in Häusern, Asphalt auf der Straße. */
   town: { isTownCollider(c: RAPIER.Collider): boolean; isPaved(x: number, z: number): boolean } | null = null;
 
@@ -70,7 +72,9 @@ export class Footsteps {
 
     const p = player.position;
     const volume = player.crouching ? 0.18 : player.sprinting ? 0.75 : 0.45;
-    this.audio.play(SOUND[this.surfaceUnder(p, player.isInWater ? 0.1 : 0)], volume);
+    const surface = this.surfaceUnder(p, player.isInWater ? 0.1 : 0);
+    this.audio.play(SOUND[surface], volume);
+    if (surface === 'grass' || surface === 'sand') this.onStep?.(p, step % 2 === 0 ? 1 : -1);
   }
 
   /** Schritt eines Gegners an `pos` (räumlich, mit Laufgeschwindigkeit skaliert). */

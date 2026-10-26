@@ -4,7 +4,7 @@ import type { RigPart } from '../RigRenderer';
 import { jitter } from '../../world/VegetationGeometry';
 import { clamp, damp, smoothstep } from '../../utils/math';
 
-export type Species = 'deer' | 'rabbit';
+export type Species = 'deer' | 'rabbit' | 'wolf';
 export type AnimalPart = 'body' | 'neck' | 'head' | 'upperLeg' | 'lowerLeg' | 'tail' | 'antlers';
 
 /** Körpermaße einer Art (Meter). Ursprung des Rigs = Boden unter der Körpermitte, Blick +Z. */
@@ -29,6 +29,16 @@ const SHAPES: Record<Species, Shape> = {
     neckBase: new THREE.Vector3(0, 0.12, 0.48),
     neckLength: 0.5,
     tailBase: new THREE.Vector3(0, 0.12, -0.6),
+  },
+  wolf: {
+    bodyHeight: 0.56,
+    bodyLength: 0.75,
+    hipFront: new THREE.Vector3(0.09, -0.06, 0.3),
+    hipBack: new THREE.Vector3(0.09, -0.05, -0.3),
+    upperLeg: 0.26,
+    neckBase: new THREE.Vector3(0, 0.08, 0.34),
+    neckLength: 0.22,
+    tailBase: new THREE.Vector3(0, 0.06, -0.4),
   },
   rabbit: {
     bodyHeight: 0.17,
@@ -135,9 +145,19 @@ function rabbitGeometry(): Record<AnimalPart, THREE.BufferGeometry> {
   };
 }
 
+/** Einfacher Wolfskörper (nur falls das Modell fehlt): das Hirschgerüst, kleiner und ohne Geweih. */
+function wolfGeometry(): Record<AnimalPart, THREE.BufferGeometry> {
+  const g = deerGeometry();
+  for (const part of Object.values(g)) part.scale(0.62, 0.6, 0.66);
+  g.tail = merge([hanging(0.05, 0.03, 0.34, 5)]);
+  g.antlers = merge([new THREE.BoxGeometry(0.001, 0.001, 0.001)]);
+  return g;
+}
+
 export const ANIMAL_GEOMETRY: Record<Species, Record<AnimalPart, THREE.BufferGeometry>> = {
   deer: deerGeometry(),
   rabbit: rabbitGeometry(),
+  wolf: wolfGeometry(),
 };
 
 // ---------------------------------------------------------------------------
@@ -153,6 +173,10 @@ export interface AnimalAnim {
   lookYaw: number;
   /** Fortschritt der Todesanimation oder < 0. */
   death: number;
+  /** Wolf: Fortschritt des Bisses (0..1) oder < 0. */
+  attack: number;
+  /** Wolf: Heulen (0..1, weich überblendet). */
+  howl: number;
 }
 
 /**
@@ -162,7 +186,7 @@ export interface AnimalAnim {
 export class AnimalRig {
   readonly root = new THREE.Object3D();
   readonly parts: RigPart<AnimalPart>[] = [];
-  readonly anim: AnimalAnim = { speed: 0, graze: 0, alert: 0, lookYaw: 0, death: -1 };
+  readonly anim: AnimalAnim = { speed: 0, graze: 0, alert: 0, lookYaw: 0, death: -1, attack: -1, howl: 0 };
   readonly shape: Shape;
 
   private readonly body = new THREE.Object3D();
@@ -221,7 +245,8 @@ export class AnimalRig {
     const s = this.shape;
     this.time += dt;
     const moving = smoothstep(0.05, 0.5, a.speed);
-    const fast = clamp(a.speed / (this.species === 'deer' ? 8 : 6), 0, 1);
+    const legged = this.species !== 'rabbit';
+    const fast = clamp(a.speed / (this.species === 'rabbit' ? 6 : 8), 0, 1);
 
     // Schrittzähler (für Hufgeräusche)
     const stepIndex = Math.floor(this.phase / Math.PI);
@@ -230,8 +255,8 @@ export class AnimalRig {
       if (a.speed > 0.6 && a.death < 0) this.steps++;
     }
 
-    if (this.species === 'deer') {
-      this.phase += dt * (a.speed * 1.5 + moving * 1.2);
+    if (legged) {
+      this.phase += dt * (a.speed * (this.species === 'wolf' ? 2.2 : 1.5) + moving * 1.2);
       const amp = (0.3 + 0.45 * fast) * moving;
       // Trab: diagonale Beinpaare gleichphasig; beim Galopp größerer Ausschlag.
       const phases = [0, Math.PI, Math.PI, 0];
@@ -256,8 +281,8 @@ export class AnimalRig {
     }
 
     // Hals & Kopf: aufrecht, beim Grasen gesenkt, aufmerksam besonders hoch.
-    const up = this.species === 'deer' ? -0.95 : -0.2;
-    const neckX = up + a.graze * (this.species === 'deer' ? 1.85 : 0.5) - a.alert * 0.25 - fast * 0.4 * (this.species === 'deer' ? 1 : 0);
+    const up = this.species === 'deer' ? -0.95 : this.species === 'wolf' ? -0.4 : -0.2;
+    const neckX = up + a.graze * (legged ? 1.85 : 0.5) - a.alert * 0.25 - fast * 0.4 * (legged ? 1 : 0) - a.howl * 0.9;
     this.neck.rotation.set(neckX, a.lookYaw * 0.6, 0);
     this.head.rotation.set(-neckX * 0.65 + 0.25 + Math.sin(this.time * 1.3) * 0.03 * (1 - moving), a.lookYaw * 0.4, 0);
     // Schwanz: bei Gefahr hoch (weißer "Spiegel" warnt die Herde)
@@ -266,7 +291,7 @@ export class AnimalRig {
     if (a.death >= 0) {
       const t = 1 - (1 - Math.min(1, a.death)) ** 3;
       this.body.rotation.z = t * Math.PI * 0.5;
-      this.body.position.y = s.bodyHeight + (0.22 * (this.species === 'deer' ? 1 : 0.4) - s.bodyHeight) * t;
+      this.body.position.y = s.bodyHeight + (0.22 * (this.species === 'rabbit' ? 0.4 : this.species === 'wolf' ? 0.7 : 1) - s.bodyHeight) * t;
       this.neck.rotation.x = up + t * 0.9;
       this.hips.forEach((hip) => (hip.rotation.x = 0.2 * t));
     } else {
