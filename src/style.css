@@ -784,6 +784,11 @@ kbd {
 .enemy-health__name { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #e3c7b5; text-shadow: 0 1px 2px #000; }
 .enemy-health__bar { width: 120px; height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); overflow: hidden; }
 .enemy-health__fill { height: 100%; background: #b8322a; transform-origin: left center; transition: transform 0.15s; }
+/* Endgegner: breite Leiste oben am Bildrand */
+.enemy-health.is-boss { top: 54px; gap: 5px; }
+.enemy-health.is-boss .enemy-health__name { font-size: 14px; letter-spacing: 0.18em; color: #d9e3c4; }
+.enemy-health.is-boss .enemy-health__bar { width: min(520px, 70vw); height: 8px; border: 1px solid rgba(217, 227, 196, 0.25); }
+.enemy-health.is-boss .enemy-health__fill { background: linear-gradient(90deg, #5d7a3a, #9bb35e); }
 
 /* Haltbarkeitsbalken im Slot */
 .slot__wear {

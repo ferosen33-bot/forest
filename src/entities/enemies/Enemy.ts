@@ -55,7 +55,16 @@ export interface EnemyContext {
   sound(id: 'growl' | 'scream' | 'enemyAttack', position: THREE.Vector3): void;
   /** Feuert ein feindliches Wurfgeschoss ab. */
   throwStone(origin: THREE.Vector3, velocity: THREE.Vector3, damage: number): void;
+  /** Schreierin: Schrei lähmt den Spieler und ruft Schrate im weiten Umkreis herbei. */
+  scream?(source: Enemy): void;
+  /** Endgegner: ruft Kriecher zu Hilfe. */
+  summon?(source: Enemy): void;
+  /** Endgegner: Bodenstampfer (Staub, Beben). */
+  slam?(source: Enemy): void;
 }
+
+/** Dauer eines Schreis (Luft holen, schreien, ausklingen). */
+const SCREAM_TIME = 2.2;
 
 /** Dauer eines Wurfs (Ausholen bis Ausschwingen) und Zeitpunkt des Loslassens. */
 const THROW_TIME = 0.95;
@@ -76,8 +85,11 @@ export class Enemy {
   readonly rig: EnemyRig;
   /** Typ (Schrat, Späher, Koloss) mit seinen Kampf- und Wahrnehmungswerten. */
   readonly kind: EnemyKindDef;
-  private readonly walkSpeed: number;
-  private readonly runSpeed: number;
+  private walkSpeed: number;
+  private runSpeed: number;
+  /** Endgegner: bereits ausgelöste Hilferufe und Raserei. */
+  private summons = 0;
+  private enraged = false;
   private readonly attackRange: number;
   state: EnemyState = 'idle';
   health: number;
@@ -247,6 +259,19 @@ export class Enemy {
     if (this.health <= 0) {
       this.die();
       return true;
+    }
+    const boss = this.kind.boss;
+    if (boss) {
+      const left = this.health / this.maxHealth;
+      if (this.summons < boss.summonAt.length && left < boss.summonAt[this.summons]) {
+        this.summons++;
+        ctx.summon?.(this);
+      }
+      if (!this.enraged && left < 0.5) {
+        this.enraged = true;
+        this.walkSpeed *= 1.35;
+        this.runSpeed *= 1.35;
+      }
     }
     this.provokedUntil = ctx.time + 20;
     this.suspicion = 1;
@@ -543,7 +568,14 @@ export class Enemy {
       const to = this.tmp.subVectors(player.position, this.curr).setY(0);
       const dist = to.length();
       const angle = this.forward.angleTo(to.normalize());
-      if (dist < this.attackRange + 0.65 * this.rig.scale && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
+      const boss = this.kind.boss;
+      if (boss) {
+        // Bodenstampfer: trifft rundum, auch hinter dem Rücken.
+        ctx.slam?.(this);
+        if (dist < boss.slamRadius && !player.isDead) {
+          player.receiveHit(this.cfg.attackDamage * this.kind.damage * (1 - (0.5 * dist) / boss.slamRadius), this.curr);
+        }
+      } else if (dist < this.attackRange + 0.65 * this.rig.scale && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
         player.receiveHit(this.cfg.attackDamage * this.kind.damage * (0.85 + Math.random() * 0.3), this.curr);
       }
     }
@@ -564,10 +596,13 @@ export class Enemy {
     const ranged = this.kind.ranged!;
     const player = ctx.player;
     this.attackTime += dt;
-    const u = this.attackTime / THROW_TIME;
+    const u = this.attackTime / (ranged.scream ? SCREAM_TIME : THROW_TIME);
     this.rig.anim.attack = u;
     if (u < RELEASE_AT) this.faceTarget = player.position;
-    if (!this.struck && u >= RELEASE_AT) {
+    if (!this.struck && u >= RELEASE_AT && ranged.scream) {
+      this.struck = true;
+      ctx.scream?.(this);
+    } else if (!this.struck && u >= RELEASE_AT) {
       this.struck = true;
       const origin = this.tmp.copy(this.curr).addScaledVector(this.forward, 0.35);
       origin.y += 1.55 * this.rig.scale;

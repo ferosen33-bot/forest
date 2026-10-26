@@ -5,7 +5,7 @@ rigs, animations“ stehen unter **CC0 1.0** (siehe `LICENSE-CC0.md`). Die Beweg
 Quaternius auf.
 
 - Figuren: `monster`, `monster_3`, `monster_4`, `monster_5`, `killer_4` … `killer_7`, `male_10`, `hazmat_female`,
-  `female_9` (unverändert)
+  `female_9`, `male_15`, `police_male`, `female_8`, `hazmat_suit_male` (unverändert)
 - `base-anims.glb`, `addon-anims.glb`: Auszug aus `human-base-animations.glb` und `human-addon-animations.glb`
   (nur benötigte Bewegungen, ohne Finger- und Skalierungsspuren), erzeugt mit `scripts/prepare-characters.mjs`
 

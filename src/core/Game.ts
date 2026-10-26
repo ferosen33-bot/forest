@@ -471,6 +471,22 @@ export class Game {
       this.footsteps.town = this.settlement;
     }
     this.enemies.onCaveDwellerKilled = (cave, slot) => this.caves.dwellerKilled(cave, slot, this.dayNight.day);
+    // Schrei der Schreierin: Mark und Bein – Ausdauer weg, Furcht steigt, die Sicht bebt.
+    let screamHinted = false;
+    this.enemies.onScream = (_from, strength) => {
+      const stats = this.player.stats;
+      stats.stamina = Math.min(stats.stamina, stats.stamina * (1 - strength));
+      this.fear.scare(0.5 * strength);
+      this.player.addShake(0.5 * strength);
+      if (!screamHinted && strength > 0.3) {
+        screamHinted = true;
+        this.events.emit('hud:message', { text: 'Ein Schrei geht dir durch Mark und Bein – jetzt wissen alle, wo du bist.' });
+      }
+    };
+    this.enemies.onSlam = (at, distance) => {
+      this.player.addShake(THREE.MathUtils.clamp(1 - distance / 14, 0, 1));
+      this.particles.burst(at.clone().setY(at.y + 0.2), { count: 24, color: 0x5a5248, speed: 3.5, spread: 1, size: 0.05, life: 1.4 });
+    };
     // Gefallene Horden-Schrate lassen manchmal etwas fallen.
     this.enemies.onHordeKill = (at) => {
       if (Math.random() > 0.35) return;
@@ -1213,12 +1229,10 @@ export class Game {
     this.footsteps.cave = inCave;
   }
 
-  /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
-  /** Licht des Items in der Hand (Taschenlampe nur mit geladener Batterie). */
   /** Schrate und Wölfe in der Nähe – für Fallen und Brandherde. */
   private *intruders(): Generator<Intruder> {
     const cache = this.intruderCache;
-    for (const e of this.enemies.enemies) {
+    for (const e of [...this.enemies.enemies, ...this.enemies.caveDwellers]) {
       if (!e.active || e.isDead) continue;
       let w = cache.get(e);
       if (!w) {
@@ -1259,6 +1273,8 @@ export class Game {
     }
   }
 
+  /** Rechtsklick im Inventar: Nahrung essen, alles andere in die Hand nehmen. */
+  /** Licht des Items in der Hand (Taschenlampe nur mit geladener Batterie). */
   private heldLight(): ReturnType<typeof getItem>['light'] {
     const stack = this.tools.equipped;
     if (!stack) return undefined;
@@ -1391,6 +1407,8 @@ export class Game {
     const fever = feverLabel(this.dayNight.day, this.dayNight.hour);
     const where = (this.caves.current ? ` · ${this.caves.current.name}` : '') + (fever ? ` · ${fever}` : '');
     const clock = this.dayNight.clockText.replace(' · ', ` · ${this.climate.season.name} · `) + where;
+    const boss = this.enemies.activeBoss;
+    this.hud.setBoss(boss ? { name: boss.kind.name, fraction: boss.health / boss.maxHealth } : null);
     this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
     this.updateNavigation(dt);
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());

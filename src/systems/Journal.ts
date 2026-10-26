@@ -105,6 +105,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'crates', text: 'Alte Vorratskisten öffnen', trigger: { on: 'crate' }, count: 3 },
       { id: 'kriecher', text: 'Kriecher besiegen', trigger: { on: 'kill', name: 'Kriecher' }, count: 3 },
       { id: 'caves', text: 'Alle drei Höhlen erkunden', trigger: { on: 'cave' }, count: 3 },
+      { id: 'hansen', text: 'Hansen, den Ersten, im Feuersteinstollen besiegen', trigger: { on: 'kill', name: 'Hansen, der Erste' } },
     ],
   },
   {

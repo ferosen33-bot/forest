@@ -49,7 +49,14 @@ interface DwellerSlot {
   chamber: number;
   /** Ab diesem Tag lebt er wieder (0 = lebt). */
   respawnDay: number;
+  /** Hansen, der Erste – kehrt nie zurück. */
+  boss?: boolean;
 }
+
+/** In dieser Höhle (Feuersteinstollen) haust Hansen, in der hintersten Kammer. */
+export const BOSS_CAVE = 2;
+/** „Tag der Wiederkehr“ eines besiegten Endgegners: nie. */
+const NEVER = 1e9;
 
 /** Zustand einer Ausstattung (Kiste geöffnet, Pilze gepflückt, Feuerstein übrig). */
 interface Feature {
@@ -216,9 +223,12 @@ export class Caves {
         body: null,
         nav: null,
         // Der erste Raum hinter dem Eingang bleibt ruhig; jeder weitere hat einen Bewohner, der hinterste zwei.
-        dwellers: layout.chambers.flatMap((_, i) =>
-          i === 0 ? [] : i === layout.chambers.length - 1 ? [{ chamber: i, respawnDay: 0 }, { chamber: i, respawnDay: 0 }] : [{ chamber: i, respawnDay: 0 }],
-        ),
+        dwellers: layout.chambers.flatMap((_, i): DwellerSlot[] => {
+          if (i === 0) return [];
+          if (i < layout.chambers.length - 1) return [{ chamber: i, respawnDay: 0 }];
+          // Im Stollen wartet in der Pilzkammer am Ende statt zweier Kriecher Hansen.
+          return index === BOSS_CAVE ? [{ chamber: i, respawnDay: 0, boss: true }] : [{ chamber: i, respawnDay: 0 }, { chamber: i, respawnDay: 0 }];
+        }),
         exitLight: { position: new THREE.Vector3(), color: new THREE.Color(0xbcd2e6), intensity: 0, distance: 16 },
         exitMaterial: new THREE.MeshBasicMaterial({
           color: 0xffffff,
@@ -676,8 +686,8 @@ export class Caves {
       if (d.respawnDay > day) return;
       d.respawnDay = 0;
       const c = cave.layout.chambers[d.chamber];
-      // Zwei Bewohner einer Kammer stehen nicht aufeinander.
-      const side = slot % 2 === 0 ? 1.2 : -1.2;
+      // Zwei Bewohner einer Kammer stehen nicht aufeinander (Hansen steht in der Mitte).
+      const side = d.boss ? 0 : slot % 2 === 0 ? 1.2 : -1.2;
       const x = c.center.x + side;
       const z = c.center.z;
       const floor = probe(sdf, x, c.floor + 1.2, z, -1);
@@ -686,14 +696,34 @@ export class Caves {
         slot,
         position: this.world(cave, new THREE.Vector3(x, floor + 0.05, z)),
         home: this.world(cave, new THREE.Vector3(c.center.x, floor, c.center.z)),
+        ...(d.boss ? { kind: 'hansen' as const } : {}),
       });
     });
     return out;
   }
 
   dwellerKilled(caveIndex: number, slot: number, day: number): void {
-    const d = this.caves[caveIndex]?.dwellers[slot];
-    if (d) d.respawnDay = day + DWELLER_RESPAWN_DAYS;
+    const cave = this.caves[caveIndex];
+    const d = cave?.dwellers[slot];
+    if (!d) return;
+    if (!d.boss) {
+      d.respawnDay = day + DWELLER_RESPAWN_DAYS;
+      return;
+    }
+    d.respawnDay = NEVER;
+    // Was Hansen bei sich trug: die Vorräte der letzten Schicht.
+    const c = cave.layout.chambers[d.chamber];
+    const at = this.world(cave, new THREE.Vector3(c.center.x, c.floor + 0.8, c.center.z));
+    for (const [item, count] of [['medkit', 2], ['lampOil', 2], ['battery', 2], ['cannedFood', 2]] as [ItemId, number][]) {
+      this.d.items.give(item, count, at);
+    }
+    this.d.events.emit('boss:killed', { name: 'Hansen, der Erste' });
+    this.d.events.emit('hud:message', { text: 'Hansen, der Erste, ist tot. Im Stollen wird es still.' });
+  }
+
+  /** Lebt Hansen noch? */
+  get bossAlive(): boolean {
+    return this.caves[BOSS_CAVE]?.dwellers.some((d) => d.boss && d.respawnDay < NEVER) ?? false;
   }
 
   isDepleted(f: Feature): boolean {

@@ -16,17 +16,20 @@ mkdirSync(out, { recursive: true });
 const MODELS = [
   'monster', 'monster_3', 'monster_4', 'monster_5', 'killer_4', 'killer_5', 'killer_6', 'killer_7',
   'male_10', 'hazmat_female', 'female_9',
+  // Hetzer (verwandelte Dorfbewohner), Schreierin, Hansen (Endgegner im Stollen)
+  'male_15', 'police_male', 'female_8', 'hazmat_suit_male',
 ];
 
 const CLIPS = {
   'human-base-animations.glb': [
     'Idle_A', 'Idle_Talking', 'Idle_Torch', 'Sitting_Idle', 'Jog', 'Sprint', 'Punch_Cross', 'Punch_Jab',
     'Melee_Hook', 'OverhandThrow', 'Hit_Chest', 'Hit_Head', 'Death_D', 'Crouch_Idle', 'Crouch_Walk', 'Interact',
-    'Idle_Sword',
+    'Idle_Sword', 'Zombie_Scratch', 'Zombie_Idle', 'Zombie_Walk',
   ],
   'human-addon-animations.glb': [
     'Zombie_Walk_2', 'Zombie Yell', 'Zombie_Idle_Crouch', 'Zombie_Rise', 'Crawl', 'Death_A', 'Death_B', 'Death_C',
     'Idle Hurt', 'Shivering', 'Kneeling Tired', 'Walk_Stealth', 'Walk_Large', 'Idle_Subtle', 'Head Nod', 'Tired Hunched',
+    'Run_Female', 'Walk_Female', 'Attack_Ground_Pound', 'Angry',
   ],
 };
 

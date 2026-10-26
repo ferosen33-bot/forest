@@ -30,6 +30,8 @@ export interface CaveSpawn {
   slot: number;
   position: THREE.Vector3;
   home: THREE.Vector3;
+  /** Typ (ohne Angabe: Kriecher). */
+  kind?: EnemyKind;
 }
 
 /** Bewohner der Höhle, in der sich der Spieler gerade befindet. */
@@ -134,6 +136,13 @@ export class EnemyDirector {
   private caveNoiseTimer = 0;
   /** Ein Höhlenbewohner ist gestorben (für die Wiederkehr nach einigen Tagen). */
   onCaveDwellerKilled: ((cave: number, slot: number) => void) | null = null;
+  /** Schrei einer Schreierin hat den Spieler erreicht (Lähmung, Furcht). `strength` 0..1 nach Entfernung. */
+  onScream: ((source: THREE.Vector3, strength: number) => void) | null = null;
+  /** Bodenstampfer des Endgegners (Beben, Staub). */
+  onSlam: ((position: THREE.Vector3, distance: number) => void) | null = null;
+  /** Nächtliche Jäger ohne Lager: Hetzer-Paare und Schreierinnen. */
+  private readonly stalkers = new Set<Enemy>();
+  private stalkTimer = 90;
 
   constructor(private readonly d: DirectorDeps) {
     this.cfg = d.config.ai;
@@ -205,6 +214,7 @@ export class EnemyDirector {
       allowPathPlan: () => this.pathPlansThisTick++ < 2,
       sound: (id, pos) => this.playAt(id, pos),
       throwStone: (origin, velocity, damage) => this.onThrow?.(origin, velocity, damage),
+      scream: (source) => this.scream(source, this.enemies, this.ctx),
     };
 
     this.createCamps();
@@ -400,8 +410,24 @@ export class EnemyDirector {
       others: enemies,
     };
     const pop: CavePopulation = { index, enemies, slots: new Map(), ctx };
+    ctx.scream = (source) => this.scream(source, enemies, ctx);
+    ctx.slam = (source) => this.slam(source);
+    // Hilferuf des Endgegners: zwei Kriecher kriechen aus den Spalten.
+    ctx.summon = (source) => {
+      this.playAt('scream', source.feet);
+      for (let i = 0; i < 2; i++) {
+        const a = this.rng() * Math.PI * 2;
+        const pos = source.home.clone().add(new THREE.Vector3(Math.cos(a) * 3, 0.1, Math.sin(a) * 3));
+        if (!nav.isWalkable(pos.x, pos.z)) pos.copy(source.home).setY(source.home.y + 0.1);
+        const k = new Enemy(this.nextId++, d.physics, pos, source.home, this.cfg, Math.floor(this.rng() * 3), ENEMY_KINDS.kriecher.scale, 'kriecher');
+        k.alertedBy(player.position, ctx);
+        enemies.push(k);
+        this.byCollider.set(k.collider.handle, { enemy: k, zone: 'body' });
+        this.byCollider.set(k.headCollider.handle, { enemy: k, zone: 'head' });
+      }
+    };
     for (const s of spawns) {
-      const kind: EnemyKind = 'kriecher';
+      const kind: EnemyKind = s.kind ?? 'kriecher';
       const enemy = new Enemy(this.nextId++, d.physics, s.position, s.home, this.cfg, Math.floor(this.rng() * 3), ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16), kind);
       enemies.push(enemy);
       pop.slots.set(enemy, s.slot);
@@ -460,7 +486,17 @@ export class EnemyDirector {
         const z = around.z + Math.sin(a) * r;
         if (!this.nav.isWalkable(x, z)) continue;
         const roll = this.rng();
-        const kind: EnemyKind = fever >= 2 && roll < 0.12 ? 'koloss' : roll < 0.4 ? 'spaeher' : 'schrat';
+        // Ab der zweiten Fiebernacht laufen auch Hetzer mit, ab der dritten schreien Schreierinnen.
+        const kind: EnemyKind =
+          fever >= 2 && roll < 0.12
+            ? 'koloss'
+            : fever >= 3 && roll < 0.17
+              ? 'schreier'
+              : fever >= 2 && roll < 0.32
+                ? 'hetzer'
+                : roll < 0.5
+                  ? 'spaeher'
+                  : 'schrat';
         const pos = new THREE.Vector3(x, this.d.heightMap.heightAt(x, z), z);
         const enemy = new Enemy(this.nextId++, this.d.physics, pos, around.clone(), this.cfg, Math.floor(this.rng() * 4), ENEMY_KINDS[kind].scale * (0.92 + this.rng() * 0.16), kind);
         enemy.enrage();
@@ -591,9 +627,14 @@ export class EnemyDirector {
    */
   hurt(enemy: Enemy, amount: number, from: THREE.Vector3): boolean {
     if (enemy.isDead) return false;
-    const killed = enemy.takeDamage(amount, from, this.ctxFor(enemy));
+    // Hansen brennt wie Zunder: Feuer und Fallen treffen ihn doppelt.
+    const killed = enemy.takeDamage(amount * (enemy.kind.boss ? 2 : 1), from, this.ctxFor(enemy));
     this.d.particles.burst(enemy.feet.clone().setY(enemy.feet.y + 0.9), { count: 6, color: 0x5c0f10, speed: 2, size: 0.03 });
-    if (killed) this.afterKill(enemy);
+    if (killed) {
+      this.afterKill(enemy);
+      // Auch Fallen-Opfer zählen (Tagebuch, Aufträge).
+      this.d.events.emit('enemy:hit', { health: 0, maxHealth: enemy.maxHealth, killed: true, headshot: false, sneak: false, name: enemy.kind.name });
+    }
     return killed;
   }
 
@@ -651,6 +692,7 @@ export class EnemyDirector {
     }
 
     this.updateHunts(dt, night);
+    this.updateStalkers(dt);
     this.updateCamps(dt);
     this.updateHorde(dt);
 
@@ -734,6 +776,76 @@ export class EnemyDirector {
       } else {
         camp.respawnTimer = 0;
       }
+    }
+  }
+
+  /**
+   * Schrei einer Schreierin: alle Schrate im weiten Umkreis kennen jetzt die Position des Spielers,
+   * und der Spieler selbst ist kurz wie gelähmt (je näher, desto stärker).
+   */
+  private scream(source: Enemy, population: readonly Enemy[], ctx: EnemyContext): void {
+    const player = this.d.player.position;
+    this.playAt('shriek', source.feet, 1, 260);
+    for (const e of population) {
+      if (e !== source && !e.isDead && e.feet.distanceTo(source.feet) < source.kind.alertRadius) e.alertedBy(player, ctx);
+    }
+    const dist = source.feet.distanceTo(player);
+    if (dist < 45) this.onScream?.(source.feet.clone(), THREE.MathUtils.clamp(1.2 - dist / 40, 0.2, 1));
+  }
+
+  private slam(source: Enemy): void {
+    this.playAt('slam', source.feet, 1, 80);
+    this.onSlam?.(source.feet.clone(), source.feet.distanceTo(this.d.player.position));
+  }
+
+  /** Lebender Endgegner in der aktuellen Höhle, sobald er kämpft (für die Lebensleiste). */
+  get activeBoss(): Enemy | null {
+    for (const e of this.cave?.enemies ?? []) if (e.kind.boss && !e.isDead && e.isAggressive) return e;
+    return null;
+  }
+
+  /**
+   * Nachts streifen Verwandelte ohne Lager umher: Hetzer zu zweit oder eine einzelne Schreierin.
+   * Sie tauchen außer Sicht auf, halten auf den Spieler zu und verschwinden im Morgengrauen.
+   */
+  private updateStalkers(dt: number): void {
+    const d = this.d;
+    const player = d.player.position;
+    for (const e of [...this.stalkers]) if (!this.enemies.includes(e)) this.stalkers.delete(e);
+    if (!d.dayNight.isNight) {
+      // Tag: wer außer Sicht ist, verschwindet.
+      for (const e of [...this.stalkers]) {
+        if (e.isDead || e.feet.distanceTo(player) < 45) continue;
+        this.removeEnemy(this.enemies.indexOf(e));
+        this.stalkers.delete(e);
+      }
+      this.stalkTimer = Math.max(this.stalkTimer, 60);
+      return;
+    }
+    if (this.hordeActive || d.player.stats.isDead || d.playerHidden()) return;
+    this.stalkTimer -= dt;
+    if (this.stalkTimer > 0) return;
+    this.stalkTimer = 140 + this.rng() * 140;
+    let alive = 0;
+    for (const e of this.stalkers) if (!e.isDead) alive++;
+    if (alive >= 3 || this.enemies.length >= MAX_ENEMIES + MAX_HORDE) return;
+    const kinds: EnemyKind[] = this.rng() < 0.62 ? ['hetzer', 'hetzer'] : ['schreier'];
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const a = this.rng() * Math.PI * 2;
+      const r = 70 + this.rng() * 25;
+      const x = player.x + Math.cos(a) * r;
+      const z = player.z + Math.sin(a) * r;
+      if (!this.nav.isWalkable(x, z)) continue;
+      const center = new THREE.Vector3(x, d.heightMap.heightAt(x, z), z);
+      for (const e of this.spawnGroup(center, kinds)) {
+        this.stalkers.add(e);
+        e.active = true;
+        // Hetzer halten direkt auf den Spieler zu, die Schreierin bleibt am Rand.
+        const offset = e.kind.kind === 'schreier' ? 14 : 4;
+        e.hunt(player.clone().add(new THREE.Vector3((this.rng() - 0.5) * offset, 0, (this.rng() - 0.5) * offset)));
+      }
+      if (kinds[0] === 'hetzer') this.playAt('scream', center, 0.6, 140);
+      return;
     }
   }
 
@@ -821,9 +933,12 @@ export class EnemyDirector {
   }
 
   /** Spielt einen Sound räumlich an der Kopfhöhe des Gegners (3D-Ortung über HRTF). */
-  private playAt(id: SoundId, pos: THREE.Vector3): void {
-    if (pos.distanceTo(this.d.player.position) > 80) return;
-    this.d.audio.play(id, { position: this.tmp.copy(pos).add(new THREE.Vector3(0, 1.5, 0)) });
+  private playAt(id: SoundId, pos: THREE.Vector3, volume = 1, range = 80): void {
+    const dist = pos.distanceTo(this.d.player.position);
+    if (dist > range) return;
+    // Weit tragende Laute (Schreie) werden mit der Entfernung leiser, statt abzubrechen.
+    if (range > 80) volume *= Math.min(1, 1.25 - dist / range);
+    this.d.audio.play(id, { volume, position: this.tmp.copy(pos).add(new THREE.Vector3(0, 1.5, 0)) });
   }
 
   /** Aktuelle Sichtweite der Gegner auf den Spieler (m). */

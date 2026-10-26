@@ -20,11 +20,15 @@ export type CharacterId =
   | 'killer_7'
   | 'male_10'
   | 'hazmat_female'
-  | 'female_9';
+  | 'female_9'
+  | 'male_15'
+  | 'police_male'
+  | 'female_8'
+  | 'hazmat_suit_male';
 
 export const CHARACTER_IDS: CharacterId[] = [
   'monster', 'monster_3', 'monster_4', 'monster_5', 'killer_4', 'killer_5', 'killer_6', 'killer_7',
-  'male_10', 'hazmat_female', 'female_9',
+  'male_10', 'hazmat_female', 'female_9', 'male_15', 'police_male', 'female_8', 'hazmat_suit_male',
 ];
 
 interface Template {

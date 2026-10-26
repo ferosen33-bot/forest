@@ -42,6 +42,8 @@ export type SoundId =
   | 'wolfGrowl'
   | 'wolfBite'
   | 'glassBreak'
+  | 'shriek'
+  | 'slam'
   | 'fireWhoosh'
   | 'rattle'
   | 'pitFall'
@@ -214,7 +216,7 @@ export class Audio {
           out.disconnect();
           destination!.disconnect();
         },
-        id === 'wolfHowl' ? 5500 : 2500,
+        id === 'wolfHowl' || id === 'shriek' ? 5500 : 2500,
       );
     }
 
@@ -347,6 +349,19 @@ export class Audio {
         this.noise(t, 0.04, 'highpass', 2200, 0.8, 0.9);
         this.tone(t, 'square', 320 * pitch, 140, 0.06, 0.18, 1800);
         this.noise(t + 0.03, 0.15, 'bandpass', 600, 1.2, 0.35);
+        break;
+      // Schreierin: hoher, kreischender Schrei, der sich überschlägt und lange nachhallt.
+      case 'shriek':
+        this.tone(t, 'sawtooth', 900 * pitch, 1500, 0.5, 0.35, 4200);
+        this.tone(t + 0.45, 'sawtooth', 1500 * pitch, 700, 1.6, 0.32, 3800);
+        this.tone(t + 0.05, 'square', 1210 * pitch, 980, 1.9, 0.1, 3000);
+        this.noise(t, 2.0, 'bandpass', 2600, 1.8, 0.35, 1400);
+        break;
+      // Bodenstampfer: dumpfer Schlag, Fels knirscht, Staub rieselt.
+      case 'slam':
+        this.tone(t, 'sine', 55, 28, 0.9, 1.0);
+        this.noise(t, 0.6, 'lowpass', 350, 0.8, 1.0, 90);
+        for (let i = 0; i < 6; i++) this.noise(t + 0.2 + Math.random() * 0.6, 0.05, 'highpass', 2400, 0.8, 0.25);
         break;
       // Glas zerspringt: heller Knall, klirrende Scherben.
       case 'glassBreak':

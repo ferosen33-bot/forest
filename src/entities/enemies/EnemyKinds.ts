@@ -1,5 +1,5 @@
 /** Gegnertypen der Insel. */
-export type EnemyKind = 'schrat' | 'spaeher' | 'koloss' | 'kriecher';
+export type EnemyKind = 'schrat' | 'spaeher' | 'koloss' | 'kriecher' | 'hetzer' | 'schreier' | 'hansen';
 
 export interface EnemyKindDef {
   kind: EnemyKind;
@@ -29,8 +29,13 @@ export interface EnemyKindDef {
   club: boolean;
   /** Gebückte Haltung (0 = aufrecht, 1 = kriechend). */
   hunch?: number;
-  /** Fernangriff: Steine werfen, wenn der Spieler in diesem Abstand sichtbar ist. */
-  ranged?: { minRange: number; maxRange: number; cooldown: number; speed: number; damage: number };
+  /**
+   * Fernangriff, wenn der Spieler in diesem Abstand sichtbar ist: Steine werfen oder – `scream` –
+   * ein Schrei, der lähmt und alle Schrate im Umkreis `alertRadius` herbeiruft.
+   */
+  ranged?: { minRange: number; maxRange: number; cooldown: number; speed: number; damage: number; scream?: boolean };
+  /** Endgegner: Bodenstampfer trifft rundum, ruft bei diesen Lebensanteilen Kriecher herbei, wird unter der Hälfte rasend. */
+  boss?: { slamRadius: number; summonAt: number[] };
   /** Hauttöne (sRGB) für die Variation innerhalb des Typs. */
   tones: number[];
 }
@@ -117,6 +122,72 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     club: false,
     hunch: 1,
     tones: [0xcfc6b8, 0xc2baad, 0xd8cfc0],
+  },
+  // Verwandelte aus dem Ort: hager, barfuß und schneller als jeder Mensch. Jagen nachts zu zweit,
+  // schlagen zu und verschwinden wieder im Dunkel.
+  hetzer: {
+    kind: 'hetzer',
+    name: 'Hetzer',
+    scale: 0.96,
+    health: 0.55,
+    speed: 1.55,
+    damage: 0.65,
+    attackRange: 0.95,
+    attackTime: 0.7,
+    sight: 1.15,
+    hearing: 1.3,
+    alertRadius: 30,
+    structureDamage: 12,
+    staggerThreshold: 0,
+    fearsFire: true,
+    hitAndRun: true,
+    club: false,
+    hunch: 0.35,
+    tones: [0xb8b0a2, 0xa9a194, 0xc2b9aa],
+  },
+  // Die Schreiende: bleich, langes schwarzes Haar. Hält Abstand, und wenn sie dich sieht, schreit sie –
+  // der Schrei lähmt und ruft alles im weiten Umkreis herbei.
+  schreier: {
+    kind: 'schreier',
+    name: 'Schreierin',
+    scale: 0.95,
+    health: 0.5,
+    speed: 1.05,
+    damage: 0.5,
+    attackRange: 0.9,
+    attackTime: 0.8,
+    sight: 1.35,
+    hearing: 1.2,
+    alertRadius: 90,
+    structureDamage: 5,
+    staggerThreshold: 0,
+    fearsFire: true,
+    hitAndRun: true,
+    club: false,
+    ranged: { minRange: 5, maxRange: 28, cooldown: 11, speed: 0, damage: 0, scream: true },
+    tones: [0xd8d2ca, 0xcfc8be],
+  },
+  // Hansen, der Erste: der Bergmann, mit dem es im neuen Stollen begann. Riesig, von Pilzen durchwachsen,
+  // haust in der hintersten Kammer des Feuersteinstollens.
+  hansen: {
+    kind: 'hansen',
+    name: 'Hansen, der Erste',
+    scale: 1.75,
+    health: 14,
+    speed: 0.82,
+    damage: 2.6,
+    attackRange: 1.6,
+    attackTime: 1.8,
+    sight: 0.9,
+    hearing: 2,
+    alertRadius: 60,
+    structureDamage: 100,
+    staggerThreshold: 70,
+    fearsFire: false,
+    hitAndRun: false,
+    club: false,
+    boss: { slamRadius: 3.4, summonAt: [0.66, 0.33] },
+    tones: [0xa8b49a],
   },
 };
 

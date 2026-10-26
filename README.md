@@ -60,6 +60,31 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 38 – Neue Schrecken
+
+- **Hetzer:** Verwandelte aus dem Ort, darunter der Inselpolizist. Sie sind bleich, gebückt und schneller als du.
+  - Nachts tauchen sie zu zweit außer Sicht auf und halten auf dich zu.
+  - Sie schlagen zu, verschwinden im Dunkel und kommen wieder. Feuer scheuen sie.
+- **Die Schreierin:** eine bleiche Frau mit langem schwarzem Haar, die am Rand des Lichts bleibt.
+  - Sieht sie dich, holt sie Luft und **schreit**. Der Schrei raubt dir fast alle Ausdauer, lässt die Furcht steigen
+    und die Sicht beben.
+  - Jeder Schrat im Umkreis von 90 m weiß danach, wo du bist. Sie selbst hält Abstand und flieht, wenn man ihr nahe
+    kommt.
+- **Hansen, der Erste:** In der hintersten Kammer des Feuersteinstollens, dort, wo laut Schichtbuch alles begann,
+  haust der Bergmann, mit dem das Fieber anfing.
+  - Er ist ein drei Meter großer Riese im verdreckten Schutzanzug mit Gasmaske, von Pilzen grünlich durchzogen.
+  - Sein **Bodenstampfer** trifft rundum, auch hinter seinem Rücken, und lässt die Höhle beben.
+  - Bei zwei Dritteln und bei einem Drittel seiner Kraft ruft er Kriecher aus den Spalten. Unter der Hälfte wird er
+    rasend und schneller.
+  - Feuer und Fallen treffen ihn doppelt: Brandflaschen sind der Schlüssel.
+  - Im Kampf zeigt eine breite Lebensleiste oben im Bild seinen Zustand.
+  - Besiegt lässt er die Vorräte der letzten Schicht fallen und kehrt nie zurück (im Spielstand gemerkt).
+  - Neues Tagebuch-Ziel im Kapitel „Unter der Erde“.
+- **Fiebernächte** werden härter: Ab der zweiten laufen Hetzer mit, ab der dritten schreien Schreierinnen.
+- Auch Gegner, die in Fallen oder Feuer sterben, zählen jetzt für Tagebuch und Aufträge.
+- Figuren und Bewegungen stammen wieder aus Mesh2Motion (CC0): vier neue Figuren und sieben neue Bewegungen, darunter
+  Kratzen, Frauengang und Bodenstampfer.
+
 ### Meilenstein 37 – Verteidigung
 
 - **Neue Bauwerke für das Lager:**
@@ -923,5 +948,5 @@ src/
 30. ~~Horrorfilm-Optik, Teil 1: Licht & Bild~~ ✓ · ~~Teil 2: Foto-Texturen~~ ✓ · ~~Teil 3: Bäume, Büsche, Felsen~~ ✓ · ~~Teil 4: Figuren~~ ✓ · ~~Teil 5: Hände und Werkzeuge~~ ✓ · ~~Teil 6: Gras~~ ✓ · ~~Teil 7: Tiere~~ ✓
 31. ~~Wölfe & Winter: Rudel, Spuren im Schnee~~ ✓
 32. ~~Verteidigung: Barrikaden, Stachelwände, Fallen, Brandflaschen~~ ✓
-33. Neue Schrecken: neue Gegner, ein Boss in der Mine
+33. ~~Neue Schrecken: neue Gegner, ein Boss in der Mine~~ ✓
 34. Koop-Mehrspieler (Server, bis zu 50 Spieler)

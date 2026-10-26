@@ -83,12 +83,14 @@ export class Defenses {
   /** Brandflasche zerschellt: Brandherd am Boden unter `point`. */
   ignite(point: THREE.Vector3): void {
     const ground = this.d.heightMap.heightAt(point.x, point.z);
+    // Unter Tage (Höhlen schweben hoch über der Insel) brennt es dort, wo die Flasche zerschellt.
+    const underground = point.y > ground + 6;
     // Im Wasser erlischt das Öl sofort.
-    if (ground < this.d.heightMap.waterLevel - 0.1) {
+    if (!underground && ground < this.d.heightMap.waterLevel - 0.1) {
       this.d.audio.play('sizzle', { position: point });
       return;
     }
-    const center = new THREE.Vector3(point.x, Math.max(ground, Math.min(point.y, ground + 3)), point.z);
+    const center = new THREE.Vector3(point.x, underground ? point.y : Math.max(ground, Math.min(point.y, ground + 3)), point.z);
     const flames: FireEffect[] = [];
     for (let i = 0; i < 6; i++) {
       const f = new FireEffect(i === 0 ? 1.1 : 0.5 + Math.random() * 0.4);
@@ -96,7 +98,8 @@ export class Defenses {
       const r = i === 0 ? 0 : FIRE_RADIUS * (0.35 + Math.random() * 0.45);
       const x = center.x + Math.cos(a) * r;
       const z = center.z + Math.sin(a) * r;
-      f.object.position.set(x, Math.max(this.d.heightMap.heightAt(x, z), center.y - 0.5) + 0.02, z);
+      const y = underground ? center.y : Math.max(this.d.heightMap.heightAt(x, z), center.y - 0.5);
+      f.object.position.set(x, y + 0.02, z);
       this.group.add(f.object);
       flames.push(f);
     }

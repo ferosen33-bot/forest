@@ -34,6 +34,8 @@ export type GameEvents = {
   noise: { position: Vector3; radius: number };
   'enemy:hit': { health: number; maxHealth: number; killed: boolean; headshot: boolean; sneak: boolean; name: string };
   'animal:killed': { species: 'deer' | 'rabbit' | 'wolf' };
+  /** Ein Endgegner ist gefallen. */
+  'boss:killed': { name: string };
   'player:slept': Record<string, never>;
   'camp:discovered': { index: number };
   'food:cooked': { count: number };

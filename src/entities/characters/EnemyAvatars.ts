@@ -49,6 +49,35 @@ const CAST: Record<EnemyKind, Cast> = {
     walkSpeed: 1.2,
     runSpeed: 3.2,
   },
+  // Verwandelte Dorfbewohner: der Polizist und ein junger Mann aus dem Ort, bleich und gebückt.
+  hetzer: {
+    models: ['police_male', 'male_15'],
+    idle: 'Zombie_Idle',
+    walk: 'Zombie_Walk',
+    run: 'Sprint',
+    attack: 'Zombie_Scratch',
+    walkSpeed: 1.1,
+    runSpeed: 6.5,
+  },
+  // Ihr „Angriff“ aus der Ferne ist der Schrei.
+  schreier: {
+    models: ['female_8'],
+    idle: 'Idle_Subtle',
+    walk: 'Walk_Female',
+    run: 'Run_Female',
+    attack: 'Zombie Yell',
+    walkSpeed: 1.1,
+    runSpeed: 4.5,
+  },
+  hansen: {
+    models: ['hazmat_suit_male'],
+    idle: 'Zombie_Idle',
+    walk: 'Walk_Large',
+    run: 'Walk_Large',
+    attack: 'Attack_Ground_Pound',
+    walkSpeed: 1.6,
+    runSpeed: 2.4,
+  },
   kriecher: {
     models: ['monster_4'],
     idle: 'Zombie_Idle_Crouch',
@@ -58,6 +87,12 @@ const CAST: Record<EnemyKind, Cast> = {
     walkSpeed: 0.8,
     runSpeed: 0.8,
   },
+};
+
+const KIND_TINT: Partial<Record<EnemyKind, [number, number, number]>> = {
+  hetzer: [0.82, 0.84, 0.8],
+  schreier: [0.9, 0.9, 0.92],
+  hansen: [0.42, 0.55, 0.38],
 };
 
 const DEATHS = ['Death_A', 'Death_B', 'Death_C', 'Death_D'];
@@ -129,7 +164,9 @@ export class EnemyAvatars {
     const model = cast.models[t.id % cast.models.length];
     // Leichte Farbvariation je Gegner (wie früher die Hauttöne)
     const v = 0.85 + ((t.tone * 37 + t.id * 11) % 7) * 0.03;
-    this.tint.setRGB(v, v * 0.98, v * 0.95);
+    // Verwandelte sind fahl und grau, Hansen ist von Pilzen grünlich durchzogen.
+    const [r, g, b] = KIND_TINT[t.kind] ?? [1, 0.98, 0.95];
+    this.tint.setRGB(v * r, v * g, v * b);
     const avatar = this.lib.create(model, BASE_HEIGHT * t.rig.scale, { eyes: true, tint: this.tint });
     this.group.add(avatar.object);
     for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL]) {

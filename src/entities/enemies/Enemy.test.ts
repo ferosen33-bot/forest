@@ -262,5 +262,44 @@ describe('Enemy (KI)', () => {
       s.dispose();
       p.dispose();
     });
+
+    it('Schreierin schreit aus der Ferne, statt anzugreifen', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 14)));
+      const s = spawnKind('schreier');
+      const ctx = makeCtx(p.target, [s]);
+      let screams = 0;
+      ctx.scream = () => void screams++;
+      throws.length = 0;
+      s.alertedBy(p.target.position, ctx);
+      expect(run(s, ctx, 8, () => screams > 0)).toBe(true);
+      expect(throws.length).toBe(0);
+      s.dispose();
+      p.dispose();
+    });
+
+    it('Hansen: Bodenstampfer trifft auch hinter dem Rücken, ruft Kriecher und wird rasend', () => {
+      // Spieler steht HINTER ihm – ein normaler Hieb träfe nicht.
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, -2.2)));
+      const h = spawnKind('hansen', 0);
+      const ctx = makeCtx(p.target, [h]);
+      let slams = 0;
+      let summons = 0;
+      ctx.slam = () => void slams++;
+      ctx.summon = () => void summons++;
+      h.alertedBy(p.target.position, ctx);
+      expect(run(h, ctx, 6, () => p.hits.length > 0)).toBe(true);
+      expect(slams).toBeGreaterThan(0);
+      // Schaden in Stufen: zwei Hilferufe (bei zwei Dritteln und einem Drittel).
+      const from = p.target.position;
+      h.takeDamage(h.maxHealth * 0.4, from, ctx);
+      expect(summons).toBe(1);
+      h.takeDamage(h.maxHealth * 0.35, from, ctx);
+      expect(summons).toBe(2);
+      h.takeDamage(h.maxHealth * 0.1, from, ctx);
+      expect(summons).toBe(2);
+      expect(h.isDead).toBe(false);
+      h.dispose();
+      p.dispose();
+    });
   });
 });

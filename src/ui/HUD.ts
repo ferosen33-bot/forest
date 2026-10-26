@@ -90,6 +90,8 @@ export class HUD {
   private damageFrom: { x: number; z: number } | null = null;
   private damageDirTimer = 0;
   private enemyHealthTimer = 0;
+  /** Lebensleiste eines Endgegners (null = keiner im Kampf). */
+  private boss: { name: string; fraction: number } | null = null;
   private nameTimer = 0;
   private lastSelected = -1;
   private lastSelectedItem: ItemId | null = null;
@@ -123,6 +125,7 @@ export class HUD {
       }
     });
     events.on('enemy:hit', ({ health, maxHealth, killed, name }) => {
+      if (this.boss) return;
       this.el.enemyName.textContent = name;
       this.enemyHealthTimer = killed ? 1.2 : 2.5;
       this.el.enemyHealthFill.style.transform = `scaleX(${Math.max(0, health / maxHealth)})`;
@@ -168,6 +171,11 @@ export class HUD {
     this.el.fade.classList.toggle('is-visible', on);
   }
 
+  /** Endgegner im Kampf: breite Leiste oben (null blendet sie aus). */
+  setBoss(boss: { name: string; fraction: number } | null): void {
+    this.boss = boss;
+  }
+
   update(
     dt: number,
     player: Player,
@@ -210,7 +218,12 @@ export class HUD {
     }
 
     this.enemyHealthTimer -= dt;
-    this.toggle('enemyHealth', 'is-visible', this.enemyHealthTimer > 0);
+    if (this.boss) {
+      this.el.enemyName.textContent = this.boss.name;
+      this.el.enemyHealthFill.style.transform = `scaleX(${Math.max(0, this.boss.fraction)})`;
+    }
+    this.toggle('enemyHealth', 'is-boss', !!this.boss);
+    this.toggle('enemyHealth', 'is-visible', this.enemyHealthTimer > 0 || !!this.boss);
 
     // Treffer-Feedback klingt exponentiell ab; bei niedriger Gesundheit bleibt ein Rest.
     this.damageFlash *= Math.exp(-dt * 2.5);
