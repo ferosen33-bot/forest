@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/EventBus';
+import { ScreenBlood } from './ScreenBlood';
 import type { Player } from '../entities/Player';
 import type { Prompt } from '../systems/InteractionSystem';
 import type { Inventory } from '../systems/Inventory';
@@ -85,6 +86,7 @@ export class HUD {
   private readonly hotbarSlots: HTMLElement[] = [];
   private readonly toasts: Toast[] = [];
   private damageFlash = 0;
+  readonly screenBlood: ScreenBlood;
   private hitTimer = 0;
   private hitKind: 'normal' | 'creature' | 'kill' = 'normal';
   private damageFrom: { x: number; z: number } | null = null;
@@ -104,6 +106,7 @@ export class HUD {
     private readonly icons: IconSet,
   ) {
     this.el = collectRefs(root, REFS);
+    this.screenBlood = new ScreenBlood(root);
     for (const name of BARS) this.rows.set(name, this.el[name].closest('.stat') as HTMLElement);
 
     for (let i = 0; i < inventory.hotbarSize; i++) {
@@ -117,8 +120,9 @@ export class HUD {
       this.hotbarSlots.push(slot);
     }
 
-    events.on('player:damaged', ({ amount, from }) => {
+    events.on('player:damaged', ({ amount, from, source }) => {
       this.damageFlash = Math.min(1, this.damageFlash + 0.25 + amount / 40);
+      if (source === 'enemy' && amount >= 8) this.screenBlood.hit(amount);
       if (from) {
         this.damageFrom = { x: from.x, z: from.z };
         this.damageDirTimer = 1.3;
@@ -136,6 +140,7 @@ export class HUD {
     });
     events.on('player:respawned', () => {
       this.damageFlash = 0;
+      this.screenBlood.clear();
     });
     events.on('tool:hit', ({ target }) => {
       if (this.hitKind === 'kill' && this.hitTimer > 0) return;
@@ -227,6 +232,7 @@ export class HUD {
 
     // Treffer-Feedback klingt exponentiell ab; bei niedriger Gesundheit bleibt ein Rest.
     this.damageFlash *= Math.exp(-dt * 2.5);
+    this.screenBlood.update(dt);
     const lowHealth = Math.max(0, 0.35 - s.health / s.max) * 1.6;
     this.style('damage', 'opacity', Math.max(this.damageFlash, lowHealth).toFixed(2));
 

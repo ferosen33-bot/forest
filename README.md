@@ -60,6 +60,21 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 43 – Gewitter & Blut
+
+- **Sichtbare Blitze:** Im Gewitter zucken gezackte, verästelte Blitze von der Wolkenbasis bis zum Boden.
+  - Der Leitblitz wächst in Sekundenbruchteilen herab, dann flackert der Kanal in mehreren Nachentladungen.
+  - Mit jedem Puls leuchten Himmel und Gelände auf, und die Bäume stehen schwarz vor dem Himmel.
+  - Ferne Einschläge werden in die Sichtweite geholt, ihre Richtung bleibt.
+- **Blut:**
+  - Bei Treffern spritzen Tropfen in Schlagrichtung und hinterlassen Flecken, wo sie aufschlagen: auf dem Boden,
+    an Wänden und Felsen.
+  - Unter Toten breitet sich eine Lache aus.
+  - Frisches Blut glänzt nass im Lampenlicht, trocknet über Minuten dunkel ein und verblasst.
+  - Auch der Spieler blutet, wenn ihn Schrate oder Wölfe erwischen.
+- **Blut auf dem Bildschirm:** Schwere Treffer spritzen Blut an den Bildrand, einzelne Tropfen laufen langsam
+  herunter. Nachts ist auch dieses Blut dunkel.
+
 ### Meilenstein 42 – Wasser
 
 - **Spiegelungen:** Seen und Meer spiegeln Ufer, Bäume und Feuer.

@@ -12,6 +12,7 @@ import { EnemyRenderer } from '../../entities/enemies/EnemyRenderer';
 import { EnemyAvatars } from '../../entities/characters/EnemyAvatars';
 import { setEyeGlow, type CharacterLibrary } from '../../entities/characters/CharacterLibrary';
 import { FireEffect } from '../../entities/FireEffect';
+import type { Blood } from '../Blood';
 import type { BuildingSystem } from '../building/BuildingSystem';
 import { getStructure } from '../building/StructureDefs';
 import type { Particles } from '../Particles';
@@ -63,6 +64,8 @@ interface Camp {
 }
 
 export interface DirectorDeps {
+  /** Blutspritzer und Lachen (optional, fehlt in Tests). */
+  blood?: Pick<Blood, 'spray' | 'pool'>;
   physics: Physics;
   heightMap: HeightMap;
   vegetation: Vegetation;
@@ -125,6 +128,7 @@ export class EnemyDirector {
   private pathPlansThisTick = 0;
   private huntTimer = 40;
   private readonly tmp = new THREE.Vector3();
+  private readonly bloodDir = new THREE.Vector3();
   private cave: CavePopulation | null = null;
   /** Fiebernacht: Horden-Schrate (gehören zu keinem Lager, werden nicht gespeichert). */
   private readonly horde = new Set<Enemy>();
@@ -603,6 +607,7 @@ export class EnemyDirector {
     const killed = enemy.takeDamage(total, from, ctx);
 
     this.d.particles.burst(point, { count: headshot ? 16 : 10, color: 0x5c0f10, direction: normal, speed: 3, size: 0.035 });
+    this.d.blood?.spray(point, this.bloodDir.subVectors(point, from).setY(0).normalize(), Math.min(1, total / 45 + (headshot ? 0.3 : 0)));
     this.d.audio.play('fleshHit');
     this.d.events.emit('tool:hit', { target: 'creature' });
     this.d.events.emit('enemy:hit', {
@@ -642,6 +647,7 @@ export class EnemyDirector {
     this.byCollider.delete(enemy.collider.handle);
     this.byCollider.delete(enemy.headCollider.handle);
     this.playAt('enemyDeath', enemy.feet);
+    this.d.blood?.pool(enemy.feet, enemy.kind.boss ? 2.4 : 1.7);
     if (this.horde.has(enemy)) this.onHordeKill?.(enemy.feet.clone());
     const slot = this.cave?.slots.get(enemy);
     if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);

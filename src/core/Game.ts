@@ -70,6 +70,8 @@ import { wolfBoldness } from '../entities/animals/Wolf';
 import { SnowTracks } from '../world/SnowTracks';
 import { Breath } from '../world/Breath';
 import { Fireflies } from '../world/Fireflies';
+import { LightningBolt } from '../world/LightningBolt';
+import { Blood } from '../systems/Blood';
 import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 
@@ -173,6 +175,11 @@ export class Game {
   snowTracks!: SnowTracks;
   private readonly breath = new Breath();
   private readonly motes = new Motes();
+  private blood!: Blood;
+  private readonly tmpBlood = new THREE.Vector3();
+  private readonly tmpBloodAt = new THREE.Vector3();
+  private readonly bolts = [new LightningBolt(), new LightningBolt()];
+  private readonly boltLight: LightRequest = { position: new THREE.Vector3(), color: new THREE.Color(0.75, 0.8, 1), intensity: 0, distance: 900 };
   private fireflies!: Fireflies;
   defenses!: Defenses;
   private readonly intruderCache = new WeakMap<object, Intruder>();
@@ -349,7 +356,20 @@ export class Game {
       .then(([right, left]) => this.viewModel.setArm(right, left))
       .catch((e) => console.warn('[Hand] Modell fehlt, einfacher Arm:', e));
     const tEnemies = performance.now();
+    this.blood = new Blood({
+      waterLevel: this.world.heightMap.waterLevel,
+      raycast: (origin, dir, maxDist) => {
+        const hit = this.physics.raycast(origin, dir, maxDist, undefined, true);
+        if (!hit) return null;
+        // Nur feste Oberflächen: Gelände, Bauwerke, Fels – nicht Schrate, Tiere oder der Spieler.
+        const body = hit.collider.parent();
+        if (body && !body.isFixed()) return null;
+        return { point: new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z), normal: new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z) };
+      },
+    });
+    this.scene.add(this.blood.group);
     this.enemies = new EnemyDirector({
+      blood: this.blood,
       characters: this.characters,
       physics: this.physics,
       heightMap: this.world.heightMap,
@@ -395,6 +415,7 @@ export class Game {
       `[Enemies] Navigationsraster + ${this.enemies.camps.length} Lager in ${(performance.now() - tEnemies).toFixed(0)} ms`,
     );
     this.animals = new AnimalDirector({
+      blood: this.blood,
       models: animalModels,
       physics: this.physics,
       heightMap: this.world.heightMap,
@@ -515,6 +536,8 @@ export class Game {
       config: cfg,
     });
     this.scene.add(this.climate.rain.mesh);
+    for (const b of this.bolts) this.scene.add(b.mesh);
+    this.climate.weather.onLightning = (l) => this.strikeLightning(l.distance, l.angle);
     this.scene.add(this.cooking.group);
     this.projectiles = new Projectiles({
       physics: this.physics,
@@ -646,6 +669,13 @@ export class Game {
     this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.horror.group);
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
+    // Wer blutet, hinterlässt Spuren: Bisse und Schläge spritzen Blut auf den Boden.
+    this.events.on('player:damaged', ({ amount, source, from }) => {
+      if (source !== 'enemy' || amount < 6) return;
+      const p = this.player.position;
+      const dir = from ? this.tmpBlood.set(p.x - from.x, 0, p.z - from.z).normalize() : this.tmpBlood.set(0, 0, 0);
+      this.blood.spray(this.tmpBloodAt.copy(p).setY(p.y + 1.1), dir, Math.min(0.6, amount / 50));
+    });
 
     // Tagebuch und Erkundung gehören zum Spielstand – sie müssen vor dem Laden existieren.
     this.journal = new Journal(this.events);
@@ -1507,6 +1537,8 @@ export class Game {
     });
     this.updateFear(dt, playing);
     this.updateClimate(dt);
+    this.updateLightning(dt);
+    this.blood.update(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
     const chest = this.openChest;
     if (chest && (!this.building.structures.includes(chest) || chest.position.distanceTo(player.position) > 4.5)) this.closeInventory();
@@ -1756,6 +1788,40 @@ export class Game {
       this.renderer.render(this.viewModel.scene, this.viewModel.camera);
       this.renderer.autoClear = true;
     }
+  }
+
+  /**
+   * Sichtbarer Blitz zum Einschlag des Wetters. Ferne Einschläge werden in die Sichtweite geholt
+   * (Richtung bleibt), damit der Kanal nicht hinter der Sichtgrenze verschwindet.
+   */
+  private strikeLightning(distance: number, angle: number): void {
+    if (this.caves.current) return;
+    const bolt = this.bolts.find((b) => !b.active) ?? this.bolts[0];
+    const shown = Math.min(distance, 140 + (distance - 150) * 0.16);
+    const p = this.player.position;
+    const x = p.x + Math.sin(angle) * shown;
+    const z = p.z + Math.cos(angle) * shown;
+    const hm = this.world.heightMap;
+    const ground = new THREE.Vector3(x, Math.max(hm.heightAt(x, z), hm.waterLevel), z);
+    bolt.strike(ground, Math.max(0.8, shown / 150));
+  }
+
+  /** Blitze flackern: Himmel und Gelände leuchten mit jeder Nachentladung auf. */
+  private updateLightning(dt: number): void {
+    const w = this.climate.weather;
+    let flash = 0;
+    for (const b of this.bolts) {
+      b.update(dt);
+      if (b.brightness <= 0) continue;
+      const near = 1 - THREE.MathUtils.clamp(b.ground.distanceTo(this.player.position) / 450, 0, 0.85);
+      flash = Math.max(flash, b.brightness * near);
+      this.boltLight.position.copy(b.ground).setY(b.ground.y + 140);
+      this.boltLight.intensity = 2.5e4 * b.brightness * near;
+      this.lights.request(this.boltLight);
+    }
+    w.flash = Math.max(w.flash, flash * 0.9);
+    const lit = this.caves.current ? 0.15 : this.dayNight.daylight;
+    this.hud.screenBlood.setLight(Math.max(lit, this.heldLight() ? 0.45 : 0, w.flash));
   }
 
   /** Feuer: gemeinsame Zeit, Rauchfarbe (Umgebungslicht) und Wind für Rauch und Funken. */

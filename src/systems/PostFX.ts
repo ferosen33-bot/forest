@@ -792,7 +792,8 @@ export class PostFX {
     const spot = v.spot && v.spot.visible && v.spot.intensity > 0 ? v.spot : null;
     let points = 0;
     for (const l of v.points) {
-      if (points >= VOL_POINTS || l.intensity <= 0) continue;
+      // Nur nahe Lichtquellen (Feuer, Fackeln) – nicht das weitreichende Blitzlicht.
+      if (points >= VOL_POINTS || l.intensity <= 0 || l.distance > 120) continue;
       u.uPointPos.value[points].set(l.position.x, l.position.y, l.position.z, l.distance || 20);
       u.uPointColor.value[points].copy(l.color).multiplyScalar(l.intensity);
       points++;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Blood } from './Blood';
 import type { Physics, RAPIER } from '../core/Physics';
 import type { EventBus } from '../core/EventBus';
 import type { GameConfig } from '../config';
@@ -17,6 +18,8 @@ import type { TrackKind } from '../world/SnowTracks';
 import { deriveSeed, mulberry32 } from '../utils/random';
 
 export interface AnimalDeps {
+  /** Blutspritzer und Lachen (optional, fehlt in Tests). */
+  blood?: Pick<Blood, 'spray' | 'pool'>;
   /** Realistische Tiermodelle (fehlen sie, bleiben die einfachen Körper). */
   models: AnimalModels | null;
   physics: Physics;
@@ -114,6 +117,7 @@ export class AnimalDirector {
   private pathPlans = 0;
   private nextId = 1;
   private readonly tmp = new THREE.Vector3();
+  private readonly bloodDir = new THREE.Vector3();
 
   constructor(private readonly d: AnimalDeps) {
     this.cfg = d.config.animals;
@@ -304,6 +308,7 @@ export class AnimalDirector {
     if (animal.isDead) return false;
     const killed = animal.takeDamage(amount, from);
     this.d.particles.burst(point, { count: 10, color: 0x6a1010, direction: normal, speed: 2.5, size: 0.03 });
+    this.d.blood?.spray(point, this.bloodDir.subVectors(point, from).setY(0).normalize(), Math.min(1, amount / 40));
     this.d.audio.play('fleshHit', 0.8);
     this.d.events.emit('tool:hit', { target: 'creature' });
     if (killed) {
@@ -311,6 +316,7 @@ export class AnimalDirector {
       this.byCollider.set(animal.corpse!.handle, animal);
       this.d.events.emit('hud:message', { text: `${animal.name} erlegt.` });
       this.d.events.emit('animal:killed', { species: animal.species });
+      this.d.blood?.pool(animal.feet, animal.species === 'rabbit' ? 0.45 : animal.species === 'wolf' ? 0.9 : 1.2);
       if (animal instanceof Wolf) animal.pack.lost(from);
     }
     // Die Herde flieht mit.
@@ -329,6 +335,7 @@ export class AnimalDirector {
       this.byCollider.delete(animal.collider.handle);
       this.byCollider.set(animal.corpse!.handle, animal);
       this.d.events.emit('animal:killed', { species: animal.species });
+      this.d.blood?.pool(animal.feet, animal.species === 'rabbit' ? 0.45 : animal.species === 'wolf' ? 0.9 : 1.2);
       if (animal instanceof Wolf) animal.pack.lost(from);
     }
     return killed;
