@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ItemId } from './items/ItemDefs';
 import { createItemMesh } from './items/ItemMeshes';
 import { FireEffect } from './FireEffect';
-import type { FirstPersonArm } from './characters/FirstPersonArm';
+import { FOREARM, type FirstPersonArm, type HandPose } from './characters/FirstPersonArm';
 import { damp, smoothstep } from '../utils/math';
 
 /** Ruhepose eines gehaltenen Items relativ zur Kamera. */
@@ -12,7 +12,21 @@ interface HoldPose {
   /** Punkt am Modell, an dem die Hand zugreift (Modellkoordinaten). */
   grip: THREE.Vector3;
   scale: number;
+  /** Haltung der Hand (ohne Angabe: Faust um die Längsachse des Items). */
+  hand?: HandPose;
+  /** Eigene Richtung von der Hand zum Ellbogen (ohne Angabe: schräg nach hinten unten). */
+  forearm?: THREE.Vector3;
 }
+
+/** Offene Hand unter der Schale: Unterarm steiler nach unten. */
+const PALM_FOREARM = new THREE.Vector3(0.18, -0.62, 0.76).normalize();
+/** Linke Hand am Bogengriff: Arm nach vorne gestreckt (im Spiegelraum angegeben → nach links unten hinten). */
+const BOW_FOREARM = new THREE.Vector3(0.32, -0.55, 0.77).normalize();
+/** Bogen (Modellraum): halbe Sehnenlänge; bei voller Spannung liegt die Sehne an der Wange. */
+const BOW_HALF = 0.62 * Math.sin(0.75);
+const BOW_PULL = 0.85;
+/** Eingelegter Pfeil im (verkleinerten) Bogenraum: länger als der volle Auszug. */
+const NOCKED_SCALE = 1.4;
 
 const POSES: Partial<Record<ItemId, HoldPose>> = {
   // Stiel schräg von rechts unten, Kopf nach vorne gekippt, Schneide zeigt nach links.
@@ -24,10 +38,12 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   // Speer zeigt nach vorne, leicht nach innen gedreht.
   spear: { position: new THREE.Vector3(0.26, -0.3, -0.45), rotation: new THREE.Euler(-1.45, 0.08, 0, 'XYZ'), grip: new THREE.Vector3(0, -0.2, 0), scale: 1 },
   torch: { position: new THREE.Vector3(0.36, -0.44, -0.66), rotation: new THREE.Euler(-0.55, 0, -0.3), grip: new THREE.Vector3(0, -0.15, 0), scale: 0.85 },
-  bowl: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
-  bowlWater: { position: new THREE.Vector3(0.2, -0.26, -0.42), rotation: new THREE.Euler(0.35, 0, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.2 },
-  // Bogen senkrecht vor der Mitte, Wölbung nach vorne (lokal +X → Blickrichtung).
-  bow: { position: new THREE.Vector3(0.1, -0.16, -0.62), rotation: new THREE.Euler(0, Math.PI / 2 - 0.25, 0.22, 'YXZ'), grip: new THREE.Vector3(0.18, 0, 0), scale: 0.62 },
+  // Schale liegt auf der offenen Hand (Boden auf der Handfläche, nichts ragt ins Wasser).
+  bowl: { position: new THREE.Vector3(0.17, -0.23, -0.42), rotation: new THREE.Euler(0.3, 0, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1.2, hand: 'palm' },
+  bowlWater: { position: new THREE.Vector3(0.17, -0.23, -0.42), rotation: new THREE.Euler(0.3, 0, 0), grip: new THREE.Vector3(0, -0.05, 0), scale: 1.2, hand: 'palm' },
+  // Bogen in der linken Hand, senkrecht links der Mitte, Wölbung nach vorne (lokal +X → Blickrichtung).
+  // Leicht nach rechts gekantet – um die Pfeilachse (lokal X), damit die Sehne beim Spannen gerade zurückläuft.
+  bow: { position: new THREE.Vector3(-0.08, -0.14, -0.6), rotation: new THREE.Euler(-0.2, Math.PI / 2 + 0.1, 0, 'YXZ'), grip: new THREE.Vector3(0.18, 0, 0), scale: 0.62 },
   arrow: { position: new THREE.Vector3(0.26, -0.3, -0.48), rotation: new THREE.Euler(-1.3, 0.1, 0), grip: new THREE.Vector3(0, -0.15, 0), scale: 1 },
   log: { position: new THREE.Vector3(0.05, -0.45, -0.75), rotation: new THREE.Euler(0, 0, Math.PI / 2 - 0.1), grip: new THREE.Vector3(0, 0, 0), scale: 0.8 },
   // Rute schräg nach vorne oben, etwas zur Mitte geneigt.
@@ -42,8 +58,15 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   molotov: { position: new THREE.Vector3(0.24, -0.3, -0.45), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.08, 0), scale: 1 },
   painkillers: { position: new THREE.Vector3(0.22, -0.26, -0.42), rotation: new THREE.Euler(0.4, 0.5, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.3 },
   machete: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.24, 0), scale: 1 },
-  // Lampe zeigt nach vorne (Längsachse +Y → Blickrichtung).
-  flashlight: { position: new THREE.Vector3(0.26, -0.28, -0.46), rotation: new THREE.Euler(-1.5, 0.05, 0), grip: new THREE.Vector3(0, -0.04, 0), scale: 1 },
+  // Lampe zeigt nach vorne (Längsachse +Y → Blickrichtung); die Faust umschließt den Bügel unter dem Gehäuse.
+  // Der Bügel läuft nach vorne – die Faust umschließt ihn von unten, der Unterarm hängt darunter.
+  flashlight: {
+    position: new THREE.Vector3(0.24, -0.2, -0.46),
+    rotation: new THREE.Euler(-1.5, 0.05, 0),
+    grip: new THREE.Vector3(0, -0.02, -0.05),
+    scale: 1,
+    forearm: new THREE.Vector3(0.18, -0.95, 0.25).normalize(),
+  },
   battery: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.3, 0.4, 0.5), grip: new THREE.Vector3(0, 0, 0), scale: 1.4 },
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
@@ -52,6 +75,8 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
 /** Versatz aller Halte-Posen, sobald die echte Hand sichtbar ist. */
 const HAND_LIFT = new THREE.Vector3(-0.025, 0.13, 0.04);
 const ZERO = new THREE.Vector3();
+const UP_Y = new THREE.Vector3(0, 1, 0);
+const STRING_MATERIAL = new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.6 });
 
 /** Schlag-Keyframes (horizontaler Hieb von rechts nach links): Positions- und Rotationsversatz. */
 const SWING_KEYS: { t: number; pos: [number, number, number]; rot: [number, number, number] }[] = [
@@ -121,8 +146,15 @@ export class ViewModel {
   private readonly root = new THREE.Group(); // folgt der Kamera-Pose (inkl. Sway/Bob)
   private readonly pose = new THREE.Group(); // Ruhepose + Animationsversatz
   private readonly arm: THREE.Group;
-  /** Echter Unterarm mit Hand (ersetzt den Quader-Arm, sobald die Figuren geladen sind). */
+  /** Echter Arm mit Hand (ersetzt den Quader-Arm, sobald die Figuren geladen sind). */
   private fpArm: FirstPersonArm | null = null;
+  /** Linke Hand (gespiegelter Arm) – hält den Bogen. */
+  private leftArm: FirstPersonArm | null = null;
+  private readonly leftHolder = new THREE.Group();
+  /** Bogen: Sehne in zwei Hälften (zur Zughand hin ausgezogen) und der eingelegte Pfeil im Bogenraum. */
+  private bowString: THREE.Mesh[] = [];
+  private readonly nock = new THREE.Vector3();
+  private readonly tmpA = new THREE.Vector3();
   private model: THREE.Object3D | null = null;
   private currentId: ItemId | null = null;
   private pendingId: ItemId | null = null;
@@ -176,13 +208,42 @@ export class ViewModel {
     this.arm.visible = false;
   }
 
-  /** Echten Arm einsetzen (statt des einfachen Quader-Arms). */
-  setArm(arm: FirstPersonArm): void {
+  /** Echte Arme einsetzen (statt des einfachen Quader-Arms); der linke ist gespiegelt. */
+  setArm(arm: FirstPersonArm, left?: FirstPersonArm): void {
     this.fpArm = arm;
     this.arm.clear();
     this.arm.add(arm.object);
-    const pose = this.currentId ? POSES[this.currentId] : undefined;
-    if (pose) arm.align(new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation));
+    if (left) {
+      this.leftArm = left;
+      this.leftHolder.clear();
+      this.leftHolder.scale.x = -1;
+      this.leftHolder.add(left.object);
+      this.leftHolder.visible = false;
+      this.pose.add(this.leftHolder);
+    }
+    this.alignHands();
+  }
+
+  /** Hände ans gehaltene Item legen. */
+  private alignHands(): void {
+    const id = this.currentId;
+    const pose = id ? POSES[id] : undefined;
+    if (!pose || !this.fpArm) return;
+    const axis = new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation);
+    if (id === 'bow' && this.leftArm) {
+      // Links: Faust um den Griff. Der Arm hängt in einem gespiegelten Knoten (x → −x): die Griffachse
+      // wird dorthin umgerechnet, der Unterarm ist schon im Spiegelraum angegeben.
+      this.leftHolder.visible = true;
+      this.arm.visible = false;
+      // Das Handgelenk knickt ab: Die Faust liegt oben etwas zum Körper gekippt am Griff, damit der Arm
+      // nach unten aus dem Bild laufen kann (bei exakt senkrechtem Griff stünde er waagerecht).
+      const tilted = axis.clone().lerp(new THREE.Vector3(0, 0, 1), 0.35).normalize();
+      this.leftArm.align(tilted.setX(-tilted.x), 'fist', BOW_FOREARM);
+      return;
+    }
+    this.leftHolder.visible = false;
+    this.arm.position.set(0, 0, 0);
+    this.fpArm.align(axis, pose.hand ?? 'fist', pose.forearm ?? (pose.hand === 'palm' ? PALM_FOREARM : FOREARM));
   }
 
   get busy(): boolean {
@@ -325,14 +386,14 @@ export class ViewModel {
       this.animRot.z += 1.25 * this.block;
       this.animRot.x += 0.2 * this.block;
     }
-    // Bogen: beim Spannen leicht anheben und zur Mitte ziehen; Pfeil wandert mit der Sehne zurück.
+    // Bogen: beim Spannen zur Mitte schwenken, bis der Pfeil von der Wange aufs Fadenkreuz zeigt.
     const bowHeld = this.currentId === 'bow';
     if (bowHeld && this.draw > 0) {
-      this.animPos.x -= 0.08 * this.draw;
-      this.animPos.y += 0.05 * this.draw;
+      this.animPos.x += 0.07 * this.draw;
+      this.animPos.y -= 0.03 * this.draw;
       this.animPos.z += 0.04 * this.draw;
     }
-    this.nocked.visible = bowHeld && this.draw > 0.02 && this.raise > 0.9;
+    this.nocked.visible = bowHeld && this.raise > 0.9 && (this.draw > 0.02 || !!this.leftArm);
     // Angel: mit Köder im Wasser etwas gesenkt; beißt ein Fisch, ruckt die Rute nach vorne.
     this.rodOut = damp(this.rodOut, this.rodOutTarget ? 1 : 0, 6, dt);
     this.rodPull = damp(this.rodPull, this.rodPullTarget, 12, dt);
@@ -341,7 +402,7 @@ export class ViewModel {
       this.animRot.x -= 0.22 * this.rodOut + 0.35 * this.rodPull + jerk;
       this.animPos.y -= 0.03 * this.rodOut;
     }
-    if (this.nocked.visible) this.nocked.position.set(-0.01, 0, -0.08 + 0.14 * this.draw);
+    if (bowHeld) this.updateBow();
     this.aim = damp(this.aim, this.aiming ? 1 : 0, 10, dt);
     if (this.aim > 0.001) {
       // Ausholen: hoch über die Schulter, nach hinten gezogen, leicht zitternd.
@@ -432,9 +493,54 @@ export class ViewModel {
     grip.add(this.model);
     this.model = grip;
     this.pose.add(grip);
-    this.arm.visible = this.currentId !== 'log';
-    // Faust um den Stiel: Griffachse = Item-Längsachse nach der Ruhe-Drehung.
-    this.fpArm?.align(new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation));
+    // Den Bogen hält die linke Hand; die rechte zieht die Sehne an die Wange – außerhalb des Blickfelds.
+    this.arm.visible = this.currentId !== 'log' && !(this.currentId === 'bow' && this.leftArm);
+    // Bogen: gerade Sehne durch zwei Hälften ersetzen, die zur Zughand hin ausgezogen werden;
+    // der Pfeil liegt im Bogenraum auf der Sehne.
+    this.bowString = [];
+    if (this.currentId === 'bow') {
+      const inner = grip.children[0];
+      inner.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && m.geometry.type === 'CylinderGeometry' && (m.geometry as THREE.CylinderGeometry).parameters.radiusTop < 0.005) m.visible = false;
+      });
+      for (let i = 0; i < 2; i++) {
+        const half = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 1, 3), STRING_MATERIAL);
+        inner.add(half);
+        this.bowString.push(half);
+      }
+      this.nocked.removeFromParent();
+      this.nocked.rotation.set(0, 0, -Math.PI / 2);
+      this.nocked.scale.setScalar(NOCKED_SCALE);
+      inner.add(this.nocked);
+    } else if (this.nocked.parent !== this.pose) {
+      this.nocked.removeFromParent();
+      this.nocked.rotation.set(-Math.PI / 2, 0, 0);
+      this.nocked.scale.setScalar(1);
+      this.pose.add(this.nocked);
+    }
+    // Hände: Faust um den Stiel (Griffachse = Item-Längsachse nach der Ruhe-Drehung), Schale auf der Hand, Bogen mit zwei Händen.
+    this.alignHands();
+  }
+
+  /**
+   * Bogen: Sehne zum Zugpunkt ausziehen, Pfeil einlegen, rechte Hand an die Sehne.
+   * Bogenraum: Sehne entlang Y bei x = 0, Wölbung nach +X (vorne); der Griff liegt bei x ≈ 0,18.
+   */
+  private updateBow(): void {
+    const inner = this.model?.children[0];
+    if (!inner || this.bowString.length < 2) return;
+    const pull = BOW_PULL * this.draw;
+    this.nock.set(-pull, 0, 0);
+    const tips = [new THREE.Vector3(0, BOW_HALF, 0), new THREE.Vector3(0, -BOW_HALF, 0)];
+    this.bowString.forEach((m, i) => {
+      const dir = this.tmpA.subVectors(this.nock, tips[i]);
+      m.scale.set(1, dir.length(), 1);
+      m.position.copy(tips[i]).addScaledVector(dir, 0.5);
+      m.quaternion.setFromUnitVectors(UP_Y, dir.normalize());
+    });
+    // Pfeil: Nocke auf der Sehne, Spitze nach vorne (+X); Mitte des Schafts 0,34 vor der Nocke.
+    this.nocked.position.set(this.nock.x + 0.34 * NOCKED_SCALE, 0.01, 0);
   }
 
   /** Einfacher Unterarm mit Hand – hält das Item im Ursprung der Pose. */

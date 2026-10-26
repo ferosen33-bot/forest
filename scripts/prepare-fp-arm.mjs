@@ -1,5 +1,7 @@
 // Schneidet aus dem MakeHuman-Avatar `mpfb.glb` (TalkingHead, https://github.com/met4citizen/TalkingHead,
-// Avatar CC0) den rechten Unterarm mit Hand und Ärmelsaum heraus – für die Hand in der Ich-Ansicht.
+// Avatar CC0) den rechten Arm mit Hand und Ärmel heraus – für die Hände in der Ich-Ansicht (die linke
+// Hand am Bogen ist dieselbe, gespiegelt). Der Oberarm gehört dazu, damit ein ausgestreckter Arm nicht
+// mitten im Bild endet.
 // Alles andere (Kopf, Haare, Zähne, Gesichtsformen) fällt weg, Texturen werden verkleinert.
 //
 // Aufruf: node scripts/prepare-fp-arm.mjs <mpfb.glb> <Ausgabe.glb>
@@ -11,7 +13,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { compactPrimitive, prune } from '@gltf-transform/functions';
 
 const [, , src, out] = process.argv;
-const ARM = /^RightForeArm$|^RightHand/;
+const ARM = /^RightArm$|^RightForeArm$|^RightHand/;
 const KEEP_MESHES = { base: 0.35, female_casualsuit01: 0.6 };
 
 const io = new NodeIO();

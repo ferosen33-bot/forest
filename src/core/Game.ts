@@ -335,8 +335,8 @@ export class Game {
       }),
     ]);
     this.characters = characters;
-    await FirstPersonArm.load()
-      .then((arm) => this.viewModel.setArm(arm))
+    await FirstPersonArm.loadPair()
+      .then(([right, left]) => this.viewModel.setArm(right, left))
       .catch((e) => console.warn('[Hand] Modell fehlt, einfacher Arm:', e));
     const tEnemies = performance.now();
     this.enemies = new EnemyDirector({

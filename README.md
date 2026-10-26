@@ -60,6 +60,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 39 – Zwei Hände
+
+- **Bogen mit beiden Händen:** Die linke Hand hält den Bogen am Griff, der Arm kommt von links unten ins Bild.
+  - Beim Spannen läuft die Sehne in zwei Hälften zur Wange zurück.
+  - Der eingelegte Pfeil liegt auf der Sehne, und der Bogen schwenkt zur Mitte, bis der Pfeil aufs Fadenkreuz zeigt.
+  - Die rechte Zughand liegt dann an der Wange, außerhalb des Blickfelds.
+- **Schale auf der offenen Hand:** Die Schale ruht auf der Handfläche statt in einer Faust. Keine Finger mehr im
+  Wasser.
+- **Taschenlampe:** Die Faust umschließt den Bügel unter dem Lampengehäuse, statt mitten im Gehäuse zu stecken.
+- **Technik:**
+  - Der Arm ist jetzt samt Oberarm aus dem MakeHuman-Modell geschnitten (`scripts/prepare-fp-arm.mjs`). Der im
+    Modell angewinkelte Ellbogen wird beim Laden gestreckt, sodass ein ausgestreckter Arm nicht mitten im Bild endet.
+  - Die Hand kennt zwei Haltungen: Faust und offene Hand.
+  - Die linke Hand ist derselbe Arm, gespiegelt.
+  - Je Gegenstand lässt sich die Richtung des Unterarms festlegen.
+
 ### Meilenstein 38 – Neue Schrecken
 
 - **Hetzer:** Verwandelte aus dem Ort, darunter der Inselpolizist. Sie sind bleich, gebückt und schneller als du.
