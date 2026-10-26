@@ -71,12 +71,25 @@ export interface VolumetricLights {
   points: readonly THREE.PointLight[];
   /** Grunddichte der Luft (Staub, Feuchte), auch ohne Bodennebel. */
   air: number;
-  /** Gesamtstärke (am hellen Tag fast aus). */
+  /** Gesamtstärke für Lampe und Feuer (am hellen Tag fast aus). */
   strength: number;
+  /** Sonne bzw. Mond: Lichtbahnen durchs Blätterdach (Stärke 0 = aus). */
+  sun?: { light: THREE.DirectionalLight; strength: number } | null;
+  /** Bodennebel: Dichte (0 = keiner), Umgebungslicht darin, Geländehöhen und Spuren. */
+  ground?: {
+    density: number;
+    ambient: THREE.Color;
+    heightTexture: THREE.Texture;
+    heightMapping: THREE.Vector3;
+    /** x, y, z = Fußpunkt, w = Stärke (1 = gerade hindurchgegangen … 0 = verheilt). */
+    wakes: readonly THREE.Vector4[];
+  } | null;
 }
 
 /** Höchstzahl der Punktlichter im Nebel (passt zum LightPool plus Fackel). */
 const VOL_POINTS = 6;
+/** Höchstzahl der Spuren im Bodennebel. */
+const WAKES = 8;
 /** Höchstzahl der Feuer mit Hitzeflimmern. */
 const HEAT_SOURCES = 4;
 
@@ -252,12 +265,13 @@ void main() {
   vec3 outc = mix(c, uMistColor, clamp(fog, 0.0, 0.92));
   // Licht im Nebel (halbe Auflösung, leicht weichgezeichnet gegen das Abtastrauschen)
   if (uVolOn > 0.5) {
-    vec3 v = texture2D(tVol, vUv).rgb * 0.36;
-    v += texture2D(tVol, vUv + vec2(uVolTexel.x, 0.0)).rgb * 0.16;
-    v += texture2D(tVol, vUv - vec2(uVolTexel.x, 0.0)).rgb * 0.16;
-    v += texture2D(tVol, vUv + vec2(0.0, uVolTexel.y)).rgb * 0.16;
-    v += texture2D(tVol, vUv - vec2(0.0, uVolTexel.y)).rgb * 0.16;
-    outc += v;
+    vec4 v = texture2D(tVol, vUv) * 0.36;
+    v += texture2D(tVol, vUv + vec2(uVolTexel.x, 0.0)) * 0.16;
+    v += texture2D(tVol, vUv - vec2(uVolTexel.x, 0.0)) * 0.16;
+    v += texture2D(tVol, vUv + vec2(0.0, uVolTexel.y)) * 0.16;
+    v += texture2D(tVol, vUv - vec2(0.0, uVolTexel.y)) * 0.16;
+    // Bodennebel verschluckt, was hinter ihm liegt (a = Durchlässigkeit), und leuchtet selbst.
+    outc = outc * v.a + v.rgb;
   }
   gl_FragColor = vec4(outc, 1.0);
 }`;
@@ -267,9 +281,14 @@ void main() {
  * - **Lichtkegel der Taschenlampe:** Streulicht in jedem Schritt, abgeschattet über die Schattenkarte der
  *   Lampe – Stämme werfen dunkle Schneisen in den Strahl. Die Dichte schwankt mit treibendem Rauschen
  *   (Dunstschwaden, Staub). Henyey-Greenstein-Phase: Blickt man ins Licht, leuchtet der Dunst stärker.
+ * - **Sonnenstrahlen:** dasselbe mit der Schattenkarte der Sonne – durch Lücken im Blätterdach fallen
+ *   Lichtbahnen schräg in den Wald, aus jedem Blickwinkel sichtbar (nicht nur gegen die Sonne).
+ * - **Bodennebel:** eine dichte, wabernde Schicht knapp über dem Gelände (Höhe aus der Höhenkarte), die
+ *   das Bild dahinter verschluckt. Wo jemand hindurchgeht, reißt sie auf und verwirbelt.
  * - **Leuchthöfe** um Punktlichter: Das Streulicht einer Punktquelle entlang des Strahls lässt sich
  *   geschlossen integrieren (∫ 1/(h² + t²) dt = atan(t/h)/h) – ohne Abtasten.
- * Der Startpunkt jedes Strahls wird zufällig versetzt; das Rauschen glättet der Nebel-Schritt.
+ * Ergebnis: rgb = Streulicht, a = Durchlässigkeit des Bodennebels. Der Startpunkt jedes Strahls wird
+ * zufällig versetzt; das Rauschen glättet der Nebel-Schritt.
  */
 const volumetricFragment = /* glsl */ `
 precision highp sampler2DShadow;
@@ -295,11 +314,23 @@ uniform float uShadowOn;
 uniform vec4 uPointPos[${VOL_POINTS}];
 uniform vec3 uPointColor[${VOL_POINTS}];
 uniform int uPointCount;
-uniform float uStrength;
+uniform float uSunOn;
+uniform sampler2DShadow tSunShadow;
+uniform mat4 uSunMatrix;
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform float uGroundFog;
+uniform vec3 uAmbient;
+uniform sampler2D tHeight;
+uniform vec3 uHeightMap;
+uniform vec4 uWake[${WAKES}];
+uniform int uWakeCount;
+uniform float uMarch;
 varying vec2 vUv;
 
-const int STEPS = 28;
+const int STEPS = 32;
 
+${TERRAIN_GLSL}
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
@@ -324,6 +355,28 @@ float density(vec3 p) {
   // Deutliche Schwaden: dünne Luft dazwischen, dichte Fahnen darin.
   return (uAir + mist) * (0.15 + 2.6 * swirl * swirl);
 }
+/**
+ * Bodennebel: liegt in einer flachen Schicht über dem Gelände und zerfasert nach oben. Durchquert ihn
+ * jemand, wird er dort verdrängt (die Spur schließt sich langsam) und um die Spur herum verwirbelt.
+ */
+float groundFog(vec3 p) {
+  float h = p.y - terrainHeight(tHeight, uHeightMap, p.xz);
+  if (h > 3.5) return 0.0;
+  vec2 swirl = vec2(0.0);
+  float clear = 1.0;
+  for (int i = 0; i < ${WAKES}; i++) {
+    if (i >= uWakeCount) break;
+    vec4 w = uWake[i];
+    vec2 d = p.xz - w.xz;
+    float k = w.w * exp(-dot(d, d) * 0.45) * (1.0 - smoothstep(1.2, 2.8, p.y - w.y));
+    swirl += vec2(-d.y, d.x) * k * (2.2 - w.w) * 0.6;
+    clear *= 1.0 - 0.92 * k;
+  }
+  vec3 q = vec3(p.x * 0.22 + swirl.x, p.y * 0.55 - uTime * 0.02, p.z * 0.22 + swirl.y) + vec3(uTime * 0.04, 0.0, uTime * 0.025);
+  float n = noise3(q) * 0.6 + noise3(q * 2.4 + 7.3) * 0.4;
+  float layer = exp(-max(h, 0.0) / 0.7);
+  return uGroundFog * layer * smoothstep(0.3, 0.75, n + 0.15 * (1.0 - h)) * clear;
+}
 float phaseHG(float cosTheta, float g) {
   float g2 = g * g;
   return (1.0 - g2) / (12.566 * pow(1.0 + g2 - 2.0 * g * cosTheta, 1.5));
@@ -338,29 +391,51 @@ void main() {
   float dist = length(ray);
   vec3 rd = ray / max(dist, 1e-4);
   vec3 sum = vec3(0.0);
+  float T = 1.0;
 
-  // Lichtkegel der Taschenlampe
-  if (uSpotOn > 0.5) {
-    float maxD = min(dist, uSpotRange);
+  bool fog = uGroundFog > 0.0;
+  if (uSpotOn > 0.5 || uSunOn > 0.5 || fog) {
+    float maxD = min(dist, uMarch);
     float stepLen = maxD / float(STEPS);
     float t = stepLen * hash12(gl_FragCoord.xy + fract(uTime * 13.7) * 91.0);
+    float sunPhase = phaseHG(dot(uSunDir, rd), 0.45);
     for (int i = 0; i < STEPS; i++) {
       vec3 p = uCamPos + rd * t;
-      vec3 toP = p - uSpotPos;
-      float d = length(toP);
-      vec3 l = toP / max(d, 1e-3);
-      float cone = smoothstep(uSpotCosOuter, uSpotCosInner, dot(l, uSpotDir));
-      if (cone > 0.0) {
-        float vis = 1.0;
-        if (uShadowOn > 0.5) {
-          vec4 sc = uShadowMatrix * vec4(p, 1.0);
-          sc.xyz /= sc.w;
-          if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) vis = texture(tShadow, vec3(sc.xy, sc.z - 0.002));
+      float air = density(p);
+      float g = fog ? groundFog(p) : 0.0;
+      vec3 light = vec3(0.0);
+      vec3 sunLight = vec3(0.0);
+      // Lichtkegel der Taschenlampe
+      if (uSpotOn > 0.5) {
+        vec3 toP = p - uSpotPos;
+        float d = length(toP);
+        vec3 l = toP / max(d, 1e-3);
+        float cone = smoothstep(uSpotCosOuter, uSpotCosInner, dot(l, uSpotDir));
+        if (cone > 0.0 && d < uSpotRange) {
+          float vis = 1.0;
+          if (uShadowOn > 0.5) {
+            vec4 sc = uShadowMatrix * vec4(p, 1.0);
+            sc.xyz /= sc.w;
+            if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) vis = texture(tShadow, vec3(sc.xy, sc.z - 0.002));
+          }
+          // Direkt vor der Linse kaum Streulicht – sonst stünde eine leuchtende Kugel im Bild statt eines Kegels.
+          float atten = smoothstep(0.6, 5.0, d) / (1.0 + d * d * 0.12) * (1.0 - smoothstep(uSpotRange * 0.6, uSpotRange, d));
+          light += uSpotColor * cone * atten * vis * phaseHG(dot(l, -rd), 0.25) * 0.45;
         }
-        // Direkt vor der Linse kaum Streulicht – sonst stünde eine leuchtende Kugel im Bild statt eines Kegels.
-        float atten = smoothstep(0.6, 5.0, d) / (1.0 + d * d * 0.12) * (1.0 - smoothstep(uSpotRange * 0.6, uSpotRange, d));
-        sum += uSpotColor * cone * atten * vis * density(p) * phaseHG(dot(l, -rd), 0.25) * stepLen * 0.45;
       }
+      // Sonne (bzw. Mond) durch das Blätterdach
+      if (uSunOn > 0.5) {
+        vec4 sc = uSunMatrix * vec4(p, 1.0);
+        sc.xyz /= sc.w;
+        float vis = 1.0;
+        if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) vis = texture(tSunShadow, vec3(sc.xy, sc.z - 0.001));
+        // Leicht vorwärts streuend: gegen die Sonne gleißen die Bahnen, seitlich bleiben sie sichtbar.
+        sunLight = uSunColor * vis * (0.15 + 2.5 * sunPhase);
+      }
+      // Streulicht von Dunst und Bodennebel, dazu das Umgebungslicht im Bodennebel.
+      // Waldluft ist feucht und staubig: Für die Sonnenbahnen zählt der Dunst dreifach.
+      sum += T * ((air + g) * light + (air * 3.0 + g) * sunLight + g * uAmbient) * stepLen;
+      T *= exp(-g * stepLen);
       t += stepLen;
     }
   }
@@ -383,7 +458,7 @@ void main() {
     sum += uPointColor[i] * a * fade * near * dens * 0.14;
   }
 
-  gl_FragColor = vec4(sum * uStrength, 1.0);
+  gl_FragColor = vec4(sum, T);
 }`;
 
 /** Helle Bereiche für Bloom (weiches Knie über der Schwelle). */
@@ -496,6 +571,8 @@ export class PostFX {
   private readonly tmpCam = new THREE.Vector3();
   /** Platzhalter-Schattenkarte, solange keine Taschenlampe brennt (der Shadow-Sampler braucht eine Tiefentextur). */
   private dummyShadow: THREE.WebGLRenderTarget | null = null;
+  /** Leere Textur für ungenutzte Sampler. */
+  private readonly blank = Object.assign(new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1), { needsUpdate: true });
   private readonly tmpHeat = new THREE.Vector3();
   private readonly mask: THREE.WebGLRenderTarget;
   /** Licht im Nebel (halbe Auflösung). */
@@ -587,7 +664,18 @@ export class PostFX {
           uPointPos: { value: Array.from({ length: VOL_POINTS }, () => new THREE.Vector4()) },
           uPointColor: { value: Array.from({ length: VOL_POINTS }, () => new THREE.Color()) },
           uPointCount: { value: 0 },
-          uStrength: { value: 0 },
+          uSunOn: { value: 0 },
+          tSunShadow: { value: null },
+          uSunMatrix: { value: new THREE.Matrix4() },
+          uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+          uSunColor: { value: new THREE.Color() },
+          uGroundFog: { value: 0 },
+          uAmbient: { value: new THREE.Color() },
+          tHeight: { value: null },
+          uHeightMap: { value: new THREE.Vector3(1, 1, 1) },
+          uWake: { value: Array.from({ length: WAKES }, () => new THREE.Vector4()) },
+          uWakeCount: { value: 0 },
+          uMarch: { value: 30 },
         },
       }),
       bright: mat(brightFragment, { tColor: { value: this.lit.texture }, uThreshold: { value: 1.1 } }),
@@ -787,25 +875,30 @@ export class PostFX {
   /** Licht im Nebel in `vol` zeichnen. @returns false, wenn es nichts zu zeigen gibt. */
   private renderVolumetric(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera, p: PostFXParams): boolean {
     const v = p.volumetric;
-    if (!v || v.strength < 0.01 || p.underwater) return false;
+    if (!v || p.underwater) return false;
     const u = this.mats.volumetric.uniforms;
-    const spot = v.spot && v.spot.visible && v.spot.intensity > 0 ? v.spot : null;
+    const lamps = v.strength >= 0.01;
+    const spot = lamps && v.spot && v.spot.visible && v.spot.intensity > 0 ? v.spot : null;
     let points = 0;
-    for (const l of v.points) {
-      // Nur nahe Lichtquellen (Feuer, Fackeln) – nicht das weitreichende Blitzlicht.
-      if (points >= VOL_POINTS || l.intensity <= 0 || l.distance > 120) continue;
-      u.uPointPos.value[points].set(l.position.x, l.position.y, l.position.z, l.distance || 20);
-      u.uPointColor.value[points].copy(l.color).multiplyScalar(l.intensity);
-      points++;
+    if (lamps) {
+      for (const l of v.points) {
+        // Nur nahe Lichtquellen (Feuer, Fackeln) – nicht das weitreichende Blitzlicht.
+        if (points >= VOL_POINTS || l.intensity <= 0 || l.distance > 120) continue;
+        u.uPointPos.value[points].set(l.position.x, l.position.y, l.position.z, l.distance || 20);
+        u.uPointColor.value[points].copy(l.color).multiplyScalar(l.intensity * v.strength);
+        points++;
+      }
     }
-    if (!spot && points === 0) return false;
+    const sunMap = v.sun && v.sun.strength > 0.01 && v.sun.light.castShadow ? v.sun.light.shadow.map?.depthTexture : null;
+    const ground = v.ground && v.ground.density > 0.005 ? v.ground : null;
+    if (!spot && points === 0 && !sunMap && !ground) return false;
     u.uPointCount.value = points;
     u.uSpotOn.value = spot ? 1 : 0;
     if (spot) {
       spot.updateMatrixWorld();
       spot.getWorldPosition(u.uSpotPos.value);
       u.uSpotDir.value.copy(spot.target.position).sub(u.uSpotPos.value).normalize();
-      u.uSpotColor.value.copy(spot.color).multiplyScalar(spot.intensity);
+      u.uSpotColor.value.copy(spot.color).multiplyScalar(spot.intensity * v.strength);
       u.uSpotCosOuter.value = Math.cos(spot.angle);
       u.uSpotCosInner.value = Math.cos(spot.angle * (1 - spot.penumbra));
       u.uSpotRange.value = spot.distance || 30;
@@ -817,6 +910,29 @@ export class PostFX {
       u.uShadowOn.value = 0;
       u.tShadow.value = this.placeholderShadow(renderer);
     }
+    u.uSunOn.value = sunMap ? 1 : 0;
+    u.tSunShadow.value = sunMap ?? this.placeholderShadow(renderer);
+    if (sunMap && v.sun) {
+      const sun = v.sun.light;
+      u.uSunMatrix.value.copy(sun.shadow.matrix);
+      u.uSunDir.value.subVectors(sun.position, sun.target.position).normalize();
+      u.uSunColor.value.copy(sun.color).multiplyScalar(sun.intensity * v.sun.strength);
+    }
+    u.uGroundFog.value = ground ? ground.density : 0;
+    if (ground) {
+      u.uAmbient.value.copy(ground.ambient);
+      u.tHeight.value = ground.heightTexture;
+      u.uHeightMap.value.copy(ground.heightMapping);
+      const n = Math.min(WAKES, ground.wakes.length);
+      for (let i = 0; i < n; i++) u.uWake.value[i].copy(ground.wakes[i]);
+      u.uWakeCount.value = n;
+    } else {
+      // Der Sampler braucht trotzdem eine Textur.
+      u.tHeight.value = u.tHeight.value ?? this.blank;
+      u.uWakeCount.value = 0;
+    }
+    // Bodennebel und Sonnenstrahlen in der Nähe; die Lampe so weit sie reicht.
+    u.uMarch.value = Math.max(spot ? spot.distance || 30 : 0, sunMap || ground ? 45 : 0);
     u.uProjInv.value.copy(camera.projectionMatrixInverse);
     u.uViewInv.value.copy(camera.matrixWorld);
     u.uCamPos.value.setFromMatrixPosition(camera.matrixWorld);
@@ -825,7 +941,6 @@ export class PostFX {
     u.uMistDensity.value = p.mist.density;
     u.uMistFalloff.value = 1 / Math.max(0.5, p.mist.height);
     u.uMistBase.value = p.mist.base;
-    u.uStrength.value = v.strength;
     this.pass(renderer, this.mats.volumetric, this.vol);
     return true;
   }

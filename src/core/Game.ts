@@ -58,7 +58,8 @@ import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
 import { PostFX, type HeatSource, type VolumetricLights } from '../systems/PostFX';
 import { FireEffect } from '../entities/FireEffect';
-import { filmLook, type Look } from '../systems/FilmLook';
+import { filmLook, morningMist, type Look } from '../systems/FilmLook';
+import { FogWake } from '../world/FogWake';
 import { environmentIntensity, loadForestEnvironment } from '../world/Environment';
 import { loadSurfaceTextures } from '../world/SurfaceTextures';
 import { loadRockModels } from '../world/RockModels';
@@ -229,6 +230,15 @@ export class Game {
   /** Kegel der Taschenlampe – mit Schattenwurf (Bäume und Gestalten werfen lange Schatten). */
   private readonly flashlight = new THREE.SpotLight(0xf4f1e6, 0, 38, 0.42, 0.6, 1.6);
   private readonly volLights: VolumetricLights = { spot: null, points: [], air: 0, strength: 0 };
+  private readonly volSun = { light: null as unknown as THREE.DirectionalLight, strength: 0 };
+  private readonly volGround = {
+    density: 0,
+    ambient: new THREE.Color(),
+    heightTexture: null as unknown as THREE.Texture,
+    heightMapping: new THREE.Vector3(),
+    wakes: [] as readonly THREE.Vector4[],
+  };
+  private readonly fogWake = new FogWake();
   private readonly heat: HeatSource[] = [];
   private readonly fireAmbient = new THREE.Color();
   private readonly tmpScale = new THREE.Vector3();
@@ -1271,6 +1281,12 @@ export class Game {
   }
 
   /** Schrate und Wölfe in der Nähe – für Fallen und Brandherde. */
+  /** Fußpunkte der Schrate und Wölfe in der Nähe (für die Spuren im Bodennebel). */
+  private *nearbyFeet(): Generator<THREE.Vector3> {
+    const p = this.player.position;
+    for (const who of this.intruders()) if (!who.isDead && who.feet.distanceToSquared(p) < 30 * 30) yield who.feet;
+  }
+
   private *intruders(): Generator<Intruder> {
     const cache = this.intruderCache;
     for (const e of [...this.enemies.enemies, ...this.enemies.caveDwellers]) {
@@ -1538,6 +1554,7 @@ export class Game {
     this.updateFear(dt, playing);
     this.updateClimate(dt);
     this.updateLightning(dt);
+    this.fogWake.update(dt, player.position, this.nearbyFeet());
     this.blood.update(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
     const chest = this.openChest;
@@ -1859,6 +1876,22 @@ export class Game {
     // Höhlenluft ist staubig, Regen und Schneetreiben streuen das Licht stark.
     this.volLights.air = (cave ? 0.035 : 0.014) + 0.02 * rain + 0.05 * blizzard;
     this.volLights.strength = cave ? 1 : THREE.MathUtils.lerp(1, 0.15, this.dayNight.daylight);
+    // Sonnen- bzw. Mondstrahlen durchs Blätterdach; Wolken dämpfen sie, unter Tage gibt es keine.
+    const clouds = this.climate?.weather.clouds ?? 0;
+    this.volSun.light = this.dayNight.light;
+    this.volSun.strength = cave ? 0 : 0.5 * (1 - 0.85 * clouds) * (this.dayNight.isNight ? 0.6 : 1);
+    this.volLights.sun = this.volSun;
+    // Bodennebel: im Morgengrauen dicht, nachts ein Schleier über dem Boden, im Schneetreiben verweht.
+    const hour = this.dayNight.hour;
+    const night = 1 - this.dayNight.daylight;
+    const chill = this.climate?.season.chill ?? 0;
+    const g = this.volGround;
+    g.density = cave ? 0 : 0.5 * THREE.MathUtils.clamp(morningMist(hour) + night * (0.4 + 0.4 * chill), 0, 1) * (1 - blizzard) * (1 - 0.4 * rain);
+    g.ambient.copy(this.dayNight.fog.color).multiplyScalar(1.1);
+    g.heightTexture = this.world.water.heightTexture;
+    g.heightMapping = this.world.water.heightMapping;
+    g.wakes = this.fogWake.wakes;
+    this.volLights.ground = g;
     return this.settings.quality === 'low' ? null : this.volLights;
   }
 

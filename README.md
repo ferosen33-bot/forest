@@ -60,6 +60,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 44 – Bodennebel & Sonnenstrahlen
+
+- **Sonnenstrahlen durchs Blätterdach:** Durch Lücken in den Kronen fallen schräge Lichtbahnen in den Wald.
+  - Sie sind aus jedem Blickwinkel zu sehen, nicht nur gegen die Sonne. Gegen die Sonne gleißen sie.
+  - Nachts gibt es schwächere Bahnen im Mondlicht, Wolken dämpfen sie.
+- **Bodennebel:** Im Morgengrauen und nachts liegt eine dichte, wabernde Schicht knapp über dem Boden.
+  - Sie folgt dem Gelände und zerfasert nach oben. Was dahinter liegt, verschwindet im Dunst.
+  - Im Lampenlicht leuchtet sie auf. In kalten Nächten ist sie dichter, im Schneetreiben verweht.
+- **Spuren im Nebel:** Wo der Spieler, Schrate oder Wölfe hindurchgehen, reißt der Nebel auf und verwirbelt
+  ringsum. Nach einigen Sekunden schließt sich die Lücke wieder.
+- **Technik:**
+  - Beides läuft im Lichtkegel-Durchgang mit. Der Sehstrahl wird zusätzlich durch die Schattenkarte der Sonne
+    verfolgt, die Geländehöhe kommt aus der Höhenkarten-Textur.
+  - Der Bodennebel liefert neben dem Streulicht auch die Durchlässigkeit. So verdeckt er das Bild dahinter,
+    statt es nur aufzuhellen.
+
 ### Meilenstein 43 – Gewitter & Blut
 
 - **Sichtbare Blitze:** Im Gewitter zucken gezackte, verästelte Blitze von der Wolkenbasis bis zum Boden.
