@@ -216,6 +216,7 @@ export class BiomeDecor {
     const reedMat = new THREE.MeshStandardMaterial({
       map: reedTexture(),
       alphaTest: 0.45,
+      alphaToCoverage: true,
       side: THREE.DoubleSide,
       roughness: 0.9,
     });

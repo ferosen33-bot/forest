@@ -61,6 +61,20 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 48 – Grafik wie aus einem Guss (Teil 1: Schatten & Kantenglättung)
+
+- **Kaskadierte Sonnenschatten:** Statt einer Schattenkarte mit 60 m Reichweite gibt es jetzt drei: scharf bis
+  30 m, mittel bis 110 m, grob bis 350 m. Die Übergänge sind weich überblendet. Waldränder, Hänge und Bäume in der
+  Ferne werfen jetzt Schatten, und am Rand der alten Schattenkarte schaltet nichts mehr sichtbar um. Die
+  Schattenkanten flimmern nicht, weil die Kaskaden auf ihr Texelraster einrasten. Die Lichtstrahlen nutzen die
+  mittlere Kaskade.
+- `world/CascadedShadows.ts` nutzt die Kaskaden-Lichter von three.js (`CSM`). Die Shader-Bausteine stammen aus
+  dem aktuellen three.js; nur der Block der gerichteten Lichter wird ersetzt, damit Metall und Iridiszenz
+  unverändert bleiben. Jedes beleuchtete Material bekommt die Erweiterung beim ersten Zeichnen automatisch,
+  eigene `onBeforeCompile`-Erweiterungen bleiben erhalten.
+- **Alpha-to-Coverage** für Blätter, Schilf und Gras: Die Ränder werden über die 4-fach-Mehrfachabtastung
+  geglättet, statt hart ausgeschnitten. Laub und Gras flimmern in Bewegung deutlich weniger.
+
 ### Meilenstein 47 – Mehr Möglichkeiten (Teil 4: Spielstile & Talente)
 
 - **Talente:** Jede der acht Fertigkeiten hat zwei Talentstufen (ab Stufe 3 und ab Stufe 7). Auf jeder Stufe wählt

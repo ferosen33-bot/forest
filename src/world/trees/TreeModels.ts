@@ -134,12 +134,16 @@ export function createBarkMaterial(kind: TreeKind): THREE.MeshStandardMaterial {
   });
 }
 
-/** Blatt-Karten: Fotos mit Alphakanal, beidseitig, mit Alpha-Test (auch im Schatten). */
+/**
+ * Blatt-Karten: Fotos mit Alphakanal, beidseitig, mit Alpha-Test (auch im Schatten). Alpha-to-Coverage
+ * glättet die Blattränder über die Mehrfachabtastung, statt sie hart auszuschneiden (kein Flimmern).
+ */
 export function createLeafMaterial(kind: TreeKind): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     vertexColors: true,
     map: tex(kind === 'pine' ? 'pine_leaves.png' : kind === 'bush' ? 'ash_leaves.png' : 'oak_leaves.png', true),
     alphaTest: 0.5,
+    alphaToCoverage: true,
     side: THREE.DoubleSide,
     roughness: 0.75,
   });

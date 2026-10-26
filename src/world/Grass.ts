@@ -171,7 +171,7 @@ export class Grass {
       uHalf: { value: hm.half },
     };
 
-    const material = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const material = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide, alphaToCoverage: true });
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms);
       shader.vertexShader = shader.vertexShader
@@ -268,7 +268,10 @@ vec4 gGreen = texture2D(uGrassGreen, vGrassUv);
 vec4 gDry = texture2D(uGrassDryTex, vGrassUv);
 float dryness = clamp(uGrassDry + smoothstep(0.82, 1.0, vGrassR) * 0.5, 0.0, 1.0);
 vec4 gTex = mix(gGreen, gDry, dryness);
-if (gTex.a < 0.45) discard;
+// Weicher Rand über Alpha-to-Coverage (Mehrfachabtastung) statt hartem Ausschnitt: kein Flimmern.
+float gCover = clamp((gTex.a - 0.45) / max(fwidth(gTex.a), 1e-4) + 0.5, 0.0, 1.0);
+if (gCover <= 0.0) discard;
+diffuseColor.a = gCover;
 diffuseColor.rgb *= gTex.rgb;
 // Dunkler Grund (Eigenschatten im Büschel), hellere Spitzen
 diffuseColor.rgb *= mix(0.5, 1.05, vGrassH);

@@ -32,6 +32,7 @@ import { Enemy } from '../entities/enemies/Enemy';
 import { Cooking } from '../systems/Cooking';
 import { Camp } from '../systems/Camp';
 import { Rafts } from '../systems/Rafts';
+import { CascadedShadows } from '../world/CascadedShadows';
 import { Ropes } from '../systems/Ropes';
 import { Climate } from '../systems/Climate';
 import { Fishing, FishTraps } from '../systems/Fishing';
@@ -179,6 +180,7 @@ export class Game {
   projectiles!: Projectiles;
   cooking!: Cooking;
   camp!: Camp;
+  shadows!: CascadedShadows;
   rafts!: Rafts;
   ropes!: Ropes;
   climate!: Climate;
@@ -336,6 +338,10 @@ export class Game {
       shadowRange: cfg.graphics.shadowRange,
     });
     this.dayNight.linearOutput = this.postFX.enabled;
+    // Die Sonne wirft ihre Schatten über drei Kaskaden; das eigentliche Sonnenlicht liefert nur noch die Werte.
+    this.scene.remove(this.dayNight.light);
+    this.dayNight.light.castShadow = false;
+    this.shadows = new CascadedShadows(this.scene, this.camera, QUALITY[this.settings.quality].shadowMapSize);
 
     this.player = new Player(this.physics, this.camera, this.input, this.world.heightMap, this.events, cfg);
     this.player.spawn(this.world.spawnPoint, this.spawnYaw());
@@ -2079,6 +2085,8 @@ export class Game {
 
   private render(): void {
     this.renderer.info.reset();
+    this.camera.updateMatrixWorld();
+    this.shadows.update(this.dayNight.light);
     const overlay = this.viewModel.visible && this.mode !== 'dead' ? this.viewModel : null;
     if (this.postFX.enabled) {
       const look = (this.look = filmLook(
@@ -2194,7 +2202,8 @@ export class Game {
     this.volLights.strength = cave ? 1 : THREE.MathUtils.lerp(1, 0.15, this.dayNight.daylight);
     // Sonnen- bzw. Mondstrahlen durchs Blätterdach; Wolken dämpfen sie, unter Tage gibt es keine.
     const clouds = this.climate?.weather.clouds ?? 0;
-    this.volSun.light = this.dayNight.light;
+    // Die mittlere Kaskade deckt Spieler und Umgebung ab (die nahe reicht nur 30 m weit).
+    this.volSun.light = this.shadows.lights[1];
     this.volSun.strength = cave ? 0 : 0.5 * (1 - 0.85 * clouds) * (this.dayNight.isNight ? 0.6 : 1);
     this.volLights.sun = this.volSun;
     // Bodennebel: im Morgengrauen dicht, nachts ein Schleier über dem Boden, im Schneetreiben verweht.
@@ -2263,7 +2272,7 @@ export class Game {
     if (this.dayNight) this.dayNight.linearOutput = s.postProcessing;
 
     const q = QUALITY[s.quality];
-    this.dayNight?.setShadowMapSize(q.shadowMapSize);
+    this.shadows?.setMapSize(q.shadowMapSize);
     this.world?.grass?.setRadius(q.grassRadius);
     this.world?.vegetation.setCullDistance(q.vegetationDistance);
     if (this.world) this.world.vegetation.nearTreeDistance = q.nearTrees;
