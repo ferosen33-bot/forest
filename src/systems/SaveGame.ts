@@ -1,4 +1,5 @@
 import type { InventoryData } from './Inventory';
+import type { PlacesSave } from './Places';
 import type { CaveSave } from './Caves';
 import type { SettlementSave } from './Settlement';
 import type { SkillsSave } from './Skills';
@@ -62,6 +63,8 @@ export interface SaveData {
   caves?: CaveSave;
   /** Seit Meilenstein 22: Stadt entdeckt, durchsuchte Behälter. */
   town?: SettlementSave;
+  /** Seit Meilenstein 45: entdeckte Orte und Gebiete, durchsuchte Behälter dort. */
+  places?: PlacesSave;
   /** Seit Meilenstein 24: Erfahrung je Fertigkeit. */
   skills?: SkillsSave;
   /** Seit Meilenstein 27: Versorgungsabwürfe und verlassene Lager. */

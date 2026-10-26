@@ -5,6 +5,7 @@ import { deriveSeed, mulberry32 } from '../utils/random';
 import { smoothstep } from '../utils/math';
 import { injectSeason } from './SeasonShader';
 import { injectSurface, surfaceLayer } from './SurfaceTextures';
+import type { BiomeWeights } from './Biomes';
 
 /** Farbpalette des Bodens (sRGB-Hex, wird automatisch in Linear umgerechnet). */
 const PALETTE = {
@@ -18,9 +19,16 @@ const PALETTE = {
   rock: new THREE.Color(0x6c6962),
   rockDark: new THREE.Color(0x48453f),
   urban: new THREE.Color(0x5e584a),
+  // Sumpf: nasses Moos, schwarzer Schlamm
+  swampMoss: new THREE.Color(0x3c4724),
+  swampMud: new THREE.Color(0x342c1f),
+  // Klippen-Hochfläche: windgezauste, gelbliche Heide
+  heath: new THREE.Color(0x6e6d3c),
+  snow: new THREE.Color(0xe8edf4),
 };
 
 const tmpColor = new THREE.Color();
+const biome: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
 
 /** Anteile der Foto-Oberflächen je Vertex: Waldboden, Matsch, Fels, Sand. */
 type Splat = [number, number, number, number];
@@ -260,17 +268,22 @@ export class Terrain {
     return geometry;
   }
 
-  /** Bestimmt die Bodenfarbe aus Höhe, Steilheit und etwas Rauschen. */
+  /** Bestimmt die Bodenfarbe aus Höhe, Steilheit, Gebiet und etwas Rauschen. */
   private groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color, splat: Splat): void {
     const water = this.heightMap.waterLevel;
     const n1 = this.colorNoise(x * 0.02, z * 0.02) * 0.5 + 0.5;
     const n2 = this.patchNoise(x * 0.045, z * 0.045);
     const fine = this.colorNoise(x * 0.35, z * 0.35) * 0.05;
+    const b = this.heightMap.biomes.weights(x, z, biome);
 
     if (h < water - 0.4) {
-      // Unter Wasser: Sand wird mit zunehmender Tiefe dunkel und grünlich.
+      // Unter Wasser: Sand wird mit zunehmender Tiefe dunkel und grünlich; im Sumpf Schlamm.
       out.copy(PALETTE.seabed).lerp(PALETTE.seabedDeep, smoothstep(0, 14, water - h));
       splat.splice(0, 4, ...SPLAT_SAND);
+      if (b.swamp > 0) {
+        out.lerp(PALETTE.swampMud, b.swamp);
+        mixSplat(splat, SPLAT_MUD, b.swamp);
+      }
     } else {
       out.copy(PALETTE.grassDark).lerp(PALETTE.grassLight, n1);
       splat.splice(0, 4, ...SPLAT_GROUND);
@@ -279,18 +292,34 @@ export class Terrain {
         out.lerp(PALETTE.dirt, t);
         mixSplat(splat, SPLAT_MUD, t);
       }
-      // Strand: knapp über dem Wasserspiegel sandig, direkt am Wasser feucht/dunkel.
-      const beach = 1 - smoothstep(water + 0.9, water + 2.4, h + n2 * 0.6);
+      // Klippen-Hochfläche: Heide statt sattem Gras.
+      if (b.cliffs > 0) out.lerp(PALETTE.heath, b.cliffs * smoothstep(8, 16, h) * (0.5 + 0.5 * n1));
+      // Strand: knapp über dem Wasserspiegel sandig, direkt am Wasser feucht/dunkel (nicht im Sumpf).
+      const beach = (1 - smoothstep(water + 0.9, water + 2.4, h + n2 * 0.6)) * (1 - b.swamp);
       out.lerp(PALETTE.sand, beach);
       mixSplat(splat, SPLAT_SAND, beach);
-      out.lerp(PALETTE.wetSand, 1 - smoothstep(water - 0.4, water + 0.5, h));
+      out.lerp(PALETTE.wetSand, (1 - smoothstep(water - 0.4, water + 0.5, h)) * (1 - b.swamp));
+      // Sumpf: Moos und Schlamm, am Wasser schwarz und nass.
+      if (b.swamp > 0) {
+        const wet = 1 - smoothstep(water, water + 0.8, h);
+        tmpColor.copy(PALETTE.swampMoss).lerp(PALETTE.swampMud, Math.max(wet, smoothstep(0.1, 0.6, n2)));
+        out.lerp(tmpColor, b.swamp);
+        mixSplat(splat, SPLAT_MUD, b.swamp * Math.max(0.55, wet));
+      }
     }
 
-    // Steile Hänge und Gipfel werden felsig.
-    const rockT = Math.max(smoothstep(0.28, 0.45, slope + n2 * 0.05), smoothstep(42, 55, h + n2 * 4));
+    // Steile Hänge und Gipfel werden felsig – im Gebirge schon früher.
+    const rockLine = 42 - b.highland * 12;
+    const rockT = Math.max(smoothstep(0.28 - b.highland * 0.08, 0.45, slope + n2 * 0.05), smoothstep(rockLine, rockLine + 13, h + n2 * 4));
     if (rockT > 0) {
       out.lerp(tmpColor.copy(PALETTE.rock).lerp(PALETTE.rockDark, n1), rockT);
       mixSplat(splat, SPLAT_ROCK, rockT);
+    }
+    // Ewiger Schnee auf den Gipfeln (steile Wände bleiben Fels).
+    const snow = smoothstep(88, 98, h + n2 * 8) * (1 - smoothstep(0.35, 0.55, slope));
+    if (snow > 0) {
+      out.lerp(PALETTE.snow, snow);
+      mixSplat(splat, SPLAT_SAND, snow);
     }
 
     const u = this.urban?.(x, z) ?? 0;

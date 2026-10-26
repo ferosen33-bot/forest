@@ -73,6 +73,7 @@ import { Breath } from '../world/Breath';
 import { Fireflies } from '../world/Fireflies';
 import { LightningBolt } from '../world/LightningBolt';
 import { Blood } from '../systems/Blood';
+import { Places } from '../systems/Places';
 import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 
@@ -168,6 +169,8 @@ export class Game {
   caves!: Caves;
   /** Die verlassene Stadt (null, falls die Insel keinen Bauplatz bot). */
   settlement: Settlement | null = null;
+  /** Absturzstelle, Zeche, Hütte im Moor, Funkstation. */
+  places!: Places;
   /** Laufender Übergang in eine Höhle bzw. hinaus (Abblenden, Teleport in der Mitte). */
   private caveTransition: { timer: number; target: CaveTarget; applied: boolean } | null = null;
   ambience!: Ambience;
@@ -239,6 +242,7 @@ export class Game {
     wakes: [] as readonly THREE.Vector4[],
   };
   private readonly fogWake = new FogWake();
+  private readonly biomeTmp = { highland: 0, swamp: 0, cliffs: 0 };
   private readonly heat: HeatSource[] = [];
   private readonly fireAmbient = new THREE.Color();
   private readonly tmpScale = new THREE.Vector3();
@@ -406,6 +410,7 @@ export class Game {
           })()
         : null,
       harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
+      avoidAreas: this.world.places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
       extraFire: (pos, radius) => this.defenses?.fireNear(pos, radius) ?? null,
     });
     this.scene.add(this.enemies.group);
@@ -492,10 +497,27 @@ export class Game {
       avoidAreas: [
         ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 50 }] : []),
         ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 60 }] : []),
+        ...this.world.places.filter((p) => p.kind !== 'mine').map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 40 })),
       ],
       markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
+      // Der Feuersteinstollen (Hansens Höhle) beginnt im Mundloch der Zeche.
+      fixedSites: Object.fromEntries(
+        this.world.places.filter((p) => p.kind === 'mine').map((p) => [2, { position: p.position.clone(), into: p.yaw }]),
+      ),
     });
     this.scene.add(this.caves.group);
+    this.places = new Places({
+      physics: this.physics,
+      heightMap: this.world.heightMap,
+      seed: cfg.seed,
+      sites: this.world.places,
+      items: this.items,
+      audio: this.audio,
+      events: this.events,
+      lights: this.lights,
+      markObstacle: (x, z, yaw, hx, hz) => this.enemies.nav.markBox(x, z, yaw, hx, hz, 1),
+    });
+    this.scene.add(this.places.group);
     if (this.world.town) {
       this.menu.setLoading('Die Stadt wird aufgebaut …');
       await nextFrame();
@@ -585,6 +607,7 @@ export class Game {
         ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 30 }] : []),
         ...this.caves.caves.map((c) => ({ x: c.site.position.x, z: c.site.position.z, radius: 25 })),
         ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 80 }] : []),
+        ...this.places.areas,
       ],
       showNote: (title, text) => {
         this.noteUI.showText(title, text);
@@ -623,6 +646,7 @@ export class Game {
       cooking: this.cooking,
       caves: this.caves,
       settlement: this.settlement,
+      places: this.places,
       worldEvents: this.worldEvents,
       survivors: this.survivors,
       items: this.items,
@@ -822,6 +846,7 @@ export class Game {
       journal: this.journal.serialize(),
       caves: this.caves.serialize(),
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
+      places: this.places.serialize(),
       skills: this.skills.serialize(),
       worldEvents: this.worldEvents.serialize(),
       quests: this.quests.serialize(),
@@ -848,6 +873,7 @@ export class Game {
     // In einer Höhle gespeichert: Innenraum (samt Kollision) muss vor dem Aufsetzen stehen.
     if (d.caves) this.caves.load(d.caves);
     if (d.town) this.settlement?.load(d.town);
+    if (d.places) this.places.load(d.places);
     if (d.skills) this.skills.load(d.skills);
     if (d.worldEvents) this.worldEvents.load(d.worldEvents);
     if (d.quests) this.quests.load(d.quests);
@@ -1554,6 +1580,7 @@ export class Game {
     this.updateFear(dt, playing);
     this.updateClimate(dt);
     this.updateLightning(dt);
+    this.places.update(dt, player.position, this.dayNight.isNight, !!this.caves.current);
     this.fogWake.update(dt, player.position, this.nearbyFeet());
     this.blood.update(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.
@@ -1677,6 +1704,7 @@ export class Game {
       caves: this.caves.caves.filter((c) => c.discovered).map((c) => ({ x: c.site.position.x, z: c.site.position.z })),
       events: this.worldEvents.markers(),
       harbor: this.survivors?.marker() ?? null,
+      places: this.places.markers,
     });
     const explored = document.querySelector('[data-ref="mapExplored"]');
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
@@ -1886,7 +1914,11 @@ export class Game {
     const night = 1 - this.dayNight.daylight;
     const chill = this.climate?.season.chill ?? 0;
     const g = this.volGround;
-    g.density = cave ? 0 : 0.5 * THREE.MathUtils.clamp(morningMist(hour) + night * (0.4 + 0.4 * chill), 0, 1) * (1 - blizzard) * (1 - 0.4 * rain);
+    // Über dem Moor hängt der Nebel auch tagsüber.
+    const swamp = this.world.heightMap.biomes.weights(this.player.position.x, this.player.position.z, this.biomeTmp).swamp;
+    g.density = cave
+      ? 0
+      : 0.5 * THREE.MathUtils.clamp(morningMist(hour) + night * (0.4 + 0.4 * chill) + swamp * 0.55, 0, 1) * (1 - blizzard) * (1 - 0.4 * rain);
     g.ambient.copy(this.dayNight.fog.color).multiplyScalar(1.1);
     g.heightTexture = this.world.water.heightTexture;
     g.heightMapping = this.world.water.heightMapping;

@@ -398,7 +398,9 @@ void main() {
     float maxD = min(dist, uMarch);
     float stepLen = maxD / float(STEPS);
     float t = stepLen * hash12(gl_FragCoord.xy + fract(uTime * 13.7) * 91.0);
-    float sunPhase = phaseHG(dot(uSunDir, rd), 0.45);
+    float sunPhase = phaseHG(dot(uSunDir, rd), 0.4);
+    vec3 sunSum = vec3(0.0);
+    float visSum = 0.0;
     for (int i = 0; i < STEPS; i++) {
       vec3 p = uCamPos + rd * t;
       float air = density(p);
@@ -430,14 +432,19 @@ void main() {
         float vis = 1.0;
         if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) vis = texture(tSunShadow, vec3(sc.xy, sc.z - 0.001));
         // Leicht vorwärts streuend: gegen die Sonne gleißen die Bahnen, seitlich bleiben sie sichtbar.
-        sunLight = uSunColor * vis * (0.15 + 2.5 * sunPhase);
+        sunLight = uSunColor * vis * (0.15 + 2.2 * sunPhase);
+        visSum += vis;
       }
       // Streulicht von Dunst und Bodennebel, dazu das Umgebungslicht im Bodennebel.
       // Waldluft ist feucht und staubig: Für die Sonnenbahnen zählt der Dunst dreifach.
-      sum += T * ((air + g) * light + (air * 3.0 + g) * sunLight + g * uAmbient) * stepLen;
+      sum += T * ((air + g) * light + g * uAmbient) * stepLen;
+      sunSum += T * (air * 3.0 + g) * sunLight * stepLen;
       T *= exp(-g * stepLen);
       t += stepLen;
     }
+    // Lichtbahnen leben vom Wechsel aus Licht und Schatten: Im offenen Gelände (überall Sonne) bliebe nur
+    // gleichmäßiger Dunst – davon zählt wenig. Unter dem Blätterdach wirken die Bahnen voll.
+    if (uSunOn > 0.5) sum += sunSum * mix(0.15, 1.0, 1.0 - visSum / float(STEPS));
   }
 
   // Leuchthöfe um Punktlichter (geschlossen integriert)

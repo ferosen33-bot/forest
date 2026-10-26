@@ -25,6 +25,8 @@ export type Trigger =
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'harbor' }
+  | { on: 'place'; kind?: string }
+  | { on: 'biome'; name?: string }
   | { on: 'npc' }
   | { on: 'quest' }
   | { on: 'day'; day: number };
@@ -128,7 +130,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 11 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 15 },
     ],
   },
   {
@@ -139,6 +141,20 @@ export const CHAPTERS: Chapter[] = [
       { id: 'npcs', text: 'Mit allen Überlebenden sprechen', trigger: { on: 'npc' }, count: 3 },
       { id: 'quests3', text: 'Drei Aufträge erledigen', trigger: { on: 'quest' }, count: 3 },
       { id: 'questsAll', text: 'Alle Aufträge erledigen', trigger: { on: 'quest' }, count: 7 },
+    ],
+  },
+  {
+    title: 'Die ganze Insel',
+    intro: 'Hinter dem Wald liegen Berge, ein Moor und eine Steilküste. Die Insel ist größer, als sie aussah.',
+    objectives: [
+      { id: 'swamp', text: 'Das Moor betreten', trigger: { on: 'biome', name: 'swamp' } },
+      { id: 'highland', text: 'Ins Gebirge steigen', trigger: { on: 'biome', name: 'highland' } },
+      { id: 'cliffs', text: 'Die Klippenküste erreichen', trigger: { on: 'biome', name: 'cliffs' } },
+      { id: 'crash', text: 'Das Flugzeugwrack finden', trigger: { on: 'place', kind: 'crash' } },
+      { id: 'mine', text: 'Die Zeche finden', trigger: { on: 'place', kind: 'mine' } },
+      { id: 'hut', text: 'Die Hütte im Moor finden', trigger: { on: 'place', kind: 'hut' } },
+      { id: 'radio', text: 'Die Funkstation erreichen', trigger: { on: 'place', kind: 'radio' } },
+      { id: 'radio3', text: 'Das letzte Funkprotokoll der Station lesen', trigger: { on: 'note', id: 'funk3' } },
     ],
   },
 ];
@@ -192,6 +208,8 @@ export class Journal {
     events.on('player:slept', () => this.advance((t) => t.on === 'sleep'));
     events.on('camp:discovered', () => this.advance((t) => t.on === 'camp'));
     events.on('harbor:found', () => this.advance((t) => t.on === 'harbor'));
+    events.on('place:discovered', ({ kind }) => this.advance((t) => t.on === 'place' && (!t.kind || t.kind === kind)));
+    events.on('biome:entered', ({ name }) => this.advance((t) => t.on === 'biome' && (!t.name || t.name === name)));
     events.on('npc:met', () => this.advance((t) => t.on === 'npc'));
     events.on('quest:completed', () => this.advance((t) => t.on === 'quest'));
   }

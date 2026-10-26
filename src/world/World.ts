@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { smoothstep } from '../utils/math';
 import type { RockModel } from './RockModels';
 import { HeightMap } from './HeightMap';
 import { Terrain } from './Terrain';
 import { Water } from './Water';
 import { Vegetation } from './Vegetation';
 import { Grass } from './Grass';
+import { BiomeDecor } from './BiomeDecor';
+import { placeGround, placeSites, type PlaceSite } from './Places';
 import type { Physics } from '../core/Physics';
 import type { GameConfig } from '../config';
 import { findTownSite, generateTown, TOWN_FLAT_BLEND, TOWN_FLAT_RADIUS, urbanAt, type TownLayout } from './Town';
@@ -20,6 +23,10 @@ export class World {
   readonly water: Water;
   readonly vegetation: Vegetation;
   readonly grass: Grass | null;
+  /** Tote Bäume, Stämme und Schilf (Sumpf, Ufer). */
+  readonly decor: BiomeDecor;
+  /** Besondere Orte: Absturzstelle, Zeche, Hütte im Moor, Funkstation. */
+  readonly places: PlaceSite[];
   readonly spawnPoint: THREE.Vector3;
   /** Die verlassene Kleinstadt (null, falls die Insel keinen Platz bietet). */
   readonly town: TownLayout | null;
@@ -46,7 +53,15 @@ export class World {
     if (harborSite) this.heightMap.flatten(harborSite.x, harborSite.z, HARBOR_FLAT_RADIUS, HARBOR_FLAT_BLEND, harborSite.y);
     this.harbor = harborSite ? generateHarbor(this.heightMap, harborSite) : null;
     const harbor = this.harbor;
-    const urban = town ? (x: number, z: number) => urbanAt(town, x, z) : undefined;
+    // Bauplätze der besonderen Orte (eingeebnet, bevor Gelände und Physik entstehen).
+    const spawn = this.findSpawn();
+    this.places = placeSites(this.heightMap, seed, [
+      { x: spawn.x, z: spawn.z, radius: 200 },
+      ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 60 }] : []),
+      ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 90 }] : []),
+    ]);
+    const places = this.places;
+    const urban = (x: number, z: number) => Math.max(town ? urbanAt(town, x, z) : 0, placeGround(places, x, z));
     physics.addTerrain(this.heightMap);
     const tHeight = performance.now() - t;
 
@@ -58,7 +73,6 @@ export class World {
     this.water = new Water(world.waterLevel, this.heightMap);
     scene.add(this.water.mesh);
 
-    const spawn = this.findSpawn();
     this.spawnPoint = new THREE.Vector3(spawn.x, this.heightMap.heightAt(spawn.x, spawn.z), spawn.z);
 
     t = performance.now();
@@ -71,6 +85,11 @@ export class World {
         { x: spawn.x, z: spawn.z, radius: 7 },
         ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),
         ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 24 }] : []),
+        ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.kind === 'mine' ? 10 : p.radius * 0.6 })),
+        // Zechenhof vor dem Mundloch
+        ...places
+          .filter((p) => p.kind === 'mine')
+          .map((p) => ({ x: p.position.x - Math.sin(p.yaw) * 13, z: p.position.z - Math.cos(p.yaw) * 13, radius: 15 })),
       ],
     });
     scene.add(this.vegetation.group);
@@ -83,15 +102,28 @@ export class World {
             seed,
             radius: g.grassRadius,
             spacing: g.grassSpacing,
-            density: (x, z) => (urban ? 1 - urban(x, z) : 1) * (harbor ? harborGrass(harbor, x, z) : 1),
+            // Kein Gras auf Schnee und kahlem Fels der Gipfel.
+            density: (x, z) =>
+              (urban ? 1 - urban(x, z) : 1) * (harbor ? harborGrass(harbor, x, z) : 1) * (1 - smoothstep(70, 88, this.heightMap.heightAt(x, z))),
           })
         : null;
     if (this.grass) scene.add(this.grass.mesh);
 
+    t = performance.now();
+    this.decor = new BiomeDecor(this.heightMap, physics, seed, [
+      { x: spawn.x, z: spawn.z, radius: 9 },
+      ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 6 }] : []),
+      ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 30 }] : []),
+      ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius })),
+    ]);
+    scene.add(this.decor.group);
+    const tDecor = performance.now() - t;
+
     console.info(
       `[World] Höhenkarte ${tHeight.toFixed(0)} ms · Terrain ${tTerrain.toFixed(0)} ms · ` +
-        `Vegetation ${tVeg.toFixed(0)} ms`,
+        `Vegetation ${tVeg.toFixed(0)} ms · Gebiete ${tDecor.toFixed(0)} ms`,
       this.vegetation.counts,
+      this.decor.counts,
     );
   }
 
@@ -129,6 +161,7 @@ export class World {
     this.water.mesh.visible = visible;
     this.vegetation.group.visible = visible;
     if (this.grass) this.grass.mesh.visible = visible;
+    this.decor.group.visible = visible;
   }
 
   update(dt: number, elapsed: number, focus: THREE.Vector3): void {
@@ -137,5 +170,6 @@ export class World {
     this.terrain.update(focus);
     this.vegetation.update(dt, elapsed, focus);
     this.grass?.update(elapsed, focus);
+    this.decor.update(elapsed, focus);
   }
 }

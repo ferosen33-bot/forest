@@ -127,6 +127,8 @@ export interface CavesDeps {
   avoidAreas?: { x: number; z: number; radius: number }[];
   /** Felsen am Eingang als Hindernis für die Wegfindung melden. */
   markObstacle: (x: number, z: number, radius: number) => void;
+  /** Vorgegebene Eingänge nach Höhlen-Index (der Feuersteinstollen beginnt im Mundloch der Zeche). */
+  fixedSites?: Partial<Record<number, CaveSite>>;
 }
 
 const mat = (color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
@@ -205,7 +207,15 @@ export class Caves {
       ...d.avoid.map((p) => ({ x: p.x, z: p.z, radius: 55 })),
       ...(d.avoidAreas ?? []),
     ];
-    findCaveSites(d.heightMap, d.seed, CAVE_COUNT, avoid).forEach((site, index) => {
+    const fixed = d.fixedSites ?? {};
+    for (const f of Object.values(fixed)) if (f) avoid.push({ x: f.position.x, z: f.position.z, radius: 160 });
+    const found = findCaveSites(d.heightMap, d.seed, CAVE_COUNT, avoid);
+    const sites: CaveSite[] = [];
+    for (let i = 0; i < CAVE_COUNT; i++) {
+      const site = fixed[i] ?? found.shift();
+      if (site) sites.push(site);
+    }
+    sites.forEach((site, index) => {
       const layout = generateLayout(d.seed, index);
       const origin = new THREE.Vector3(site.position.x, CAVE_ALTITUDE + index * CAVE_SPACING, site.position.z);
       const toWorld = new THREE.Matrix4().makeRotationY(site.into).setPosition(origin);

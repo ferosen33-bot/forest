@@ -118,6 +118,49 @@ export const NOTES: NoteDef[] = [
       '17. Juli – Halbe Schicht krank gemeldet. Die Betriebsleitung will trotzdem weiterarbeiten.\n\n' +
       '24. Juli – Stollen auf Anordnung der Gemeinde geschlossen. Zu spät.',
   },
+  {
+    id: 'bordbuch',
+    title: 'Bordbuch, Charterflug D-EKLA',
+    style: 'paper',
+    text:
+      '21:40 – Gewitterfront über der Insel, Ausweichen nach Westen nicht möglich. Funkverbindung zum Festland gestört.\n\n' +
+      '21:52 – Kompass dreht sich. Unter uns Feuer im Wald, viele, im Kreis angeordnet. Kein Ort laut Karte.\n\n' +
+      '21:58 – Linkes Triebwerk ausgefallen. Versuche Notlandung auf der Lichtung.\n\n' +
+      'An die Fluggäste, falls jemand das hier findet: Bleibt beim Wrack und macht Feuer. Sie werden nach uns suchen.\n\n' +
+      'Nachtrag, andere Handschrift: Niemand sucht nach uns. Sie haben Hendrik in der ersten Nacht geholt.',
+  },
+  {
+    id: 'zeche',
+    title: 'Anordnung der Betriebsleitung',
+    style: 'paper',
+    text:
+      'ZECHE ALTWASSER – AUSHANG FÜR ALLE SCHICHTEN\n\n' +
+      'Der Abbau im neuen Stollen wird fortgesetzt. Die Kammer hinter Strecke 3 ist zu meiden, bis die Wetterführung geprüft ist.\n\n' +
+      'Gerüchte über eine ansteckende Krankheit sind haltlos. Wer sich wegen Kopfschmerzen oder Lichtempfindlichkeit krankmeldet, ' +
+      'wird vom Lohn abgezogen.\n\nDie Laternen am Mundloch bleiben die ganze Nacht an. Die Wache meldet jede Bewegung am Hang.\n\n– Die Betriebsleitung',
+  },
+  {
+    id: 'einsiedlerin',
+    title: 'Tagebuch der Einsiedlerin',
+    style: 'paper',
+    text:
+      'Das Moor schützt mich. Sie mögen das schwarze Wasser nicht, und den Torfrauch noch weniger.\n\n' +
+      'Letzte Nacht kamen sie trotzdem bis an den Steg. Sie tragen Knochen und Geweihe, sie singen ohne Worte. ' +
+      'Am Rand des Sumpfs haben sie Feuer im Kreis entzündet und etwas ins Wasser gelegt.\n\n' +
+      'Ich habe Hennings Stimme unter ihnen gehört. Er war der Erste aus dem Stollen.\n\n' +
+      'Ich hänge die Knochen vor die Tür, wie sie es tun. Vielleicht halten sie mich dann für eine von ihnen.',
+  },
+  {
+    id: 'funk3',
+    title: 'Funkprotokoll, 9. September',
+    style: 'radio',
+    text:
+      'KLIPPENKOPF: Festland, hier Funkstation Klippenkopf. Altwasser ist geräumt, die Fähre kam nicht.\n' +
+      'FESTLAND: Verstanden. Die Insel steht unter Quarantäne. Es wird keine Evakuierung geben.\n' +
+      'KLIPPENKOPF: Hier sind noch Menschen! Ich sehe Rauch an der Nordbucht.\n' +
+      'FESTLAND: … Bleiben Sie in Ihrer Station. Wiederhole: Niemand verlässt die Insel.\n' +
+      'KLIPPENKOPF: Sie stehen am Zaun. Das rote Licht am Mast hält sie nicht fern, es lockt sie an. Ich mache es aus und —\n\n[Ende der Aufzeichnung]',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -131,6 +174,9 @@ export const TOWN_NOTES = {
   shop: ['einkauf'],
   houses: ['brief', 'kind', 'arzt'],
 } as const;
+
+/** Notizen an den besonderen Orten (Absturzstelle, Zeche, Hütte im Moor, Funkstation). */
+export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3'] as const;
 
 /** Notizen in den Höhlen (je neben der ersten Vorratskiste), nach Höhlen-Index. */
 export const CAVE_NOTES = ['hoehle1', 'hoehle2', 'schichtbuch'];

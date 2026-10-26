@@ -18,6 +18,8 @@ export interface MapMarkers {
   events?: { x: number; z: number; kind: 'drop' | 'ritual' | 'camp' }[];
   /** Leuchtturm der Überlebenden (sobald gefunden). */
   harbor?: { x: number; z: number } | null;
+  /** Entdeckte besondere Orte (mit Namen). */
+  places?: { x: number; z: number; name: string; kind: 'crash' | 'mine' | 'hut' | 'radio' }[];
 }
 
 const RES = 512;
@@ -35,6 +37,7 @@ export class MapUI {
   private fogVersion = -1;
   private fogSmall: HTMLCanvasElement | null = null;
   private _open = false;
+  private readonly biome = { highland: 0, swamp: 0, cliffs: 0 };
 
   constructor(
     private readonly root: HTMLElement,
@@ -130,6 +133,7 @@ export class MapUI {
         let r: number;
         let g: number;
         let b: number;
+        const biome = hm.biomes.weights(x, z, this.biome);
         if (h < hm.waterLevel) {
           const t = smoothstep(0, 16, hm.waterLevel - h);
           r = 92 - 60 * t;
@@ -137,7 +141,7 @@ export class MapUI {
           b = 150 - 62 * t;
         } else {
           const slope = 1 - n[1];
-          const sand = 1 - smoothstep(1.2, 2.6, h);
+          const sand = (1 - smoothstep(1.2, 2.6, h)) * (1 - biome.swamp);
           const rock = Math.max(smoothstep(0.3, 0.45, slope), smoothstep(40, 52, h));
           r = 96 + 40 * smoothstep(5, 30, h);
           g = 122 + 18 * smoothstep(5, 30, h);
@@ -148,6 +152,14 @@ export class MapUI {
           r += (126 - r) * rock;
           g += (120 - g) * rock;
           b += (110 - b) * rock;
+          // Moor: dunkles Oliv; Gipfel: Schnee.
+          r += (82 - r) * biome.swamp;
+          g += (92 - g) * biome.swamp;
+          b += (56 - b) * biome.swamp;
+          const snow = smoothstep(88, 98, h) * (1 - smoothstep(0.35, 0.55, slope));
+          r += (236 - r) * snow;
+          g += (240 - g) * snow;
+          b += (246 - b) * snow;
           const shade = clamp((n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / ll, 0, 1);
           const k = 0.55 + 0.6 * shade;
           r *= k;
@@ -301,6 +313,29 @@ export class MapUI {
       ctx.arc(x, y - 9, 3, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+    }
+    // Besondere Orte: Raute mit Namen
+    for (const pl of m.places ?? []) {
+      const [x, y] = this.px(pl.x, pl.z);
+      const color = { crash: '#d9d6cc', mine: '#8a7a62', hut: '#6f8048', radio: '#c2463a' }[pl.kind];
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#1a1612';
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x - 6, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = '600 11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(20, 16, 12, 0.85)';
+      ctx.strokeText(pl.name, x, y - 10);
+      ctx.fillStyle = '#efe6d2';
+      ctx.fillText(pl.name, x, y - 10);
     }
     // Aufwachpunkt: Zelt-Symbol
     if (m.respawn) {

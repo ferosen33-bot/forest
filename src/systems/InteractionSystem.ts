@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { PlaceContainer, Places } from './Places';
 import type { Physics, RaycastHit } from '../core/Physics';
 import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
@@ -31,7 +32,7 @@ export type InteractionTarget =
   | { type: 'enemy'; enemy: Enemy; zone: HitZone; hit: RaycastHit }
   | { type: 'animal'; animal: Animal; hit: RaycastHit }
   | { type: 'cave'; cave: CaveTarget; hit: RaycastHit }
-  | { type: 'loot'; container: LootContainer; hit: RaycastHit }
+  | { type: 'loot'; container: LootContainer | PlaceContainer; hit: RaycastHit }
   | { type: 'note'; id: string; hit: RaycastHit }
   | { type: 'event'; event: EventTarget; hit: RaycastHit }
   | { type: 'npc'; npc: NpcDef; hit: RaycastHit }
@@ -51,6 +52,7 @@ export interface InteractionDeps {
   cooking: Cooking;
   caves: Caves;
   settlement: Settlement | null;
+  places?: Places | null;
   worldEvents: WorldEvents;
   survivors: Survivors | null;
   items: ItemService;
@@ -169,6 +171,10 @@ export class InteractionSystem {
       if (note) return { type: 'note', id: note, hit };
       const container = this.deps.settlement?.getContainer(hit.collider);
       if (container) return { type: 'loot', container, hit };
+      const placeNote = this.deps.places?.getNote(hit.collider);
+      if (placeNote) return { type: 'note', id: placeNote, hit };
+      const placeLoot = this.deps.places?.getContainer(hit.collider);
+      if (placeLoot) return { type: 'loot', container: placeLoot, hit };
       const inst = this.vegetation.getByCollider(hit.collider);
       if (inst) {
         switch (inst.kind) {
@@ -415,9 +421,12 @@ export class InteractionSystem {
       case 'animal':
         this.deps.animals.butcher(target.animal);
         break;
-      case 'loot':
-        this.deps.settlement?.search(target.container);
+      case 'loot': {
+        const c = target.container;
+        if (this.deps.places?.owns(c)) this.deps.places.search(c);
+        else this.deps.settlement?.search(c as LootContainer);
         break;
+      }
       case 'note':
         this.deps.onReadNote(target.id);
         break;

@@ -7,7 +7,7 @@ export const CONFIG = {
 
   world: {
     /** Kantenlänge der quadratischen Insel-Welt in Metern. */
-    size: 1536,
+    size: 2304,
     /** Abstand der Höhen-Samples in Metern (Render-Mesh und Kollision teilen dasselbe Raster). */
     cellSize: 2,
     /** Kantenlänge eines Terrain-Chunks in Metern (Einheit für Frustum-Culling). */
@@ -82,7 +82,7 @@ export const CONFIG = {
 
   ai: {
     /** Anzahl der Schrat-Lager auf der Insel. */
-    camps: 6,
+    camps: 10,
     perCamp: 3,
     /** Mindestabstand der Lager zum Spawnpunkt (m). */
     campMinDistance: 150,
@@ -106,11 +106,11 @@ export const CONFIG = {
 
   animals: {
     /** Hirschrudel auf der Insel und Tiere pro Rudel. */
-    herds: 7,
+    herds: 12,
     perHerd: 3,
-    rabbits: 18,
+    rabbits: 30,
     /** Wolfsrudel und Wölfe je Rudel (Grundzahl; manchmal einer mehr). */
-    wolfPacks: 3,
+    wolfPacks: 5,
     wolvesPerPack: 3,
     /** Innerhalb dieses Radius denken/bewegen sich Tiere (m). */
     activeRadius: 150,

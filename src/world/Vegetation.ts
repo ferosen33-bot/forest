@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { BiomeWeights } from './Biomes';
 import { createNoise2D } from 'simplex-noise';
 import type { HeightMap } from './HeightMap';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core/Physics';
@@ -253,6 +254,7 @@ export class Vegetation {
     const inClearing = (x: number, z: number) =>
       this.opts.clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.radius * c.radius);
 
+    const biome: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
     /** Waldgebiets-Dichte in [0, 1]: große Wälder mit Lichtungen dazwischen. */
     const forestDensity = (x: number, z: number) => {
       const n = forestNoise(x * 0.006, z * 0.006) * 0.7 + forestNoise(x * 0.02, z * 0.02) * 0.3;
@@ -281,11 +283,17 @@ export class Vegetation {
 
     // Bäume
     grid(4.5, (x, z, h, slope) => {
-      if (h < water + 1.8 || slope > 0.22) return null;
-      const density = forestDensity(x, z) * (1 - smoothstep(40, 52, h));
+      const b = hm.biomes.weights(x, z, biome);
+      // Im Sumpf wachsen Erlen auch knapp über dem Wasser.
+      if (h < water + 1.8 - b.swamp * 1.2 || slope > 0.22) return null;
+      // Im Gebirge liegt die Baumgrenze höher; im Sumpf und auf den Klippen ist der Wald licht.
+      const treeLine = 40 + b.highland * 32;
+      const density = forestDensity(x, z) * (1 - smoothstep(treeLine, treeLine + 12, h)) * (1 - 0.6 * b.swamp) * (1 - 0.5 * b.cliffs);
       if (rng() > density * 0.62) return null;
-      // Höhenlagen und bestimmte Regionen werden von Nadelbäumen dominiert.
-      const pineChance = smoothstep(-0.4, 0.4, typeNoise(x * 0.004, z * 0.004)) * 0.7 + smoothstep(15, 30, h) * 0.3;
+      // Höhenlagen und bestimmte Regionen werden von Nadelbäumen dominiert; im Sumpf Laubbäume.
+      const pineChance =
+        (smoothstep(-0.4, 0.4, typeNoise(x * 0.004, z * 0.004)) * 0.7 + smoothstep(15, 30, h) * 0.3 + b.highland * 0.6 + b.cliffs * 0.4) *
+        (1 - 0.85 * b.swamp);
       const kind: VegetationKind = rng() < pineChance ? 'pine' : 'broadleaf';
       const s = randRange(rng, 0.75, 1.45);
       return this.placement(kind, x, h - 0.25, z, s, s * randRange(rng, 0.9, 1.15), s, rng, 0.05);
@@ -293,10 +301,11 @@ export class Vegetation {
 
     // Büsche (bevorzugt am Waldrand); etwa jeder dritte trägt Beeren.
     grid(5, (x, z, h, slope) => {
-      if (h < water + 1.0 || slope > 0.3) return null;
+      const b = hm.biomes.weights(x, z, biome);
+      if (h < water + 1.0 - b.swamp * 0.7 || slope > 0.3) return null;
       const d = forestDensity(x, z);
       const edge = 1 - Math.abs(d - 0.45) * 2;
-      if (rng() > 0.12 + edge * 0.35) return null;
+      if (rng() > (0.12 + edge * 0.35 + b.swamp * 0.25) * (1 - 0.6 * b.highland * smoothstep(40, 70, h))) return null;
       const s = randRange(rng, 0.6, 1.35);
       const bush = this.placement('bush', x, h - 0.1, z, s, s * randRange(rng, 0.8, 1.1), s, rng, 0.1);
       if (rng() > 0.33) return bush;
@@ -306,7 +315,8 @@ export class Vegetation {
 
     // Felsen (häufiger an Hängen und im Gebirge, gelegentlich am Strand)
     grid(11, (x, z, h, slope) => {
-      const chance = 0.06 + smoothstep(0.1, 0.4, slope) * 0.4 + smoothstep(25, 45, h) * 0.2;
+      const b = hm.biomes.weights(x, z, biome);
+      const chance = (0.06 + smoothstep(0.1, 0.4, slope) * 0.4 + smoothstep(25, 45, h) * 0.2 + b.highland * 0.12 + b.cliffs * 0.08) * (1 - 0.7 * b.swamp);
       if (rng() > chance) return null;
       const s = rng() < 0.08 ? randRange(rng, 1.8, 3.2) : randRange(rng, 0.35, 1.2);
       return this.placement(
@@ -326,7 +336,7 @@ export class Vegetation {
     grid(
       8,
       (x, z, h, slope) => {
-        if (h < water + 1.2 || slope > 0.3) return null;
+        if (h < water + 0.6 || slope > 0.3) return null;
         if (rng() > 0.08 + forestDensity(x, z) * 0.4) return null;
         const s = randRange(rng, 0.85, 1.15);
         return this.placement('stick', x, h, z, s, s, s, rng, 0.08);

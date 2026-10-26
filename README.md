@@ -60,6 +60,39 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 45 – Die große Insel
+
+- **Mehr als doppelt so viel Land:** Die Welt misst jetzt 2,3 × 2,3 km statt 1,5 × 1,5 km, gut 2 km² Land.
+  - Es gibt mehr Schrat-Lager, Hirschrudel, Hasen und Wolfsrudel.
+  - Alte Spielstände passen nicht zur neuen Insel und werden nicht geladen.
+- **Neue Gebiete:**
+  - **Gebirge** im Norden: Grate bis rund 145 m mit ewigem Schnee auf den Gipfeln. Die Baumgrenze liegt höher,
+    fast nur Nadelbäume, viel Fels.
+  - **Moor** im Südwesten: flaches, nasses Land voller knietiefer Tümpel. Dort stehen tote, teils abgebrochene
+    Bäume, umgestürzte Stämme liegen im Wasser, dichtes Schilf wiegt sich im Wind. Über dem Moor hängt der Nebel
+    auch tagsüber.
+  - **Klippenküste** im Osten: Statt Strand fällt das Land in steilen Felswänden ins Meer. Oben liegt windige
+    Heide mit vereinzelten Kiefern.
+  - Wer ein Gebiet zum ersten Mal betritt, bekommt eine Meldung.
+- **Neue Orte**, jeder mit Beute und einer Notiz:
+  - **Absturzstelle** der Chartermaschine D-EKLA: zerbrochener Rumpf mit Fensterreihe, abgerissene Tragfläche,
+    ein schwelendes Triebwerk, verbrannte Erde, verstreute Sitze und Koffer. Im Cockpit liegt das Bordbuch.
+  - **Zeche Altwasser** am Gebirgshang: Mundloch mit Türstock und Laterne, Gleise mit Förderwagen, Abraumhalde,
+    das Zechenhaus mit der Anordnung der Betriebsleitung. Der Stollen führt in den Feuersteinstollen zu Hansen.
+  - **Hütte im Moor**: auf Pfählen über einem Tümpel, ein Bohlensteg führt hin. Vor der Tür hängen Knochen, drinnen
+    liegt das Tagebuch der Einsiedlerin.
+  - **Funkstation Klippenkopf**: 30 m hoher Gittermast mit rotem Warnlicht, das nachts weithin blinkt.
+    Dazu eine Betonbaracke mit Funktisch, Zaun, Generator und das letzte Funkprotokoll.
+- **Tagebuch:** neues Kapitel „Die ganze Insel“ (Gebiete betreten, Orte finden, letztes Funkprotokoll lesen).
+- **Karte:** Entdeckte Orte erscheinen mit Namen. Moor und Schneegipfel sind auf der Karte zu sehen.
+- **Technik:**
+  - `world/Biomes.ts` legt die Gebiete fest (weich überblendet, Ränder mit Rauschen verbogen).
+  - Höhenkarte, Bodenfarben, Vegetation, Gras und Karte lesen die Gebiete daraus.
+  - Bauplätze der Orte werden vor dem Aufbau von Gelände und Physik gesucht und eingeebnet (`world/Places.ts`).
+    Die Modelle bestehen aus Grundkörpern mit Foto-Oberflächen (`world/PlaceMeshes.ts`), die Laufzeit mit
+    Behältern, Notizen, Lichtern und Spielstand liegt in `systems/Places.ts`.
+  - Kleine Testwelten bleiben reiner Wald, damit die KI-Tests unverändert laufen.
+
 ### Meilenstein 44 – Bodennebel & Sonnenstrahlen
 
 - **Sonnenstrahlen durchs Blätterdach:** Durch Lücken in den Kronen fallen schräge Lichtbahnen in den Wald.
@@ -879,7 +912,7 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   - Schwimmen mit Auftrieb, Tauchen, Atemluft & Ertrinken
   - Head-Bob, Lande-Einfedern, Sprint-FOV
 - **Spieler-Stats:** Gesundheit, Ausdauer (mit Erschöpfung), Hunger, Durst, Regeneration, Tod & Wiederbeleben
-- **Welt:** 1 × 1 km Insel (seit Meilenstein 7: 1,5 × 1,5 km) aus Simplex-fBm + Ridged-Noise mit Stränden, Gebirge und Binnenseen
+- **Welt:** 1 × 1 km Insel (seit Meilenstein 7: 1,5 × 1,5 km, seit Meilenstein 45: 2,3 × 2,3 km mit Gebirge, Moor und Klippenküste) aus Simplex-fBm + Ridged-Noise mit Stränden, Gebirge und Binnenseen
   - Chunk-basiertes Terrain-Mesh mit Vertex-Färbung (Sand, Gras, Erde, Fels nach Höhe/Steilheit)
   - ~7 700 Bäume, Büsche und Felsen per *InstancedMesh*, pro Chunk gruppiert (Frustum-Culling), Wind-Animation im Shader
   - Statische Collider für Stämme (Zylinder) und Felsen (konvexe Hülle)

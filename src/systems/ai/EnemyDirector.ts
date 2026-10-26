@@ -64,6 +64,8 @@ interface Camp {
 }
 
 export interface DirectorDeps {
+  /** Weitere Flächen ohne Lager (besondere Orte). */
+  avoidAreas?: { x: number; z: number; radius: number }[];
   /** Blutspritzer und Lachen (optional, fehlt in Tests). */
   blood?: Pick<Blood, 'spray' | 'pool'>;
   physics: Physics;
@@ -262,6 +264,7 @@ export class EnemyDirector {
       if (town && Math.hypot(x - town.center.x, z - town.center.z) < town.radius + 80) continue;
       if (this.d.harbor && Math.hypot(x - this.d.harbor.center.x, z - this.d.harbor.center.z) < this.d.harbor.radius + 120) continue;
       if (this.camps.some((o) => o.center.distanceTo(c) < 140)) continue;
+      if (this.d.avoidAreas?.some((a) => Math.hypot(a.x - x, a.z - z) < a.radius)) continue;
       // Rund ums Lager muss genug begehbarer Platz sein.
       let free = 0;
       for (let i = 0; i < 16; i++) {

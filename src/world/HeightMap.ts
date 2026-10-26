@@ -1,6 +1,7 @@
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { clamp, lerp, smoothstep } from '../utils/math';
+import { BiomeMap, type BiomeWeights } from './Biomes';
 
 export interface HeightMapOptions {
   /** Kantenlänge der Welt in Metern (Welt reicht von -size/2 bis +size/2). */
@@ -31,6 +32,8 @@ export class HeightMap {
   readonly samples: number;
   readonly waterLevel: number;
   readonly heights: Float32Array;
+  /** Gebiete der Insel (Gebirge, Sumpf, Klippen, Wald). */
+  readonly biomes: BiomeMap;
   minHeight = Infinity;
   maxHeight = -Infinity;
 
@@ -39,6 +42,9 @@ export class HeightMap {
   private readonly ridgeNoise: NoiseFunction2D;
   private readonly detailNoise: NoiseFunction2D;
   private readonly lakeNoise: NoiseFunction2D;
+  private readonly peakNoise: NoiseFunction2D;
+  private readonly swampNoise: NoiseFunction2D;
+  private readonly bw: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
 
   constructor(opts: HeightMapOptions) {
     this.size = opts.size;
@@ -54,6 +60,9 @@ export class HeightMap {
     this.ridgeNoise = noise('ridges');
     this.detailNoise = noise('detail');
     this.lakeNoise = noise('lakes');
+    this.peakNoise = noise('peaks');
+    this.swampNoise = noise('swamp');
+    this.biomes = new BiomeMap(opts.seed, this.half);
 
     this.heights = new Float32Array(this.samples * this.samples);
     for (let iz = 0; iz < this.samples; iz++) {
@@ -110,19 +119,29 @@ export class HeightMap {
   private generate(x: number, z: number): number {
     const nx = x / this.half;
     const nz = z / this.half;
+    const b = this.biomes.weights(x, z, this.bw);
 
     // Radiale Inselmaske; die Küstenlinie wird per Noise verbogen, damit sie nicht rund wirkt.
     const warp = this.fbm(this.warpNoise, x * 0.0022, z * 0.0022, 3);
     const d = Math.sqrt(nx * nx + nz * nz) + warp * 0.2;
-    const island = 1 - smoothstep(0.56, 0.9, d);
+    let island = 1 - smoothstep(0.56, 0.9, d);
+    // Klippen: Die Küste bricht auf wenigen Metern ab, statt flach ins Meer zu laufen.
+    island = lerp(island, 1 - smoothstep(0.785, 0.81, d), b.cliffs);
 
     // Sanfte Hügel überall an Land.
     const hills = this.fbm(this.hillNoise, x * 0.0045, z * 0.0045, 5) * 0.5 + 0.5;
     // Gebirgsgrate nur im Inselinneren.
     const ridge = this.ridged(this.ridgeNoise, x * 0.0032, z * 0.0032, 4);
-    const mountainMask = 1 - smoothstep(0.05, 0.5, d);
+    const mountainMask = (1 - smoothstep(0.05, 0.5, d)) * (1 - b.swamp);
 
     let land = 4 + hills * 16 + ridge * ridge * 48 * mountainMask;
+    // Gebirge: hohe, scharfe Grate (bis gut 130 m) mit Tälern dazwischen.
+    if (b.highland > 0) {
+      const peaks = this.ridged(this.peakNoise, x * 0.0022, z * 0.0022, 5);
+      land += b.highland * (10 + Math.pow(peaks, 1.4) * 125);
+    }
+    // Klippen: Hochfläche über der Steilküste.
+    land += b.cliffs * smoothstep(0.45, 0.72, d) * (16 + hills * 10);
     land += this.detailNoise(x * 0.06, z * 0.06) * 0.35;
 
     // Übergang Meeresgrund -> Land.
@@ -131,10 +150,18 @@ export class HeightMap {
     // Strände: Höhen knapp über dem Wasser werden abgeflacht.
     if (h > 0) h *= lerp(0.15, 1, smoothstep(0, 7, h));
 
-    // Binnenseen: Senken, die unter den Wasserspiegel reichen.
+    // Binnenseen: Senken, die unter den Wasserspiegel reichen (nicht im Sumpf – der hat eigene Tümpel).
     const lake = smoothstep(0.36, 0.7, this.lakeNoise(x * 0.005, z * 0.005));
-    const lakeMask = lake * (1 - smoothstep(0.35, 0.62, d));
+    const lakeMask = lake * (1 - smoothstep(0.35, 0.62, d)) * (1 - b.swamp);
     h = lerp(h, this.waterLevel - 4.5, lakeMask * lakeMask * (3 - 2 * lakeMask));
+
+    // Sumpf: flaches Tiefland knapp über dem Wasser, durchsetzt von knietiefen Tümpeln.
+    if (b.swamp > 0) {
+      const s1 = this.fbm(this.swampNoise, x * 0.018, z * 0.018, 3);
+      const s2 = this.swampNoise(x * 0.09, z * 0.09);
+      const wet = Math.max(this.waterLevel + 0.25 + s1 * 1.1 + s2 * 0.15, this.waterLevel - 0.6);
+      h = lerp(h, wet, smoothstep(0, 1, b.swamp) * smoothstep(0.35, 0.85, island));
+    }
 
     return h;
   }

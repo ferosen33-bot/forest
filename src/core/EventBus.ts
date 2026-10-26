@@ -45,6 +45,10 @@ export type GameEvents = {
   /** Stadt: Behälter durchsucht, Ort entdeckt. */
   'loot:searched': { kind: string; items: ItemId[] };
   'town:discovered': { name: string };
+  /** Besonderer Ort entdeckt (Absturzstelle, Zeche, Hütte, Funkstation). */
+  'place:discovered': { kind: string; name: string };
+  /** Erstes Betreten eines Gebiets (Gebirge, Sumpf, Klippen). */
+  'biome:entered': { name: string };
   /** Zufallsereignis begonnen bzw. geplündert. */
   'world:event': { kind: string; phase: 'start' | 'looted' };
   /** Die Überlebenden in der Nordbucht wurden gefunden. */
