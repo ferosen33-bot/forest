@@ -6,6 +6,7 @@ import type { SkillsSave } from './Skills';
 import type { WorldEventSave } from './WorldEvents';
 import type { QuestsSave } from './Quests';
 import type { SurvivorsSave } from './Survivors';
+import type { CompanionSave } from './Companion';
 import type { VegetationSave } from '../world/Vegetation';
 import type { HarvestSave } from './HarvestSystem';
 import type { StructureSave } from './building/BuildingSystem';
@@ -79,6 +80,8 @@ export interface SaveData {
   /** Seit Meilenstein 28: Aufträge und die Überlebenden in der Nordbucht. */
   quests?: QuestsSave;
   survivors?: SurvivorsSave;
+  /** Seit Meilenstein 51: Ben, der Begleiter. */
+  companion?: CompanionSave;
 }
 
 /** Kurzinfo für das Startmenü. */

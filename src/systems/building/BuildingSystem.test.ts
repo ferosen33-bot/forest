@@ -150,6 +150,20 @@ describe('BuildingSystem', () => {
     expect(dropped.filter((i) => i === 'stick').length).toBe(2); // 4 Stöcke → 2
   });
 
+  it('mit Helfer kostet ein Bauwerk ein Viertel weniger (mindestens 1 je Sorte)', () => {
+    const shelter = w.building.costOf(getStructure('shelter'));
+    w.building.costFactor = 0.75;
+    const cheaper = w.building.costOf(getStructure('shelter'));
+    w.building.costFactor = 1;
+    expect(cheaper.map((c) => c.item)).toEqual(shelter.map((c) => c.item));
+    cheaper.forEach((c, i) => {
+      expect(c.count).toBeGreaterThanOrEqual(1);
+      expect(c.count).toBeLessThanOrEqual(shelter[i].count);
+    });
+    expect(cheaper.reduce((s, c) => s + c.count, 0)).toBeLessThan(shelter.reduce((s, c) => s + c.count, 0));
+    expect(w.building.costOf(getStructure('shelter'))).toBe(getStructure('shelter').cost);
+  });
+
   it('Lagerfeuer brennt nach dem Bau und wärmt in der Nähe', () => {
     const pos = w.flat.clone().add(new THREE.Vector3(0, 0, -5));
     const fire = w.building.place('campfire', pos, 0);

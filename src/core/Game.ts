@@ -60,7 +60,7 @@ import { WorldEvents } from '../systems/WorldEvents';
 import { Survivors, type NpcDef } from '../systems/Survivors';
 import { Quests } from '../systems/Quests';
 import { DialogueUI } from '../ui/DialogueUI';
-import { isStructureId } from '../systems/building/StructureDefs';
+import { getStructure, isStructureId } from '../systems/building/StructureDefs';
 import { isItemId } from '../entities/items/ItemDefs';
 import { Ambience } from '../systems/Ambience';
 import { Footsteps } from '../systems/Footsteps';
@@ -91,6 +91,7 @@ import { CombatMoves } from '../systems/CombatMoves';
 import { Gore } from '../systems/Gore';
 import { Explosives } from '../systems/Explosives';
 import { HouseBases } from '../systems/HouseBases';
+import { Companion, COMPANION_ID } from '../systems/Companion';
 import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
@@ -241,6 +242,8 @@ export class Game {
   explosives!: Explosives;
   /** Verbarrikadierte Stadthäuser als Basis (fehlt ohne Stadt). */
   houseBases: HouseBases | null = null;
+  /** Ben, der Begleiter aus der Funkstation (null ohne Funkstation). */
+  companion: Companion | null = null;
   private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
@@ -805,6 +808,7 @@ export class Game {
       places: this.places,
       worldEvents: this.worldEvents,
       survivors: this.survivors,
+      companion: { getNpc: (c) => this.companion?.getNpc(c) },
       items: this.items,
       audio: this.audio,
       events: this.events,
@@ -850,6 +854,7 @@ export class Game {
     this.gore = new Gore({ physics: this.physics, enemies: this.enemies, blood: this.blood, particles: this.particles, audio: this.audio });
     this.gore.enabled = this.settings.gore;
     this.scene.add(this.gore.group);
+    this.createCompanion();
     this.tools.gore = this.gore;
     this.explosives = new Explosives({
       enemies: this.enemies,
@@ -1086,6 +1091,7 @@ export class Game {
       worldEvents: this.worldEvents.serialize(),
       quests: this.quests.serialize(),
       ...(this.survivors ? { survivors: this.survivors.serialize() } : {}),
+      ...(this.companion ? { companion: this.companion.serialize() } : {}),
     };
   }
 
@@ -1118,6 +1124,7 @@ export class Game {
     if (d.quests) this.quests.load(d.quests);
     if (d.story) this.story = { ...this.story, ...d.story };
     if (d.survivors) this.survivors?.load(d.survivors);
+    this.companion?.load(d.companion, isItemId);
     const savedAt = new THREE.Vector3(...p.p);
     const cave = (Number.isInteger(p.cave) ? this.caves.caves[p.cave!] : null) ?? this.caves.caveAt(savedAt);
     if (cave) {
@@ -1275,7 +1282,8 @@ export class Game {
 
   /** Klick auf ein Rezept: Item herstellen bzw. mit dem Bauplan in den Baumodus wechseln. */
   private craft(recipe: Recipe): void {
-    if (!this.crafting.canAfford(recipe.cost)) {
+    const cost = recipe.kind === 'structure' ? this.building.costOf(getStructure(recipe.result)) : recipe.cost;
+    if (!this.crafting.canAfford(cost)) {
       this.audio.play('denied');
       this.events.emit('hud:message', { text: `Material fehlt für: ${recipeName(recipe)}` });
       return;
@@ -1676,20 +1684,58 @@ export class Game {
     if (first) this.events.emit('hud:message', { text: 'Ins Tagebuch übernommen (J).' });
   }
 
+  /** Ben sitzt verletzt in der Baracke der Funkstation. */
+  private createCompanion(): void {
+    const site = this.places.site('radio');
+    if (!site) return;
+    // Lokal (x, z) → Welt wie in PlaceMeshes (Drehung um Y); hinten links in der Baracke, Blick zur Tür.
+    const lx = -4.6;
+    const lz = -0.4;
+    const c = Math.cos(site.yaw);
+    const sn = Math.sin(site.yaw);
+    const x = site.position.x + lx * c + lz * sn;
+    const z = site.position.z - lx * sn + lz * c;
+    const y = this.world.heightMap.heightAt(site.position.x, site.position.z) + 0.3;
+    this.companion = new Companion({
+      physics: this.physics,
+      nav: this.enemies.nav,
+      characters: this.characters,
+      player: this.player,
+      inventory: this.inventory,
+      items: this.items,
+      enemies: this.enemies,
+      building: this.building,
+      vegetation: this.world.vegetation,
+      harvest: this.harvest,
+      worldItems: this.worldItems,
+      audio: this.audio,
+      events: this.events,
+      particles: this.particles,
+      gore: this.gore,
+      spawn: { position: new THREE.Vector3(x, y, z), yaw: site.yaw + Math.PI / 2 },
+      home: () => this.respawnPoint,
+      playerHidden: () => !!this.caves.current,
+    });
+    this.companion.heldSlot = () => this.tools.selected;
+    this.scene.add(this.companion.group);
+  }
+
   /** Gespräch mit einem Überlebenden beginnen (Antworten über die Zifferntasten). */
-  private talkTo(npc: NpcDef): void {
-    if (!this.survivors) return;
+  private talkTo(npc: { id: string; name: string }): void {
+    const companion = npc.id === COMPANION_ID ? this.companion : null;
+    if (!companion && !this.survivors) return;
     this.noteUI.hide();
     this.mapUI.hide();
     this.journalUI.hide();
-    this.dialogueUI.show(this.survivors.talk(npc.id));
+    if (companion) this.dialogueUI.show({ npc: companion.def, text: companion.greeting(), options: companion.options() });
+    else this.dialogueUI.show(this.survivors!.talk(npc.id as NpcDef['id']));
     this.noteAt.copy(this.player.position);
   }
 
   /** Zifferntasten wählen eine Antwort; `E` oder Weggehen beendet das Gespräch. */
   private updateDialogue(playing: boolean): void {
     const ui = this.dialogueUI;
-    if (!ui.open || !this.survivors) return;
+    if (!ui.open) return;
     if (!playing || this.player.position.distanceTo(this.noteAt) > 4) {
       ui.hide();
       return;
@@ -1697,9 +1743,16 @@ export class Game {
     const keys = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'] as const;
     const i = keys.findIndex((k) => this.input.wasPressed(k));
     if (i < 0) return;
-    const survivors = this.survivors;
     const npc = ui.npc!;
-    if (ui.choose(i, () => survivors.options(npc))) survivors.gesture(npc.id);
+    const companion = npc.id === COMPANION_ID ? this.companion : null;
+    if (companion) {
+      ui.choose(i, () => companion.options());
+      return;
+    }
+    const survivors = this.survivors;
+    const def = survivors?.getDef(npc.id);
+    if (!survivors || !def) return ui.hide();
+    if (ui.choose(i, () => survivors.options(def))) survivors.gesture(def.id);
   }
 
   /** Höhle betreten oder verlassen: abblenden, in der Dunkelheit umsetzen, aufblenden. */
@@ -1987,11 +2040,13 @@ export class Game {
       player.fixedUpdate(step);
       this.enemies.fixedUpdate(step);
       this.animals.fixedUpdate(step);
+      this.companion?.fixedUpdate(step);
       this.worldItems.fixedUpdate(step, water);
       this.physics.step();
       player.afterPhysicsStep();
       this.enemies.afterPhysicsStep();
       this.animals.afterPhysicsStep();
+      this.companion?.afterPhysicsStep();
       this.projectiles.fixedUpdate(step);
       this.accumulator -= step;
       steps++;
@@ -2043,6 +2098,10 @@ export class Game {
     this.embers.update(dt);
     player.stats.warm = this.building.isNearLitFire(player.position) || !!this.survivors?.isNearFire(player.position);
     this.survivors?.update(dt, player.position, this.caves.current ? 0 : 1 - this.dayNight.daylight);
+    if (this.companion) {
+      this.companion.update(dt, alpha);
+      this.building.costFactor = this.companion.helpsBuilding ? 0.75 : 1;
+    }
     this.updateSkills(dt, playing);
     this.updateFever(dt);
     this.worldEvents.update({
@@ -2282,7 +2341,7 @@ export class Game {
       name: def.name,
       valid: placement?.valid ?? false,
       reason: placement?.reason,
-      cost: def.cost.map((c) => ({ item: c.item, have: this.inventory.count(c.item), need: c.count })),
+      cost: this.building.costOf(def).map((c) => ({ item: c.item, have: this.inventory.count(c.item), need: c.count })),
     };
   }
 

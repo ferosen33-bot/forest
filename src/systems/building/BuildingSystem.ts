@@ -104,6 +104,8 @@ export class BuildingSystem {
 
   /** Aktiver Bauplan im Baumodus (null = kein Baumodus). */
   active: StructureDef | null = null;
+  /** Materialfaktor beim Bauen (der Begleiter hilft: 0,75). */
+  costFactor = 1;
   placement: Placement | null = null;
 
   /** Erst nach Loslassen der Maustaste "scharf" – der Klick, der den Bauplan wählt, baut nicht sofort. */
@@ -206,7 +208,7 @@ export class BuildingSystem {
     point.y = this.heightMap.heightAt(point.x, point.z);
 
     const placement = this.evaluate(def, point, playerYaw + this.userRotation);
-    if (placement.valid && !this.crafting.canAfford(def.cost)) {
+    if (placement.valid && !this.crafting.canAfford(this.costOf(def))) {
       placement.valid = false;
       placement.reason = 'Material fehlt';
     }
@@ -227,7 +229,7 @@ export class BuildingSystem {
       this.events.emit('hud:message', { text: p.reason ?? 'Hier kann nicht gebaut werden.' });
       return null;
     }
-    if (!this.crafting.consume(def.cost)) return null;
+    if (!this.crafting.consume(this.costOf(def))) return null;
     const structure = this.place(def.id, p.position, p.rotation);
     this.audio.play('place');
     this.events.emit('noise', { position: p.position.clone(), radius: 18 });
@@ -240,7 +242,7 @@ export class BuildingSystem {
     });
     this.events.emit('hud:message', { text: `${def.name} gebaut.` });
     // Für Wände bleibt der Baumodus aktiv, solange Material für ein weiteres Stück reicht.
-    if (!this.crafting.canAfford(def.cost)) this.cancel();
+    if (!this.crafting.canAfford(this.costOf(def))) this.cancel();
     return structure;
   }
 
@@ -719,6 +721,12 @@ export class BuildingSystem {
     this.setArmed(s, true);
     this.audio.play('place', { position: s.position });
     return true;
+  }
+
+  /** Was der Bau gerade kostet (mit Helfer weniger, mindestens 1 je Sorte). */
+  costOf(def: StructureDef): ItemCost[] {
+    if (this.costFactor === 1) return def.cost;
+    return def.cost.map((c) => ({ item: c.item, count: Math.max(1, Math.round(c.count * this.costFactor)) }));
   }
 
   /** Material für eine Reparatur: eigens festgelegt oder ein Drittel des Hauptmaterials. */

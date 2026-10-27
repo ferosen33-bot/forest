@@ -113,6 +113,21 @@ export class HarvestSystem {
     return true;
   }
 
+  /**
+   * Ein Helfer (Begleiter) hackt: Schaden ohne Spieler-Rückmeldung (Klang und Lärm macht er selbst).
+   * @returns true, wenn der Baum damit fällt.
+   */
+  chopBy(tree: VegetationInstance, damage: number, from: THREE.Vector3): boolean {
+    if (!tree.alive || (tree.kind !== 'pine' && tree.kind !== 'broadleaf')) return false;
+    const health = (this.treeHealth.get(tree.id) ?? this.maxTreeHealth(tree)) - damage;
+    this.treeHealth.set(tree.id, health);
+    this.vegetation.shake(tree, from, 0.7);
+    if (health > 0) return false;
+    this.treeHealth.delete(tree.id);
+    this.fell(tree, from);
+    return true;
+  }
+
   private fell(tree: VegetationInstance, from: THREE.Vector3): void {
     const kind = tree.kind as 'pine' | 'broadleaf';
     const s = tree.scale;
@@ -255,6 +270,14 @@ export class HarvestSystem {
 
   isRockDepleted(rock: VegetationInstance): boolean {
     return this.stonesIn(rock) <= 0;
+  }
+
+  /** Ein Helfer bricht bis zu `n` Steine heraus. @returns wie viele es waren. */
+  takeStones(rock: VegetationInstance, n: number): number {
+    const stones = this.stonesIn(rock);
+    const got = Math.min(stones, n);
+    this.rockStones.set(rock.id, stones - got);
+    return got;
   }
 
   /** Schlägt einen Stein vom Felsen ab (solange er nicht erschöpft ist). */

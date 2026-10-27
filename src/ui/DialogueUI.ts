@@ -1,4 +1,4 @@
-import type { DialogueOption, DialogueView, NpcDef } from '../systems/Survivors';
+import type { DialogueOption, DialogueView } from '../systems/Survivors';
 
 /**
  * Gesprächsfenster am unteren Bildrand: Name, was die Person sagt, nummerierte Antworten.
@@ -22,7 +22,7 @@ export class DialogueUI {
   }
 
   /** Gesprächspartner (null, wenn geschlossen). */
-  get npc(): NpcDef | null {
+  get npc(): DialogueView['npc'] | null {
     return this.view?.npc ?? null;
   }
 

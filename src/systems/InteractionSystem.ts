@@ -22,7 +22,7 @@ import type { Caves, CaveTarget } from './Caves';
 import type { LootContainer, Settlement } from './Settlement';
 import { getNote } from './Notes';
 import type { EventTarget, WorldEvents } from './WorldEvents';
-import type { NpcDef, Survivors } from './Survivors';
+import type { Survivors } from './Survivors';
 import type { Camp } from './Camp';
 import type { Rafts } from './Rafts';
 import type { Ropes } from './Ropes';
@@ -38,7 +38,7 @@ export type InteractionTarget =
   | { type: 'loot'; container: LootContainer | PlaceContainer; hit: RaycastHit }
   | { type: 'note'; id: string; hit: RaycastHit }
   | { type: 'event'; event: EventTarget; hit: RaycastHit }
-  | { type: 'npc'; npc: NpcDef; hit: RaycastHit }
+  | { type: 'npc'; npc: { id: string; name: string }; hit: RaycastHit }
   | { type: 'use'; id: string; hit: RaycastHit }
   | { type: 'water' };
 
@@ -62,6 +62,8 @@ export interface InteractionDeps {
   places?: Places | null;
   worldEvents: WorldEvents;
   survivors: Survivors | null;
+  /** Der Begleiter (Ben) als Gesprächspartner. */
+  companion?: { getNpc(collider: RaycastHit['collider']): { id: string; name: string } | undefined };
   items: ItemService;
   audio: Audio;
   events: EventBus;
@@ -85,7 +87,7 @@ export interface InteractionDeps {
   /** Wurde die Notiz schon gelesen? */
   isNoteRead: (id: string) => boolean;
   /** Gespräch mit einem Überlebenden beginnen. */
-  onTalk: (npc: NpcDef) => void;
+  onTalk: (npc: { id: string; name: string }) => void;
   /** Aktion, wenn nichts anvisiert ist (Schlamm im Moor). */
   fallback?: () => { prompt: Prompt; run: () => void } | null;
   /** Benutzbares Ding an einem Ort (Funkgerät): Hinweis und Aktion. */
@@ -176,6 +178,8 @@ export class InteractionSystem {
       if (item) return { type: 'item', item, hit };
       const enemyHit = this.deps.enemies.getHitTarget(hit.collider);
       if (enemyHit) return { type: 'enemy', enemy: enemyHit.enemy, zone: enemyHit.zone, hit };
+      const companion = this.deps.companion?.getNpc(hit.collider);
+      if (companion) return { type: 'npc', npc: companion, hit };
       const animal = this.deps.animals.getByCollider(hit.collider);
       if (animal) return { type: 'animal', animal, hit };
       const structure = this.building.getByCollider(hit.collider);

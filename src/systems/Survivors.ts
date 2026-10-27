@@ -78,7 +78,8 @@ export interface DialogueOption {
 }
 
 export interface DialogueView {
-  npc: NpcDef;
+  /** Gesprächspartner (Überlebende im Hafen oder der Begleiter). */
+  npc: { id: string; name: string };
   text: string;
   options: DialogueOption[];
 }
@@ -261,6 +262,11 @@ export class Survivors {
 
   isNearFire(p: THREE.Vector3, radius = 5): boolean {
     return p.distanceTo(this.d.layout.center) < radius;
+  }
+
+  /** Überlebender mit dieser Id (oder undefined). */
+  getDef(id: string): NpcDef | undefined {
+    return NPCS.find((n) => n.id === id);
   }
 
   getNpc(collider: RAPIER.Collider): NpcDef | undefined {

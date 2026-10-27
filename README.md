@@ -61,6 +61,29 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 51 – Basisbau (Teil C: Begleiter)
+
+- **Ben Hartmann, der Funker:** Er kniet verletzt in der Baracke der Funkstation Klippenkopf. Kommt man
+  in die Nähe, ruft er um Hilfe. Bringt man ihm Schmerzmittel oder einen Verbandskasten, begleitet er
+  einen. Man spricht ihn mit `E` an, die Antworten wählt man mit den Zifferntasten.
+- **Anweisungen:**
+  - *Folge mir*: Er bleibt ein paar Meter hinter dir und rennt, wenn er zurückfällt. Wer ihn weit
+    abhängt, findet ihn trotzdem wieder hinter sich. In Höhlen kommt er nicht mit.
+  - *Warte hier*: Er bleibt, wo er ist.
+  - *Halte die Basis*: Er geht zum Zuhause (verbarrikadiertes Haus bzw. Aufwachpunkt) und bewacht es.
+  - *Sammle Holz und Steine*: Er fällt rund um den Platz echte Bäume, sammelt Stämme und Äste auf und
+    schlägt Steine aus Felsen (die Felsen werden dabei leer). Was er trägt (bis zu 12 Stück), bringt er
+    in die nächste Kiste. Gibt es keine, holt man es bei ihm ab („Gib mir, was du gesammelt hast“).
+- **Kämpfen:** Er geht auf Schrate los, die angreifen oder dir zu nahe kommen. Das tut er mit den Fäusten
+  oder mit der Waffe, die man ihm gibt („Nimm meine Waffe“, die gehaltene Nahkampfwaffe). Die Waffe nutzt
+  sich ab und kann Glieder abtrennen. Zurück bekommt man sie jederzeit.
+- **Ausbessern:** Beschädigte Bauwerke in seiner Nähe (unter 70 %) flickt er von selbst, ohne Material.
+- **Bauhelfer:** Steht er in der Nähe (12 m), kostet jedes Bauwerk ein Viertel weniger Material
+  (mindestens 1 je Sorte). Die Bauanzeige zeigt den Preis mit Rabatt.
+- Ben wird mit dem Spielstand gespeichert: angeworben, Anweisung, Ort, Ladung und Waffe.
+- Er ist in `systems/Companion.ts`. Er läuft mit eigener Kapsel und Wegfindung auf dem Gegner-Navgitter
+  und hat Mesh2Motion-Animationen (Knien, Gehen, Laufen, Schlagen, Arbeiten).
+
 ### Meilenstein 51 – Basisbau (Teil B: Häuser verbarrikadieren)
 
 - **Jedes bewohnbare Haus in Altwasser** (nicht die Ruinen) hat eine Haustür und fünf Fenster, die sich
