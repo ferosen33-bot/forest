@@ -483,7 +483,10 @@ export class Game {
           })()
         : null,
       harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
-      avoidAreas: this.world.places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
+      avoidAreas: [
+        ...this.world.places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
+        ...this.world.hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 70 })),
+      ],
       // Neben dem Steinkreis lagern die Schrate, die ihn bewachen.
       extraCamps: this.world.places
         .filter((p) => p.kind === 'stones')
@@ -491,7 +494,16 @@ export class Game {
           const x = p.position.x + Math.sin(p.yaw) * 17;
           const z = p.position.z + Math.cos(p.yaw) * 17;
           return new THREE.Vector3(x, this.world.heightMap.heightAt(x, z), z);
-        }),
+        })
+        // Moorwinkel und das Sägewerk sind nicht ganz verlassen.
+        .concat(
+          this.world.hamlets
+            .filter((h) => h.kind === 'hamlet' || h.kind === 'sawmill')
+            .map((h) => {
+              const w = townWorld(h, h.kind === 'hamlet' ? -22 : 0, h.kind === 'hamlet' ? -6 : 6);
+              return new THREE.Vector3(w.x, h.center.y, w.z);
+            }),
+        ),
       extraFire: (pos, radius) => this.defenses?.fireNear(pos, radius) ?? null,
     });
     this.scene.add(this.enemies.group);
@@ -635,6 +647,7 @@ export class Game {
         ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 50 }] : []),
         ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 60 }] : []),
         ...this.world.places.filter((p) => p.kind !== 'mine').map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 40 })),
+        ...this.world.hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 40 })),
       ],
       markObstacle: (x, z, r) => this.enemies.nav.markCircle(x, z, r, 1),
       // Der Feuersteinstollen (Hansens Höhle) beginnt im Mundloch der Zeche.
@@ -660,7 +673,7 @@ export class Game {
       await nextFrame();
       this.settlement = new Settlement({
         physics: this.physics,
-        town: this.world.town,
+        towns: [this.world.town, ...this.world.hamlets, this.world.roadside],
         seed: cfg.seed,
         items: this.items,
         audio: this.audio,
@@ -760,6 +773,7 @@ export class Game {
         ...this.enemies.camps.map((c) => ({ x: c.center.x, z: c.center.z, radius: 70 })),
         ...(this.world.town ? [{ x: this.world.town.center.x, z: this.world.town.center.z, radius: this.world.town.radius + 30 }] : []),
         ...this.caves.caves.map((c) => ({ x: c.site.position.x, z: c.site.position.z, radius: 25 })),
+        ...this.world.hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 20 })),
         ...(this.world.harbor ? [{ x: this.world.harbor.center.x, z: this.world.harbor.center.z, radius: 80 }] : []),
         ...this.places.areas,
       ],
@@ -996,7 +1010,9 @@ export class Game {
       }
     });
     this.mapUI = new MapUI(document.getElementById('map')!, this.world.heightMap, this.world.vegetation, this.exploration);
+    this.mapUI.drawRoads(this.world.roads);
     if (this.world.town) this.mapUI.drawTown(this.world.town);
+    for (const h of this.world.hamlets) this.mapUI.drawTown(h);
     this.compass = new Compass(this.hud.compassCanvas);
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
     this.inventoryUI.onApplyMod = (modSlot, weaponSlot) => this.applyMod(modSlot, weaponSlot);

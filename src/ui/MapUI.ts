@@ -1,3 +1,4 @@
+import type { RoadNetwork } from '../world/Roads';
 import type { HeightMap } from '../world/HeightMap';
 import type { PlaceKind } from '../world/Places';
 import type { Vegetation } from '../world/Vegetation';
@@ -70,6 +71,35 @@ export class MapUI {
 
   /** Welt → Kartenpixel */
   /** Straßen und Häuser der Stadt einmalig in die Grundkarte zeichnen (unter dem Erkundungsnebel). */
+  /** Landstraßen (breit, hell) und Schotterwege (schmal, gestrichelt). */
+  drawRoads(net: RoadNetwork): void {
+    const ctx = this.base.getContext('2d')!;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const pass of [0, 1]) {
+      for (const r of net.roads) {
+        if (r.points.length < 2) continue;
+        ctx.beginPath();
+        r.points.forEach((p, i) => {
+          const [x, y] = this.px(p.x, p.z);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        if (pass === 0) {
+          ctx.setLineDash([]);
+          ctx.strokeStyle = 'rgba(40, 32, 22, 0.55)';
+          ctx.lineWidth = r.asphalt ? 4.2 : 3;
+        } else {
+          ctx.setLineDash(r.asphalt ? [] : [5, 3]);
+          ctx.strokeStyle = r.asphalt ? '#c9b98f' : '#a8946a';
+          ctx.lineWidth = r.asphalt ? 2.4 : 1.4;
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+  }
+
   drawTown(t: TownLayout): void {
     const ctx = this.base.getContext('2d')!;
     const pt = (x: number, z: number) => {

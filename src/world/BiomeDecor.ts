@@ -120,6 +120,8 @@ export class BiomeDecor {
     seed: number,
     /** Freie Flächen (Spawn, Stadt, Hafen …). */
     clearings: { x: number; z: number; radius: number }[] = [],
+    /** Weitere freie Flächen als Abfrage (Wege). */
+    exclude?: (x: number, z: number) => boolean,
   ) {
     this.group.name = 'BiomeDecor';
     const hm = heightMap;
@@ -128,7 +130,7 @@ export class BiomeDecor {
     const b: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
     const n: [number, number, number] = [0, 1, 0];
     const water = hm.waterLevel;
-    const free = (x: number, z: number) => !clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.radius * c.radius);
+    const free = (x: number, z: number) => !clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.radius * c.radius) && !exclude?.(x, z);
 
     // --- Tote Bäume und Stämme im Sumpf -------------------------------------------------------
     const snagVariants = [0, 1, 2].map(() => snagGeometry(rng));

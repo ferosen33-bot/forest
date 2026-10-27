@@ -131,7 +131,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 24 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 33 },
     ],
   },
   {
@@ -163,6 +163,7 @@ export const CHAPTERS: Chapter[] = [
     intro: 'Jemand hat gewusst, was im Stollen geschah. Mit dem richtigen Beweis lässt das Festland vielleicht doch jemanden heim.',
     objectives: [
       { id: 'chapel', text: 'Die Kapelle am Waldrand finden', trigger: { on: 'place', kind: 'chapel' } },
+      { id: 'hamlets', text: 'Die Höfe und Dörfer der Insel erkunden', trigger: { on: 'place', kind: 'hamlet' }, count: 5 },
       { id: 'stones', text: 'Den Steinkreis der Schrate finden', trigger: { on: 'place', kind: 'stones' } },
       { id: 'lab', text: 'Das Labor Nordwand erreichen', trigger: { on: 'place', kind: 'lab' } },
       { id: 'documents', text: 'Die Forschungsakte an dich nehmen', trigger: { on: 'collect', item: 'documents' } },

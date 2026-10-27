@@ -7,11 +7,14 @@ import { Water } from './Water';
 import { Vegetation } from './Vegetation';
 import { Grass } from './Grass';
 import { BiomeDecor } from './BiomeDecor';
-import { placeGround, placeSites, type PlaceSite } from './Places';
+import { placeGround, type PlaceSite } from './Places';
 import type { Physics } from '../core/Physics';
 import type { GameConfig } from '../config';
-import { findTownSite, generateTown, TOWN_FLAT_BLEND, TOWN_FLAT_RADIUS, urbanAt, type TownLayout } from './Town';
-import { findHarborSite, generateHarbor, HARBOR_FLAT_BLEND, HARBOR_FLAT_RADIUS, harborGrass, type HarborLayout } from './Harbor';
+import { urbanAt, type TownLayout } from './Town';
+import type { RoadNetwork } from './Roads';
+import { planIsland } from './IslandPlan';
+import { buildRoadMeshes } from './RoadMeshes';
+import { harborGrass, type HarborLayout } from './Harbor';
 
 /**
  * Bündelt alle statischen Welt-Bestandteile: Höhenkarte, Terrain, Wasser, Vegetation.
@@ -32,6 +35,14 @@ export class World {
   readonly town: TownLayout | null;
   /** Die Nordbucht mit Leuchtturm und dem Lager der Überlebenden. */
   readonly harbor: HarborLayout | null;
+  /** Kleine Orte: Gehöfte, Moorwinkel, Campingplatz, Sägewerk (seit Meilenstein 52). */
+  readonly hamlets: TownLayout[];
+  /** Landstraßen und Schotterwege. */
+  readonly roads: RoadNetwork;
+  /** Masten, Pfosten, Autos, Wegweiser und Ortsschilder an den Wegen. */
+  readonly roadside: TownLayout;
+  /** Fahrbahnen (Bänder über dem Gelände). */
+  readonly roadGroup: THREE.Group;
 
   /** @param rocks fotogescannte Felsen (vorab geladen, da ihre Form die Kollision bestimmt). */
   constructor(scene: THREE.Scene, physics: Physics, config: GameConfig, rocks: RockModel[] = []) {
@@ -44,30 +55,28 @@ export class World {
       seed,
       waterLevel: world.waterLevel,
     });
-    // Bauplatz der Stadt einebnen – vor Physik und Gelände-Mesh, damit beide dieselben Höhen sehen.
-    const site = findTownSite(this.heightMap, seed);
-    this.town = site ? generateTown(seed, site) : null;
-    if (site) this.heightMap.flatten(site.x, site.z, TOWN_FLAT_RADIUS, TOWN_FLAT_BLEND, site.y);
-    const town = this.town;
-    const harborSite = findHarborSite(this.heightMap, seed, town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 150 }] : []);
-    if (harborSite) this.heightMap.flatten(harborSite.x, harborSite.z, HARBOR_FLAT_RADIUS, HARBOR_FLAT_BLEND, harborSite.y);
-    this.harbor = harborSite ? generateHarbor(this.heightMap, harborSite) : null;
-    const harbor = this.harbor;
-    // Bauplätze der besonderen Orte (eingeebnet, bevor Gelände und Physik entstehen).
-    const spawn = this.findSpawn();
-    this.places = placeSites(this.heightMap, seed, [
-      { x: spawn.x, z: spawn.z, radius: 200 },
-      ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 60 }] : []),
-      ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 90 }] : []),
-    ], town ? { x: town.center.x, z: town.center.z } : null);
-    const places = this.places;
-    const urban = (x: number, z: number) => Math.max(town ? urbanAt(town, x, z) : 0, placeGround(places, x, z));
+    const plan = planIsland(this.heightMap, seed);
+    ({ town: this.town, harbor: this.harbor, places: this.places, hamlets: this.hamlets, roads: this.roads, roadside: this.roadside } = plan);
+    const { town, harbor, places, hamlets, roads, spawn } = plan;
+    /** Fahrbahn plus Bankett (für Bodenfarbe und freie Flächen). */
+    const roadEdge = (x: number, z: number, extra: number) => roads.distance(x, z, 8) < 3.2 + extra;
+    const urban = (x: number, z: number) => {
+      let u = Math.max(town ? urbanAt(town, x, z) : 0, placeGround(places, x, z));
+      for (const h of hamlets) if (u < 1) u = Math.max(u, urbanAt(h, x, z));
+      if (u < 0.85) {
+        const d = roads.distance(x, z, 8);
+        if (d < 6) u = Math.max(u, 0.85 * (1 - smoothstep(2, 6, d)));
+      }
+      return u;
+    };
     physics.addTerrain(this.heightMap);
     const tHeight = performance.now() - t;
 
     t = performance.now();
     this.terrain = new Terrain(this.heightMap, world.chunkSize, seed, urban);
     scene.add(this.terrain.group);
+    this.roadGroup = buildRoadMeshes(roads, this.heightMap, seed);
+    scene.add(this.roadGroup);
     const tTerrain = performance.now() - t;
 
     this.water = new Water(world.waterLevel, this.heightMap);
@@ -85,12 +94,14 @@ export class World {
         { x: spawn.x, z: spawn.z, radius: 7 },
         ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),
         ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 24 }] : []),
+        ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 4 })),
         ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.kind === 'mine' ? 10 : p.radius * 0.6 })),
         // Zechenhof vor dem Mundloch
         ...places
           .filter((p) => p.kind === 'mine')
           .map((p) => ({ x: p.position.x - Math.sin(p.yaw) * 13, z: p.position.z - Math.cos(p.yaw) * 13, radius: 15 })),
       ],
+      exclude: (x, z) => roadEdge(x, z, 1.8),
     });
     scene.add(this.vegetation.group);
     const tVeg = performance.now() - t;
@@ -104,7 +115,7 @@ export class World {
             spacing: g.grassSpacing,
             // Kein Gras auf Schnee und kahlem Fels der Gipfel.
             density: (x, z) =>
-              (urban ? 1 - urban(x, z) : 1) * (harbor ? harborGrass(harbor, x, z) : 1) * (1 - smoothstep(70, 88, this.heightMap.heightAt(x, z))),
+              (1 - Math.min(1, urban(x, z) * 1.1)) * (harbor ? harborGrass(harbor, x, z) : 1) * (1 - smoothstep(70, 88, this.heightMap.heightAt(x, z))),
           })
         : null;
     if (this.grass) scene.add(this.grass.mesh);
@@ -114,8 +125,9 @@ export class World {
       { x: spawn.x, z: spawn.z, radius: 9 },
       ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 6 }] : []),
       ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 30 }] : []),
+      ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 8 })),
       ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius })),
-    ]);
+    ], (x, z) => roadEdge(x, z, 2.5));
     scene.add(this.decor.group);
     const tDecor = performance.now() - t;
 
@@ -127,37 +139,10 @@ export class World {
     );
   }
 
-  /**
-   * Sucht einen flachen Spawnpunkt im Wald nahe der Südküste:
-   * trocken, nicht zu hoch, kaum Gefälle.
-   */
-  private findSpawn(): { x: number; z: number } {
-    const hm = this.heightMap;
-    const prefX = 0;
-    const prefZ = hm.half * 0.42;
-    const n: [number, number, number] = [0, 1, 0];
-    let best = { x: prefX, z: prefZ };
-    let bestScore = Infinity;
-
-    for (let z = -hm.half * 0.8; z <= hm.half * 0.8; z += 6) {
-      for (let x = -hm.half * 0.8; x <= hm.half * 0.8; x += 6) {
-        const h = hm.heightAt(x, z);
-        if (h < hm.waterLevel + 4 || h > 18) continue;
-        hm.normalAt(x, z, n);
-        if (n[1] < 0.97) continue;
-        const score = Math.hypot(x - prefX, z - prefZ) + (1 - n[1]) * 500;
-        if (score < bestScore) {
-          bestScore = score;
-          best = { x, z };
-        }
-      }
-    }
-    return best;
-  }
-
   /** In Höhlen wird die Oberwelt nicht gezeichnet (sie wäre ohnehin von Fels verdeckt). */
   setSurfaceVisible(visible: boolean): void {
     this.terrain.group.visible = visible;
+    this.roadGroup.visible = visible;
     this.water.mesh.visible = visible;
     this.vegetation.group.visible = visible;
     if (this.grass) this.grass.mesh.visible = visible;

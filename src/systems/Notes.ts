@@ -249,6 +249,87 @@ export const NOTES: NoteDef[] = [
       'FESTLAND: [lange Pause] Verstanden. Wenn das stimmt, ändert es alles. Wir schicken keine Fähre. Aber ein Boot mit Gesunden darf in Nordheim anlegen.\n' +
       'FESTLAND: Kommen Sie bei Tagesanbruch. Und bringen Sie diese Akte mit.\n\n[Ende der Verbindung]',
   },
+  // --- Kleine Orte (Meilenstein 52) ---
+  {
+    id: 'hollmann',
+    title: 'Kalender am Küchenschrank (Hof Hollmann)',
+    style: 'paper',
+    text:
+      'Mo – Tierarzt abgesagt. Fähre fährt nicht.\nDi – zwei Kühe fehlen. Zaun hinten offen, nicht kaputt. OFFEN.\n' +
+      'Mi – die Kühe gefunden, am Waldrand. Will nicht aufschreiben, wie.\nDo – Jakob ist wieder zur Zeche. Sagt, sie zahlen dreifach für Nachtschichten.\n' +
+      'Fr – Spuren im Acker. Barfuß. Viele.\nSa – Jakob nicht heimgekommen.\nSo – Ich lasse das Licht im Stall brennen, damit er den Weg findet.',
+  },
+  {
+    id: 'brinkmann',
+    title: 'Zettel unter dem Salzstreuer (Hof Brinkmann)',
+    style: 'paper',
+    text:
+      'Rolf,\n\nwenn du das liest, sind wir mit dem Traktor runter nach Altwasser. Die Hühner sind seit drei Tagen still – nicht tot, STILL. ' +
+      'Sie stehen da und schauen alle zum Wald.\n\nDas Gewehr liegt nicht mehr im Schrank, ich hab es mitgenommen. Der Schlüssel für die Scheune hängt am Nagel. ' +
+      'Nimm, was du brauchst, aber mach das Tor wieder zu. Und geh nicht nach Sonnenuntergang über den Acker.\n\nGrete',
+  },
+  {
+    id: 'gasthof',
+    title: 'Tafel hinter dem Tresen (Gasthof Moorwinkel)',
+    style: 'paper',
+    text:
+      'AUSSCHANK NUR BIS SONNENUNTERGANG.\n\nFensterläden bleiben zu. Wer nachts klopft, bleibt draußen – egal, wie er heißt und wie er klingt.\n\n' +
+      'Stammtisch fällt aus, bis die Herren von der Betriebsleitung uns erklären, was in dem neuen Stollen los ist.\n\n' +
+      'Darunter, mit Kreide nachgetragen: „Sie klingen wie wir. Das ist das Schlimmste. Sie klingen wie wir.“',
+  },
+  {
+    id: 'moorwinkel1',
+    title: 'Schulheft (Moorwinkel)',
+    style: 'child',
+    text:
+      'Mein Ferientagebuch\n\nHeute hat Opa gesagt die Leute im Wald waren mal Bergleute. Er sagt sie haben zu tief gegraben und dann ist etwas mit hoch gekommen ' +
+      'das wie Watte aussieht. Mama sagt Opa soll still sein.\n\nIn der Nacht hat jemand unser Lied gesungen. Draußen. Ganz falsch.\n\nIch darf nicht mehr zur Bushaltestelle.',
+  },
+  {
+    id: 'moorwinkel2',
+    title: 'Notizblock neben dem Telefon (Moorwinkel)',
+    style: 'paper',
+    text:
+      'Notruf 112 – besetzt (8x)\nPolizei Nordheim – kein Freizeichen\nFähre – „Betrieb eingestellt“ (Band)\nBetriebsleitung Nordwand – legt auf\n\n' +
+      'Telefonzelle unten an der Haltestelle geht auch nicht mehr. Habe trotzdem jede Stunde probiert.\n\nUm 3:14 hat es geklingelt. Niemand dran. Nur Atmen. Und ganz hinten: Grubenlampen-Brummen.',
+  },
+  {
+    id: 'rezeption',
+    title: 'Gästebuch der Rezeption (Campingplatz Seeblick)',
+    style: 'paper',
+    text:
+      '„Traumhafte Ruhe, wunderbarer See, wir kommen wieder!“ – Fam. Kessler, Platz 7\n\n„Nachts Rufe aus dem Wald. Die Kinder finden es gruselig, ich finde es lustig :)“ – Tom, Zelt 4\n\n' +
+      '„Weiß jemand, wohin die Holländer von Platz 3 sind? Auto steht noch da, Zelt offen.“ – ohne Namen\n\n' +
+      '„NICHT IN DEN WALD. NICHT DEN RUFEN NACH.“ – quer über die Seite, mit Kugelschreiber eingedrückt',
+  },
+  {
+    id: 'camping1',
+    title: 'Tagebuch einer Urlauberin (Hütte am See)',
+    style: 'paper',
+    text:
+      'Tag 5. Die Fähre ist ausgefallen, wir hängen hier fest. Der Platzwart sagt, das kommt vor. Er lügt schlecht.\n\n' +
+      'Tag 6. Tom ist nicht vom Holzholen zurück. Ich habe die ganze Nacht seine Stimme gehört, er hat meinen Namen gerufen, ' +
+      'immer wieder, immer gleich, als würde ein Band abgespielt.\n\nTag 7. Ich habe die Tür verrammelt. Am Morgen war Erde auf der Klinke. Von außen.',
+  },
+  {
+    id: 'camping2',
+    title: 'Postkarte, nie abgeschickt (Hütte am See)',
+    style: 'paper',
+    text:
+      'Liebe Grüße von der Insel! Wetter mittel, See wunderschön, Essen im Gasthof Moorwinkel 1A.\n\n' +
+      'Hinten, kleiner geschrieben: Falls ihr nichts mehr von uns hört – das Auto steht am Campingplatz, der Ersatzschlüssel liegt auf dem linken Hinterreifen. ' +
+      'Fahrt Richtung Leuchtturm. Nicht durch den Wald. Nie durch den Wald.',
+  },
+  {
+    id: 'saegewerk',
+    title: 'Auftragsbuch (Sägewerk Tannenfeld)',
+    style: 'paper',
+    text:
+      'Lieferung Grubenholz an Zeche Altwasser, Stollen 4: 40 Fm Stützbalken – STORNIERT (Betriebsleitung).\n\n' +
+      'Neuer Auftrag Betriebsleitung: Bretter, Nägel, Bohlen – „zum Verschließen von Zugängen“. Dringend. Bar bezahlt.\n\n' +
+      'Die Tannen am Nordhang haben einen weißen Belag unter der Rinde. Wie Watte. Die Säge verklebt davon. Kowalski hat sich daran geschnitten und hustet seitdem.\n\n' +
+      'Kowalski seit Dienstag nicht zur Schicht. Sein Spind steht offen.',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -265,6 +346,9 @@ export const TOWN_NOTES = {
 
 /** Notizen an den besonderen Orten (Absturzstelle, Zeche, Hütte im Moor, Funkstation). */
 export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehre', 'anne', 'pfarrer', 'labor1', 'labor2', 'steinkreis', 'leuchtfeuer', 'schmuggler'] as const;
+
+/** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */
+export const HAMLET_NOTES = ['hollmann', 'brinkmann', 'gasthof', 'moorwinkel1', 'moorwinkel2', 'rezeption', 'camping1', 'camping2', 'saegewerk'] as const;
 
 /** Notizen, die keine Fundstelle haben, sondern entstehen (Funkspruch an der Funkstation). */
 export const STORY_NOTES = ['funkspruch'] as const;

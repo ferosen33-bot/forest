@@ -5,6 +5,7 @@ import { injectSurface, surfaceLayer, type SurfaceId } from './SurfaceTextures';
 import { buildingRng, type TownBuilding, type TownLayout, type TownProp } from './Town';
 import type { RandomFn } from '../utils/random';
 import { TOWN_NOTES } from '../systems/Notes';
+import { ruralBuilding, ruralProp } from './RuralMeshes';
 
 /**
  * Baut die Stadt aus ihrem Plan: Geometrie (je Material EIN verschmolzenes Mesh mit Vertexfarben →
@@ -12,7 +13,7 @@ import { TOWN_NOTES } from '../systems/Notes';
  * (Durchgänge für die Wegfindung). Alles in Weltkoordinaten.
  */
 
-export type LootKind = 'fridge' | 'cabinet' | 'wardrobe' | 'shelf' | 'register' | 'toolbox' | 'car' | 'desk';
+export type LootKind = 'fridge' | 'cabinet' | 'wardrobe' | 'shelf' | 'register' | 'toolbox' | 'car' | 'desk' | 'caravan' | 'crate';
 
 export const LOOT_LABELS: Record<LootKind, string> = {
   fridge: 'Kühlschrank',
@@ -23,6 +24,8 @@ export const LOOT_LABELS: Record<LootKind, string> = {
   toolbox: 'Werkzeugkiste',
   car: 'Kofferraum',
   desk: 'Schreibtisch',
+  caravan: 'Wohnwagen',
+  crate: 'Holzkiste',
 };
 
 export interface ContainerSpec {
@@ -87,6 +90,8 @@ export interface BoxOpts {
   rx?: number;
   ry?: number;
   rz?: number;
+  /** Reihenfolge der Drehungen (Standard XYZ). */
+  order?: THREE.EulerOrder;
   collide?: boolean;
   nav?: boolean;
   container?: LootKind;
@@ -96,7 +101,7 @@ export interface BoxOpts {
   surface?: SurfaceId | null;
 }
 
-interface Opening {
+export interface Opening {
   /** Mitte entlang der Wand (von der Wandmitte aus). */
   at: number;
   width: number;
@@ -104,8 +109,8 @@ interface Opening {
   y1: number;
 }
 
-const FLOOR = 0.15;
-const WALL = 0.2;
+export const FLOOR = 0.15;
+export const WALL = 0.2;
 
 /** Baukasten aus Quadern mit Vertexfarben (auch für Hafen und Leuchtturm). */
 export class Builder {
@@ -124,8 +129,8 @@ export class Builder {
   constructor(private readonly town: THREE.Matrix4) {}
 
   /** Bezugssystem für ein Objekt im Ortssystem setzen (Position x/z, Drehung). */
-  at(x: number, z: number, rotation: number, building = -1): void {
-    this.base.copy(this.town).multiply(new THREE.Matrix4().makeTranslation(x, 0, z).multiply(new THREE.Matrix4().makeRotationY(rotation)));
+  at(x: number, z: number, rotation: number, building = -1, y = 0): void {
+    this.base.copy(this.town).multiply(new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationY(rotation)));
     this.building = building;
   }
 
@@ -146,7 +151,7 @@ export class Builder {
 
   /** Quader (Mitte x, y, z im aktuellen Bezugssystem). */
   box(w: number, h: number, d: number, x: number, y: number, z: number, o: BoxOpts): void {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx ?? 0, o.ry ?? 0, o.rz ?? 0));
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx ?? 0, o.ry ?? 0, o.rz ?? 0, o.order ?? 'XYZ'));
     this.local.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     this.world.multiplyMatrices(this.base, this.local);
     if (!o.invisible) this.add(new THREE.BoxGeometry(w, h, d), o.bucket ?? 'in', o.color, o.surface);
@@ -190,7 +195,7 @@ export class Builder {
    * Gerade Wand entlang lokal X (`alongX`) bzw. Z mit Öffnungen (Türen, Fenster).
    * (cx, cz) = Mitte der Wand, length = Länge, Öffnungen relativ zur Mitte.
    */
-  wall(cx: number, cz: number, alongX: boolean, length: number, top: number, openings: Opening[], color: number): void {
+  wall(cx: number, cz: number, alongX: boolean, length: number, top: number, openings: Opening[], color: number, surface?: SurfaceId): void {
     const pieces: [number, number, number, number][] = []; // [von, bis, y0, y1] entlang der Wand
     const sorted = [...openings].sort((a, b) => a.at - b.at);
     let cursor = -length / 2;
@@ -209,9 +214,9 @@ export class Builder {
       const h = y1 - y0;
       if (len < 0.02 || h < 0.02) continue;
       const y = FLOOR + y0 + h / 2;
-      const surface = color === C.char ? 'planks' : 'plaster';
-      if (alongX) this.box(len, h, WALL, cx + mid, y, cz, { color, collide: true, nav: true, surface });
-      else this.box(WALL, h, len, cx, y, cz + mid, { color, collide: true, nav: true, surface });
+      const surf = surface ?? (color === C.char ? 'planks' : 'plaster');
+      if (alongX) this.box(len, h, WALL, cx + mid, y, cz, { color, collide: true, nav: true, surface: surf });
+      else this.box(WALL, h, len, cx, y, cz + mid, { color, collide: true, nav: true, surface: surf });
     }
   }
 
@@ -271,7 +276,7 @@ export class Builder {
 // Materialien & kleine Formen
 // ---------------------------------------------------------------------------
 
-const C = {
+export const C = {
   floorWood: 0x6e5a42,
   roofTile: 0x6a3d33,
   roofGrey: 0x4d5257,
@@ -330,7 +335,7 @@ export function injectBuildingSurface(shader: THREE.WebGLProgramParametersWithUn
   shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vSurf;');
 }
 
-function gable(width: number, height: number): THREE.BufferGeometry {
+export function gable(width: number, height: number): THREE.BufferGeometry {
   const s = new THREE.Shape();
   s.moveTo(-width / 2, 0);
   s.lineTo(width / 2, 0);
@@ -547,6 +552,7 @@ function townHall(b: Builder, t: TownBuilding, g: THREE.Group, place: (o: THREE.
 function streets(b: Builder, t: TownLayout): void {
   b.at(0, 0, 0);
   t.streets.forEach((st, i) => {
+    if (st.dirt) return;
     const len = Math.hypot(st.bx - st.ax, st.bz - st.az);
     const yaw = Math.atan2(st.bx - st.ax, st.bz - st.az);
     const cx = (st.ax + st.bx) / 2;
@@ -562,20 +568,47 @@ function streets(b: Builder, t: TownLayout): void {
       b.box(0.15, 0.02, 1.8, px, y + 0.055, pz, { color: C.line, bucket: 'out', ry: yaw });
     }
   });
-  b.mesh(new THREE.CylinderGeometry(t.plaza.radius, t.plaza.radius, 0.1, 20), t.plaza.x, 0.03, t.plaza.z, C.paving, 'out');
+  if (t.plaza.radius > 0) b.mesh(new THREE.CylinderGeometry(t.plaza.radius, t.plaza.radius, 0.1, 20), t.plaza.x, 0.03, t.plaza.z, C.paving, 'out');
 }
 
 function prop(b: Builder, p: TownProp, rng: RandomFn): void {
-  b.at(p.x, p.z, p.rotation);
   switch (p.kind) {
     case 'car': {
       const rust = rng() < 0.5;
       const paint = rust ? new THREE.Color(p.color).lerp(new THREE.Color(C.rust), 0.5).getHex() : p.color;
-      b.box(1.8, 0.7, 4.2, 0, 0.6, 0, { color: paint, bucket: 'out', collide: true, nav: true, container: p.loot ? 'car' : undefined });
-      b.box(1.6, 0.6, 2.1, 0, 1.25, -0.25, { color: C.glassDark, bucket: 'out' });
-      b.box(1.62, 0.08, 2.0, 0, 1.58, -0.25, { color: paint, bucket: 'out' });
-      const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.25, 10);
-      for (const x of [-0.85, 0.85]) for (const z of [-1.35, 1.35]) b.mesh(wheel, x, 0.32, z, C.tire, 'out', 0, 0, Math.PI / 2);
+      const dark = new THREE.Color(paint).multiplyScalar(0.55).getHex();
+      // Karosserie: Unterteil, Motorhaube und Kofferraum etwas tiefer, Fahrgastzelle mit schrägen Scheiben.
+      b.box(1.8, 0.55, 4.3, 0, 0.58, 0, { color: paint, bucket: 'out', collide: true, nav: true, container: p.loot ? 'car' : undefined });
+      b.box(1.76, 0.1, 1.15, 0, 0.9, 1.5, { color: paint, bucket: 'out', rx: 0.06 });
+      b.box(1.76, 0.1, 0.8, 0, 0.9, -1.7, { color: paint, bucket: 'out' });
+      b.box(1.66, 0.5, 1.5, 0, 1.12, -0.3, { color: C.glassDark, bucket: 'out' });
+      b.box(1.7, 0.07, 1.6, 0, 1.4, -0.3, { color: paint, bucket: 'out' });
+      b.box(1.62, 0.52, 0.06, 0, 1.12, 0.62, { color: rng() < 0.3 ? 0x2a3036 : C.glassDark, bucket: 'out', rx: -0.55 });
+      b.box(1.62, 0.48, 0.06, 0, 1.12, -1.2, { color: C.glassDark, bucket: 'out', rx: 0.5 });
+      // Stoßstangen, Scheinwerfer, Rückleuchten, Kühlergrill
+      b.box(1.84, 0.16, 0.12, 0, 0.42, 2.16, { color: 0x2a2a2a, bucket: 'out' });
+      b.box(1.84, 0.16, 0.12, 0, 0.42, -2.16, { color: 0x2a2a2a, bucket: 'out' });
+      for (const x of [-0.65, 0.65]) {
+        b.box(0.3, 0.14, 0.04, x, 0.68, 2.16, { color: 0xc9c6b4, bucket: 'out' });
+        b.box(0.3, 0.12, 0.04, x, 0.7, -2.16, { color: 0x7a1c16, bucket: 'out' });
+      }
+      b.box(0.7, 0.16, 0.04, 0, 0.66, 2.16, { color: 0x1c1c1c, bucket: 'out' });
+      // Türfugen, Radkästen
+      for (const s of [-1, 1]) {
+        b.box(0.02, 0.45, 0.02, s * 0.91, 0.62, 0.35, { color: dark, bucket: 'out' });
+        b.box(0.02, 0.45, 0.02, s * 0.91, 0.62, -0.75, { color: dark, bucket: 'out' });
+      }
+      const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 12);
+      const rim = new THREE.CylinderGeometry(0.17, 0.17, 0.25, 8);
+      for (const x of [-0.82, 0.82])
+        for (const z of [-1.35, 1.35]) {
+          // Manchmal platt
+          const flat = rng() < 0.15 ? 0.08 : 0;
+          b.mesh(wheel, x, 0.34 - flat, z, C.tire, 'out', 0, 0, Math.PI / 2);
+          b.mesh(rim, x, 0.34 - flat, z, 0x6a6e70, 'out', 0, 0, Math.PI / 2);
+        }
+      // Eine Tür steht offen.
+      if (rng() < 0.35) b.box(0.06, 0.75, 1.05, 1.3, 0.78, 0.2, { color: paint, bucket: 'out', ry: 0.9 });
       break;
     }
     case 'lamp':
@@ -602,25 +635,37 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
   const town = new THREE.Matrix4().makeTranslation(t.center.x, t.center.y, t.center.z).multiply(new THREE.Matrix4().makeRotationY(t.rotation));
   const b = new Builder(town);
   const signs = new THREE.Group();
-  const place = (o: THREE.Object3D, x: number, y: number, z: number) => {
+  const place = (o: THREE.Object3D, x: number, y: number, z: number, ry = 0) => {
     o.position.set(x, y, z).applyMatrix4(b.base);
     o.quaternion.setFromRotationMatrix(new THREE.Matrix4().extractRotation(b.base));
+    if (ry) o.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry));
   };
   streets(b, t);
-  // Drei Briefe und Hefte, verteilt über den Ort (erstes, mittleres und letztes Wohnhaus).
+  // Drei Briefe und Hefte, verteilt über den Ort (erstes, mittleres und letztes Wohnhaus) – nur in Altwasser;
+  // die kleinen Orte tragen ihre Notizen im Plan.
   const houses = t.buildings.filter((x) => x.kind === 'house');
   const houseNotes = new Map<number, string>();
-  [0, Math.floor(houses.length / 2), houses.length - 1].forEach((i, n) => houses[i] && houseNotes.set(houses[i].index, TOWN_NOTES.houses[n]));
+  if (!t.kind || t.kind === 'town') {
+    [0, Math.floor(houses.length / 2), houses.length - 1].forEach((i, n) => houses[i] && houseNotes.set(houses[i].index, TOWN_NOTES.houses[n]));
+  } else {
+    for (const h of houses) if (h.note) houseNotes.set(h.index, h.note);
+  }
+  // Eigener Zufall je Ort (Altwasser behält seine bisherigen Würfe).
+  const salt = !t.kind || t.kind === 'town' ? 0 : 5000 + (Math.abs(Math.round(t.center.x * 7 + t.center.z * 13)) % 4000);
   for (const bd of t.buildings) {
     b.at(bd.x, bd.z, bd.rotation, bd.index);
-    const rng = buildingRng(seed, bd);
+    const rng = buildingRng(seed, salt ? { ...bd, index: bd.index + salt } : bd);
     if (bd.kind === 'house' || bd.kind === 'ruin') house(b, bd, rng, bd.kind === 'ruin', houseNotes.get(bd.index));
     else if (bd.kind === 'shop') shop(b, bd, signs, place);
     else if (bd.kind === 'gas') gasStation(b, bd, signs, place);
-    else townHall(b, bd, signs, place);
+    else if (bd.kind === 'hall') townHall(b, bd, signs, place);
+    else ruralBuilding(b, bd, rng, signs, place);
   }
-  const propRng = buildingRng(seed, { index: 1000 } as TownBuilding);
-  for (const p of t.props) prop(b, p, propRng);
+  const propRng = buildingRng(seed, { index: 1000 + salt } as TownBuilding);
+  for (const p of t.props) {
+    b.at(p.x, p.z, p.rotation, -1, p.y ?? 0);
+    if (!ruralProp(b, p, propRng, signs, place)) prop(b, p, propRng);
+  }
 
   const material = (snow: boolean) => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, flatShading: true });

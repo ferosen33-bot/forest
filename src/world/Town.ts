@@ -11,8 +11,37 @@ import type { HeightMap } from './HeightMap';
  * zur Straße. `rotation` dreht den ganzen Ort um Y in die Welt.
  */
 
-export type BuildingKind = 'house' | 'shop' | 'gas' | 'hall' | 'ruin';
-export type PropKind = 'car' | 'lamp' | 'bin' | 'bench' | 'mailbox';
+export type BuildingKind = 'house' | 'shop' | 'gas' | 'hall' | 'ruin' | 'barn' | 'shed' | 'cabin' | 'pub' | 'sawmill' | 'kiosk';
+export type PropKind =
+  | 'car'
+  | 'lamp'
+  | 'bin'
+  | 'bench'
+  | 'mailbox'
+  // Land und Siedlungen (seit Meilenstein 52)
+  | 'tractor'
+  | 'hay'
+  | 'fence'
+  | 'field'
+  | 'well'
+  | 'scarecrow'
+  | 'woodpile'
+  | 'caravan'
+  | 'tent'
+  | 'picnic'
+  | 'firepit'
+  | 'logpile'
+  | 'truck'
+  | 'busstop'
+  | 'phonebox'
+  // An den Wegen
+  | 'pole'
+  | 'post'
+  | 'signpost'
+  | 'townsign';
+
+/** Art der Siedlung (Altwasser ist die Stadt, der Rest kleine Orte; `road` = Dinge an den Wegen). */
+export type SettlementKind = 'town' | 'farm' | 'hamlet' | 'camp' | 'sawmill' | 'road';
 
 export interface TownBuilding {
   /** Fortlaufende Nummer (stabil für Spielstände und Zufall). */
@@ -28,6 +57,8 @@ export interface TownBuilding {
   d: number;
   /** Fassadenfarbe. */
   color: number;
+  /** Notiz, die in diesem Gebäude liegt. */
+  note?: string;
 }
 
 export interface TownStreet {
@@ -36,6 +67,8 @@ export interface TownStreet {
   bx: number;
   bz: number;
   width: number;
+  /** Feldweg statt Asphalt (nur Bodenfarbe, keine Fahrbahn). */
+  dirt?: boolean;
 }
 
 export interface TownProp {
@@ -47,10 +80,23 @@ export interface TownProp {
   color: number;
   /** Autos: Kofferraum durchsuchbar. */
   loot: boolean;
+  /** Bodenhöhe relativ zur Ortsmitte (an Wegen, wo nicht eingeebnet ist). */
+  y?: number;
+  /** Länge (Zaun, Feld) bzw. Tiefe (Feld). */
+  length?: number;
+  depth?: number;
+  /** Strommast: Spitze des nächsten Masts (lokal) für die Leitung. */
+  link?: [number, number, number];
+  /** Schilder: Aufschrift (Zeilen). */
+  text?: string[];
+  /** Umgestürzt bzw. schief (Masten, Schilder). */
+  tilt?: number;
 }
 
 export interface TownLayout {
   name: string;
+  /** Ohne Angabe: die Stadt. */
+  kind?: SettlementKind;
   /** Ortsmitte in Weltkoordinaten (y = eingeebnete Bodenhöhe). */
   center: THREE.Vector3;
   rotation: number;
@@ -61,6 +107,8 @@ export interface TownLayout {
   props: TownProp[];
   /** Marktplatz (lokal): hier haben sich die Schrate eingerichtet. */
   plaza: { x: number; z: number; radius: number };
+  /** Zufahrten (lokal), an denen das Wegenetz andockt. */
+  entries?: { x: number; z: number }[];
 }
 
 export const TOWN_NAME = 'Altwasser';
@@ -220,6 +268,10 @@ export function generateTown(seed: number, site: TownSite): TownLayout {
     buildings,
     props,
     plaza,
+    entries: [
+      { x: 0, z: -MAIN_HALF - 2 },
+      { x: 0, z: MAIN_HALF + 2 },
+    ],
   };
 }
 
@@ -259,7 +311,7 @@ function inFootprint(b: TownBuilding, x: number, z: number, margin: number): boo
   const lx = c * dx - s * dz;
   const lz = s * dx + c * dz;
   // Tankstelle: Dach über den Zapfsäulen reicht weit zur Straße.
-  const front = b.kind === 'gas' ? 9 : 0;
+  const front = b.kind === 'gas' ? 9 : b.kind === 'sawmill' ? 3 : 0;
   return Math.abs(lx) < b.w / 2 + margin && lz > -b.d / 2 - margin && lz < b.d / 2 + margin + front;
 }
 
@@ -267,7 +319,7 @@ function inFootprint(b: TownBuilding, x: number, z: number, margin: number): boo
 export function pavedAt(t: TownLayout, x: number, z: number): boolean {
   const p = townLocal(t, x, z);
   if (Math.hypot(p.x - t.plaza.x, p.z - t.plaza.z) < t.plaza.radius) return true;
-  return t.streets.some((st) => streetDistance(st, p.x, p.z) < st.width / 2);
+  return t.streets.some((st) => !st.dirt && streetDistance(st, p.x, p.z) < st.width / 2);
 }
 
 /** Bebauung 0..1: 1 auf Straßen und unter Gebäuden, im Ort zertretener Boden, außerhalb 0. */
@@ -276,8 +328,17 @@ export function urbanAt(t: TownLayout, x: number, z: number): number {
   if (r > t.radius + 8) return 0;
   const p = townLocal(t, x, z);
   if (t.streets.some((st) => streetDistance(st, p.x, p.z) < st.width / 2 + 0.8)) return 1;
-  if (Math.hypot(p.x - t.plaza.x, p.z - t.plaza.z) < t.plaza.radius + 1) return 1;
+  if (t.plaza.radius > 0 && Math.hypot(p.x - t.plaza.x, p.z - t.plaza.z) < t.plaza.radius + 1) return 1;
   if (t.buildings.some((b) => inFootprint(b, p.x, p.z, 1.2))) return 1;
+  // Äcker: umgegrabene Erde.
+  for (const f of t.props) {
+    if (f.kind !== 'field') continue;
+    const c = Math.cos(f.rotation);
+    const sn = Math.sin(f.rotation);
+    const dx = p.x - f.x;
+    const dz = p.z - f.z;
+    if (Math.abs(c * dx - sn * dz) < (f.length ?? 10) / 2 && Math.abs(sn * dx + c * dz) < (f.depth ?? 10) / 2) return 0.9;
+  }
   return 0.4 * (1 - smoothstep(t.radius - 12, t.radius + 6, r));
 }
 

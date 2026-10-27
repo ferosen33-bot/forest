@@ -61,6 +61,46 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 52 – Welt & Atmosphäre (Teil A: Wege und Dörfer)
+
+- **Wegenetz:** Eine asphaltierte Landstraße verbindet Altwasser mit Moorwinkel. Von ihr zweigen
+  Schotterwege zu Höfen, Campingplatz, Sägewerk, Zeche, Funkstation, Kapelle, Nordbucht und
+  Absturzstelle ab. Ein Waldweg endet nicht weit von dort, wo man aufwacht.
+  - Die Wege werden per A* über die Höhenkarte gesucht. Sie meiden Wasser, Sumpf und steile Hänge und
+    münden in vorhandene Wege, so entstehen Kreuzungen. Danach werden sie geglättet und eben ins
+    Gelände gelegt (an Hügeln entstehen Hohlwege).
+  - Die Landstraße hat rissigen Asphalt mit Flicken, gestrichelter Mittellinie, verblassten Randlinien
+    und Leitpfosten. Feldwege haben zwei Fahrspuren mit Grasstreifen in der Mitte.
+  - An den Wegen stehen Holzmasten mit durchhängenden Leitungen (manche schief, mit abgerissener
+    Leitung), liegengebliebene Autos (am Rand, im Graben, quer über der Fahrbahn; Kofferraum
+    durchsuchbar), zweiseitige Wegweiser mit Ziel und Entfernung an den Kreuzungen und gelbe
+    Ortsschilder an den Ortseingängen.
+  - Die Karte zeigt Landstraße und Feldwege.
+- **Fünf neue Orte** (alle begehbar, mit durchsuchbaren Behältern, Türen und Notizen):
+  - **Moorwinkel:** Weiler an der Landstraße mit Wohnhäusern, einer Brandruine, Gasthof (Tresen,
+    Zapfhahn, Stammtisch), Bushaltestelle und Telefonzelle. Schrate haben sich hier eingenistet.
+  - **Hof Hollmann** und **Hof Brinkmann:** Bauernhaus, rote Scheune (offenes Tor, Heuboden, Leiter,
+    Werkbank, Holzkiste), Schuppen, umgegrabener Acker mit Zaun und Vogelscheuche, Traktor, Brunnen,
+    Heuballen und Holzstapel.
+  - **Campingplatz Seeblick:** Rezeption mit Gästebuch, fünf Ferienhütten (Etagenbett, Veranda),
+    Wohnwagen (durchsuchbar), Zelte (manche eingestürzt), Picknicktische und Feuerstellen.
+  - **Sägewerk Tannenfeld:** offene Halle mit Sägestraße und Kreissäge im Stamm, Bürohütte, Stammpolter,
+    Holzlaster. Auch hier lagern Schrate.
+- **Neun neue Notizen** erzählen, was dort geschah, etwa der Kalender auf Hof Hollmann, die Tafel im
+  Gasthof, das Gästebuch der Rezeption und das Auftragsbuch des Sägewerks („zum Verschließen von
+  Zugängen“). Im Tagebuch gibt es ein neues Ziel: *Die Höfe und Dörfer der Insel erkunden*.
+- **Basen überall:** Ferienhütten (Tür + 2 Fenster), Gasthof (2 Türen + 5 Fenster) und Bauernhäuser
+  lassen sich wie die Häuser in Altwasser verbarrikadieren und als Basis nutzen.
+- Neue Behälter: *Wohnwagen* und *Holzkiste*. Werkzeugkisten in Scheunen enthalten immer Nägel.
+- **Technik:**
+  - Der Inselplan (`world/IslandPlan.ts`) ist ohne Grafik testbar. Dazu kommen `world/Hamlets.ts`
+    (Pläne der Orte), `world/Roads.ts` (Wegenetz), `world/Roadside.ts` (Dinge am Weg),
+    `world/RoadMeshes.ts` (Fahrbahnen) und `world/RuralMeshes.ts` (neue Gebäude und Requisiten).
+  - `Settlement` verwaltet jetzt alle Orte. Die Behälter-Nummern von Altwasser bleiben gleich, alte
+    Spielstände laden also weiter.
+  - Die Autos (auch in Altwasser) haben ein neues Modell mit Scheiben, Leuchten, Felgen und manchmal
+    offener Tür oder Plattfuß.
+
 ### Meilenstein 51 – Basisbau (Teil C: Begleiter)
 
 - **Ben Hartmann, der Funker:** Er kniet verletzt in der Baracke der Funkstation Klippenkopf. Kommt man

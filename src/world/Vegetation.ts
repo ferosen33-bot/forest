@@ -82,6 +82,8 @@ export interface VegetationOptions {
   cullDistance: number;
   /** Bereiche, die frei bleiben sollen (z. B. Spawnpunkt). */
   clearings: { x: number; z: number; radius: number }[];
+  /** Weitere freie Flächen als Abfrage (Wege). */
+  exclude?: (x: number, z: number) => boolean;
   /** Fotogescannte Felsen (fehlen sie, bleiben die einfachen Formen). */
   rocks?: RockModel[];
 }
@@ -251,8 +253,9 @@ export class Vegetation {
       const cz = Math.min(cellsPerSide - 1, Math.max(0, Math.floor((z + hm.half) / this.opts.cellSize)));
       return cz * cellsPerSide + cx;
     };
+    const exclude = this.opts.exclude;
     const inClearing = (x: number, z: number) =>
-      this.opts.clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.radius * c.radius);
+      this.opts.clearings.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.radius * c.radius) || !!exclude?.(x, z);
 
     const biome: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
     /** Waldgebiets-Dichte in [0, 1]: große Wälder mit Lichtungen dazwischen. */
