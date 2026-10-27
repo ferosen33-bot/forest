@@ -67,6 +67,15 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   pistolAmmo: new THREE.Euler(0.4, 0.5, 0),
   shells: new THREE.Euler(0.4, 0.3, 0),
   rifleAmmo: new THREE.Euler(0.4, 0.5, 0),
+  katana: new THREE.Euler(0, 0.3, -0.78),
+  cleaver: new THREE.Euler(0, 0.2, -0.6),
+  golfClub: new THREE.Euler(0, 0.3, -0.75),
+  baton: new THREE.Euler(0, 0.3, -0.75),
+  pitchfork: new THREE.Euler(0, 0.3, -0.75),
+  nailBat: new THREE.Euler(0, 0.3, -0.7),
+  shockBar: new THREE.Euler(0, 0.3, -0.7),
+  nails: new THREE.Euler(0.5, 0.4, 0.3),
+  pipeBomb: new THREE.Euler(0.3, 0.4, -0.6),
 };
 
 export interface IconSets {

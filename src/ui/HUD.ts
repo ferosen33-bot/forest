@@ -349,7 +349,8 @@ export class HUD {
         // Waffen: Name in der Farbe ihrer Seltenheit, darunter die Perks.
         const w = stack?.weapon;
         const perks = w?.perks.length ? ` · ${w.perks.map((p) => getWeaponPerk(p).name).join(' · ')}` : '';
-        const mod = w?.mod ? ` · ${ELEMENTS[w.mod].name}` : '';
+        const element = w?.mod ?? getItem(item).builtIn;
+        const mod = w && element ? ` · ${ELEMENTS[element].name}` : '';
         this.text('hotbarName', w ? `${weaponName(item, w)}${mod}${perks}` : getItem(item).name);
         this.el.hotbarName.style.color = w ? getRarity(w.rarity).color : '';
         this.nameTimer = w ? 2.4 : 1.6;

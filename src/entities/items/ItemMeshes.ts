@@ -88,6 +88,12 @@ const MATERIALS = {
   shellRed: mat(0xa01c18, { roughness: 0.55 }),
   cardboard: mat(0x8a6a44, { roughness: 1 }),
   cardboardBlue: mat(0x2e4a6e, { roughness: 1 }),
+  katanaWrap: mat(0x1c1a22, { roughness: 0.9 }),
+  katanaSkin: mat(0xe8e2d2, { roughness: 0.8 }),
+  rust: mat(0x7a5a44, { roughness: 0.8, metalness: 0.2 }),
+  pipe: new THREE.MeshStandardMaterial({ color: 0x6a6e72, roughness: 0.5, metalness: 0.35 }),
+  bombTape: mat(0x8a7a3a, { roughness: 0.95 }),
+  ledRed: new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.3, 0.2) }),
 };
 
 // Holz, Rinde und Stein bekommen Foto-Oberflächen (dreiachsig projiziert, ohne UVs).
@@ -837,6 +843,145 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'katana': {
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.016, 0.24, 8), MATERIALS.katanaWrap);
+      grip.position.y = -0.36;
+      // Rautenmuster der Wicklung: helle Rochenhaut darunter.
+      const skin = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.0155, 0.22, 8), MATERIALS.katanaSkin);
+      skin.position.y = -0.36;
+      skin.scale.set(0.98, 1, 0.98);
+      const tsuba = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.008, 12), MATERIALS.hammerHead);
+      tsuba.position.y = -0.235;
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.012, 0);
+      shape.lineTo(0.012, 0);
+      shape.quadraticCurveTo(0.022, 0.4, 0.004, 0.72);
+      shape.lineTo(-0.008, 0.74);
+      shape.quadraticCurveTo(0.004, 0.4, -0.012, 0);
+      const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.004, bevelEnabled: false }), MATERIALS.blade);
+      blade.position.set(0, -0.23, -0.002);
+      g.add(skin, grip, tsuba, blade);
+      break;
+    }
+    case 'cleaver': {
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.13, 0.028), MATERIALS.handle);
+      handle.position.y = -0.1;
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.17, 0.004), MATERIALS.blade);
+      blade.position.set(0.03, 0.05, 0);
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.17, 0.005), MATERIALS.steelEdge);
+      edge.position.set(0.075, 0.05, 0);
+      const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.006, 8), MATERIALS.grip);
+      hole.rotation.x = Math.PI / 2;
+      hole.position.set(0.0, 0.12, 0);
+      g.add(handle, blade, edge, hole);
+      break;
+    }
+    case 'golfClub': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.8, 6), MATERIALS.steelEdge);
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.011, 0.22, 8), MATERIALS.tape);
+      grip.position.y = -0.3;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.04, 0.02), MATERIALS.steel);
+      head.position.set(0.03, 0.41, 0.004);
+      head.rotation.z = -0.2;
+      g.add(shaft, grip, head);
+      break;
+    }
+    case 'baton': {
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.16, 8), MATERIALS.grip);
+      grip.position.y = -0.2;
+      const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.2, 8), MATERIALS.hammerHead);
+      mid.position.y = -0.02;
+      const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.009, 0.18, 8), MATERIALS.hammerHead);
+      tip.position.y = 0.17;
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), MATERIALS.hammerHead);
+      knob.position.y = 0.265;
+      g.add(grip, mid, tip, knob);
+      break;
+    }
+    case 'pitchfork': {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 1.1, 6), MATERIALS.lightWood);
+      shaft.position.y = -0.1;
+      const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.025, 0.014), MATERIALS.rust);
+      bridge.position.y = 0.46;
+      g.add(shaft, bridge);
+      for (const x of [-0.055, 0, 0.055]) {
+        const tine = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.26, 5), MATERIALS.rust);
+        tine.position.set(x, 0.6, 0);
+        g.add(tine);
+      }
+      break;
+    }
+    case 'nailBat': {
+      const profile = [
+        [0.0, -0.4], [0.022, -0.4], [0.024, -0.38], [0.017, -0.36], [0.018, -0.15], [0.03, 0.1], [0.04, 0.34], [0.034, 0.4], [0.0, 0.41],
+      ].map(([r, y]) => new THREE.Vector2(r, y));
+      g.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 10), MATERIALS.lightWood));
+      const tape = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.14, 10), MATERIALS.cloth);
+      tape.position.y = -0.3;
+      g.add(tape);
+      // Krumme Nägel rundum durch den Kopf getrieben.
+      for (let i = 0; i < 14; i++) {
+        const a = i * 2.4;
+        const y = 0.08 + (i / 14) * 0.3;
+        const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.0022, 0.0022, 0.07, 4), MATERIALS.rust);
+        const r = 0.03 + (y / 0.4) * 0.01;
+        nail.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+        nail.rotation.set(Math.sin(a) * 1.4 + 0.2, 0, -Math.cos(a) * 1.4);
+        g.add(nail);
+      }
+      break;
+    }
+    case 'shockBar': {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.66, 6), MATERIALS.hammerHead);
+      g.add(bar);
+      const hook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 5, 10, Math.PI), MATERIALS.hammerHead);
+      hook.position.set(0.045, 0.33, 0);
+      g.add(hook);
+      for (const y of [0.02, 0.07]) {
+        const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 8), MATERIALS.batteryBody);
+        cell.position.set(0.024, y, 0);
+        g.add(cell);
+      }
+      for (let i = 0; i < 9; i++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.0022, 4, 10), MATERIALS.copper);
+        coil.rotation.x = Math.PI / 2;
+        coil.position.y = 0.14 + i * 0.018;
+        g.add(coil);
+      }
+      const tape = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.16, 8), MATERIALS.tape);
+      tape.position.y = -0.24;
+      g.add(tape);
+      break;
+    }
+    case 'nails': {
+      for (let i = 0; i < 7; i++) {
+        const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.07, 4), MATERIALS.rust);
+        nail.position.set((i % 4) * 0.012 - 0.018, 0, Math.floor(i / 4) * 0.012);
+        nail.rotation.z = (i - 3) * 0.12;
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.002, 6), MATERIALS.rust);
+        head.position.y = 0.035;
+        nail.add(head);
+        g.add(nail);
+      }
+      break;
+    }
+    case 'pipeBomb': {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.18, 10), MATERIALS.pipe);
+      const capA = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 10), MATERIALS.pipe);
+      capA.position.y = 0.095;
+      const capB = capA.clone();
+      capB.position.y = -0.095;
+      const tape = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.05, 10), MATERIALS.bombTape);
+      const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.045, 8), MATERIALS.batteryBody);
+      cell.position.set(0.034, 0, 0);
+      const led = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 4), MATERIALS.ledRed);
+      led.name = 'led';
+      led.position.set(0.034, 0.03, 0);
+      const wire = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.002, 4, 10, Math.PI), MATERIALS.redPaint);
+      wire.position.set(0.0, 0.1, 0);
+      g.add(pipe, capA, capB, tape, cell, led, wire);
+      break;
+    }
     // Schusswaffen: Lauf entlang +Y (Mündung oben), Oberseite +Z, Griff nach −Z.
     case 'pistol': {
       const slide = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.19, 0.034), MATERIALS.gunSteel);
@@ -1094,6 +1239,24 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cuboid(0.045, 0.03, 0.03).setDensity(1200);
     case 'shells':
       return RAPIER.ColliderDesc.cuboid(0.04, 0.03, 0.012).setDensity(1200);
+    case 'katana':
+      return RAPIER.ColliderDesc.cuboid(0.02, 0.5, 0.01).setDensity(1800);
+    case 'cleaver':
+      return RAPIER.ColliderDesc.cuboid(0.05, 0.15, 0.012).setDensity(2500);
+    case 'golfClub':
+      return RAPIER.ColliderDesc.cylinder(0.45, 0.02).setDensity(1500);
+    case 'baton':
+      return RAPIER.ColliderDesc.cylinder(0.28, 0.014).setDensity(2000);
+    case 'pitchfork':
+      return RAPIER.ColliderDesc.cylinder(0.72, 0.03).setDensity(600);
+    case 'nailBat':
+      return RAPIER.ColliderDesc.cylinder(0.41, 0.035).setDensity(700);
+    case 'shockBar':
+      return RAPIER.ColliderDesc.cylinder(0.34, 0.02).setDensity(3000);
+    case 'nails':
+      return RAPIER.ColliderDesc.cuboid(0.03, 0.035, 0.015).setDensity(3000);
+    case 'pipeBomb':
+      return RAPIER.ColliderDesc.cylinder(0.1, 0.028).setDensity(2500);
   }
 }
 

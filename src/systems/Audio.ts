@@ -52,6 +52,8 @@ export type SoundId =
   | 'sizzle'
   | 'zap'
   | 'kick'
+  | 'beep'
+  | 'explosion'
   | 'shotPistol'
   | 'shotRevolver'
   | 'shotShotgun'
@@ -417,6 +419,18 @@ export class Audio {
         break;
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
+        break;
+      // Zünder der Rohrbombe: ein dünnes, elektronisches Piepen.
+      case 'beep':
+        this.tone(t, 'square', 2200, 2200, 0.06, 0.12, 5000);
+        break;
+      // Explosion: harter Knall, ein langes, tiefes Grollen und herabprasselnde Erde.
+      case 'explosion':
+        this.noise(t, 0.12, 'highpass', 600, 0.5, 1.0);
+        this.noise(t, 0.6, 'lowpass', 700, 0.6, 1.0);
+        this.tone(t, 'sine', 70, 22, 0.9, 1.0);
+        this.noise(t + 0.15, 2.2, 'lowpass', 300, 0.7, 0.55);
+        for (let i = 0; i < 10; i++) this.noise(t + 0.4 + Math.random() * 1.2, 0.04, 'bandpass', 900 + Math.random() * 1500, 1.5, 0.25);
         break;
       // Schüsse: scharfer Knall, tiefer Druck und ein Nachhall, der sich im Wald verliert.
       case 'shotPistol':

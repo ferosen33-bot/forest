@@ -84,6 +84,14 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   battery: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.3, 0.4, 0.5), grip: new THREE.Vector3(0, 0, 0), scale: 1.4 },
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
+  katana: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.36, 0), scale: 0.9 },
+  cleaver: { position: new THREE.Vector3(0.28, -0.32, -0.46), rotation: new THREE.Euler(-0.85, 0.1, -0.2), grip: new THREE.Vector3(0, -0.11, 0), scale: 1 },
+  golfClub: { position: new THREE.Vector3(0.31, -0.38, -0.52), rotation: new THREE.Euler(-0.8, 0.15, -0.28), grip: new THREE.Vector3(0, -0.32, 0), scale: 0.9 },
+  baton: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.8, 0.15, -0.25), grip: new THREE.Vector3(0, -0.2, 0), scale: 1 },
+  pitchfork: { position: new THREE.Vector3(0.26, -0.32, -0.45), rotation: new THREE.Euler(-1.45, 0.08, 0, 'XYZ'), grip: new THREE.Vector3(0, -0.28, 0), scale: 0.85 },
+  nailBat: { position: new THREE.Vector3(0.32, -0.4, -0.52), rotation: new THREE.Euler(-0.85, 0.15, -0.3), grip: new THREE.Vector3(0, -0.29, 0), scale: 0.9 },
+  shockBar: { position: new THREE.Vector3(0.3, -0.37, -0.5), rotation: new THREE.Euler(-0.8, 0.15, -0.25), grip: new THREE.Vector3(0, -0.24, 0), scale: 1 },
+  pipeBomb: { position: new THREE.Vector3(0.24, -0.31, -0.48), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.02, 0), scale: 0.72 },
   // Schusswaffen: Lauf nach vorne (Modell +Y → Blickrichtung), die Faust um den Griff.
   pistol: {
     position: new THREE.Vector3(0.17, -0.26, -0.42),

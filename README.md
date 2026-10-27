@@ -61,6 +61,34 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 50 – Neue Waffen (Teil B: Nahkampf, Eigenbauten & Rohrbombe)
+
+- **Fünf neue Nahkampfwaffen**, alle mit Seltenheit, Perks und offen für Mods:
+
+  | Waffe | Merkmale | Fundorte |
+  |---|---|---|
+  | Katana | schnell, rasiermesserscharf, trennt mühelos ab | Sammlervitrinen, Sakristei, Verstecke |
+  | Hackbeil | kurz, geht durch Knochen | Kühlschränke |
+  | Golfschläger | lang und federnd | Kleiderschränke, Autos |
+  | Schlagstock | leicht, schnell, fast unverwüstlich | Autos, Spinde |
+  | Mistgabel | sticht auf 3 m Abstand | Regale |
+
+- **Eigenbauten an der Werkbank** (neuer Abschnitt „Waffenbau“), mit eingebautem Element (ein Mod ersetzt es):
+  - *Nagelkeule* (1 Stamm, 8 Nägel): jeder Treffer kann blutende Wunden reißen.
+  - *Elektrokeule* (Brecheisen, 2 Batterien, Fell): funkt bei Treffern, mit Lichtbögen und Kurzschluss bei
+    Nässe.
+  - Beide leuchten in der Hand in ihrer Elementfarbe.
+- **Rohrbombe** (Werkbank: Lampenöl, 4 Nägel, Batterie), Linksklick wirft:
+  - Sie bleibt liegen, piept immer schneller und lockt Schrate in der Nähe an. Nach zwei Sekunden geht
+    sie hoch.
+  - Die Druckwelle reicht 5,5 m und ist zur Mitte hin stärker. Sie wirft Überlebende um, reißt Glieder ab,
+    verletzt Tiere und beschädigt Bauwerke. Wer selbst zu nah steht, wird verletzt (Todesursache „Explosion“).
+  - Dazu kommen Feuerball, Funken, aufspritzende Erde, Rauch und ein Lichtblitz. Der Knall ist weit zu
+    hören, und das Öl brennt danach noch.
+- **Nägel:** neuer Rohstoff aus Werkzeugkisten und Regalen.
+- Erlegte Schrate lassen jetzt auch Hackbeil, Golfschläger, Schlagstock oder Mistgabel fallen.
+- `systems/Explosives.ts` enthält Zünder, Druckwelle und Feuerball.
+
 ### Meilenstein 50 – Neue Waffen (Teil A: Schusswaffen)
 
 - **Vier Schusswaffen**, alle mit Seltenheit und Perks (Wucht, Flink → Feuerrate, Ausgewogen → weniger

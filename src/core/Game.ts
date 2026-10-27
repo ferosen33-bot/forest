@@ -89,6 +89,7 @@ import { Defenses, type Intruder } from '../systems/Defenses';
 import { ElementEffects } from '../systems/ElementEffects';
 import { CombatMoves } from '../systems/CombatMoves';
 import { Gore } from '../systems/Gore';
+import { Explosives } from '../systems/Explosives';
 import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
@@ -112,9 +113,10 @@ const REPAIRABLE = new Set<ItemId>([
   'axe', 'stoneAxe', 'flintAxe', 'machete', 'spear', 'bow', 'fishingRod', 'boneClub',
   'baseballBat', 'pipeWrench', 'crowbar', 'sledgehammer', 'kitchenKnife', 'fireAxe', 'sabre',
   'pistol', 'revolver', 'shotgun', 'huntingRifle',
+  'katana', 'cleaver', 'golfClub', 'baton', 'pitchfork', 'nailBat', 'shockBar',
 ]);
 /** Was Schrate fallen lassen können (gewichtet). */
-const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre', 'pistol'];
+const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre', 'pistol', 'cleaver', 'golfClub', 'baton', 'pitchfork'];
 /** Chance, dass ein erlegter Schrat eine Waffe fallen lässt. */
 const ENEMY_WEAPON_CHANCE = 0.1;
 /** Munition, die erlegte Schrate fallen lassen können, und wie oft. */
@@ -231,6 +233,8 @@ export class Game {
   combat!: CombatMoves;
   /** Wunden und abgetrennte Gliedmaßen. */
   gore!: Gore;
+  /** Rohrbomben. */
+  explosives!: Explosives;
   private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
@@ -710,6 +714,7 @@ export class Game {
       onPlayerHit: (killed, headshot) => this.skills.gain('archery', killed ? 8 : headshot ? 5 : 3),
       onShatter: (point) => this.defenses.ignite(point, this.skills.has('pyro') ? 1.3 : 1),
       onIgnite: (point) => this.defenses.ignite(point, this.skills.has('pyro') ? 0.75 : 0.45),
+      onBomb: (point) => this.explosives.arm(point),
       hitPlayer: (damage, from) => {
         this.player.receiveHit(damage, from);
         this.audio.play('hurt');
@@ -825,6 +830,25 @@ export class Game {
     this.gore.enabled = this.settings.gore;
     this.scene.add(this.gore.group);
     this.tools.gore = this.gore;
+    this.explosives = new Explosives({
+      enemies: this.enemies,
+      animals: this.animals,
+      building: this.building,
+      heightMap: this.world.heightMap,
+      particles: this.particles,
+      embers: this.embers,
+      lights: this.lights,
+      audio: this.audio,
+      events: this.events,
+      gore: this.gore,
+      player: {
+        position: this.player.position,
+        hurt: (amount, from) => this.player.stats.damage(amount, 'explosion', true, from.clone()),
+        addShake: (amount) => this.player.addShake(amount),
+      },
+      ignite: (point, scale) => this.defenses.ignite(point, scale),
+    });
+    this.scene.add(this.explosives.group);
     this.combat = new CombatMoves({
       gore: this.gore,
       input: this.input,
@@ -1984,6 +2008,7 @@ export class Game {
     this.enemies.update(dt, alpha);
     this.elementFx.update(dt);
     this.gore.update(dt);
+    this.explosives.update(dt);
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);

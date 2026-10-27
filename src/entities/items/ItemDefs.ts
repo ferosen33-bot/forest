@@ -66,7 +66,16 @@ export type ItemId =
   | 'huntingRifle'
   | 'pistolAmmo'
   | 'shells'
-  | 'rifleAmmo';
+  | 'rifleAmmo'
+  | 'katana'
+  | 'cleaver'
+  | 'golfClub'
+  | 'baton'
+  | 'pitchfork'
+  | 'nailBat'
+  | 'shockBar'
+  | 'nails'
+  | 'pipeBomb';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -180,6 +189,8 @@ export interface ItemDef {
   /** Waffenmod: lädt Treffer mit diesem Element auf (an der Werkbank anbringen). */
   mod?: ElementId;
   gun?: GunStats;
+  /** Eingebautes Element (Eigenbauten): wirkt wie ein Mod, solange keiner angebracht ist. */
+  builtIn?: ElementId;
 }
 
 export const ITEMS: Record<ItemId, ItemDef> = {
@@ -818,6 +829,167 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Lange Jagdpatronen für das Jagdgewehr.',
     category: 'resource',
     maxStack: 30,
+  },
+  katana: {
+    id: 'katana',
+    name: 'Katana',
+    description: 'Ein echtes Katana aus einer Sammlervitrine. Rasiermesserscharf und schnell – trennt mühelos Gliedmaßen ab.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 180,
+    tool: {
+      treeDamage: 3,
+      rockYield: 0,
+      damage: 60,
+      swingTime: 0.46,
+      impactAt: 0.45,
+      staminaCost: 8,
+      reach: 2.7,
+      animation: 'swing',
+      weaponClass: 'blade',
+    },
+  },
+  cleaver: {
+    id: 'cleaver',
+    name: 'Hackbeil',
+    description: 'Ein schweres Metzgerbeil. Kurz, aber es geht durch Knochen wie durch Butter.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 150,
+    tool: {
+      treeDamage: 3,
+      rockYield: 0,
+      damage: 40,
+      swingTime: 0.42,
+      impactAt: 0.42,
+      staminaCost: 6,
+      reach: 1.9,
+      animation: 'swing',
+      weaponClass: 'blade',
+    },
+  },
+  golfClub: {
+    id: 'golfClub',
+    name: 'Golfschläger',
+    description: 'Ein Eisen 7 aus einem Golfbag. Lang und federnd, der Kopf trifft hart.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 140,
+    tool: {
+      treeDamage: 1,
+      rockYield: 0,
+      damage: 34,
+      swingTime: 0.5,
+      impactAt: 0.45,
+      staminaCost: 6,
+      reach: 2.7,
+      animation: 'swing',
+      weaponClass: 'blunt',
+    },
+  },
+  baton: {
+    id: 'baton',
+    name: 'Schlagstock',
+    description: 'Ein Teleskopschlagstock der Polizei. Leicht, schnell und fast unverwüstlich.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 320,
+    tool: {
+      treeDamage: 1,
+      rockYield: 0,
+      damage: 26,
+      swingTime: 0.36,
+      impactAt: 0.4,
+      staminaCost: 4,
+      reach: 2.2,
+      animation: 'swing',
+      weaponClass: 'blunt',
+    },
+  },
+  pitchfork: {
+    id: 'pitchfork',
+    name: 'Mistgabel',
+    description: 'Eine Heugabel mit langen Zinken. Hält Gegner auf Abstand – man sticht, statt zu schlagen.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 160,
+    tool: {
+      treeDamage: 3,
+      rockYield: 0,
+      damage: 42,
+      swingTime: 0.62,
+      impactAt: 0.45,
+      staminaCost: 7,
+      reach: 3.2,
+      animation: 'thrust',
+      weaponClass: 'blade',
+    },
+  },
+  nailBat: {
+    id: 'nailBat',
+    name: 'Nagelkeule',
+    description: 'Ein Knüppel, gespickt mit krummen Nägeln. Selbst gebaut an der Werkbank – jeder Treffer reißt blutende Wunden.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 170,
+    builtIn: 'bleed',
+    tool: {
+      treeDamage: 1,
+      rockYield: 0,
+      damage: 42,
+      swingTime: 0.58,
+      impactAt: 0.45,
+      staminaCost: 7,
+      reach: 2.5,
+      animation: 'swing',
+      weaponClass: 'blunt',
+    },
+  },
+  shockBar: {
+    id: 'shockBar',
+    name: 'Elektrokeule',
+    description: 'Ein Brecheisen, mit Kupferdraht an zwei Batterien gekoppelt. Funkt bei jedem Treffer – nasse Gegner zucken besonders schön.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 240,
+    builtIn: 'shock',
+    tool: {
+      treeDamage: 1,
+      rockYield: 0,
+      damage: 40,
+      swingTime: 0.56,
+      impactAt: 0.45,
+      staminaCost: 7,
+      reach: 2.6,
+      animation: 'swing',
+      weaponClass: 'blunt',
+    },
+  },
+  nails: {
+    id: 'nails',
+    name: 'Nägel',
+    description: 'Eine Handvoll rostiger Nägel aus einer Werkzeugkiste. Für Nagelkeulen und Rohrbomben.',
+    category: 'resource',
+    maxStack: 50,
+  },
+  pipeBomb: {
+    id: 'pipeBomb',
+    name: 'Rohrbombe',
+    description:
+      'Ein Rohr voll Lampenöl und Nägeln, gezündet über eine Batterie. Linksklick werfen: Sie piept, lockt Schrate an – und geht nach zwei Sekunden hoch.',
+    category: 'tool',
+    maxStack: 5,
+    throwable: { speed: 15, damageMultiplier: 1 },
+    tool: {
+      treeDamage: 0,
+      rockYield: 0,
+      damage: 8,
+      swingTime: 0.5,
+      impactAt: 0.4,
+      staminaCost: 4,
+      reach: 1.6,
+      animation: 'thrust',
+    },
   },
   torch: {
     id: 'torch',

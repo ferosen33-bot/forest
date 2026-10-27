@@ -48,6 +48,8 @@ export interface ProjectileDeps {
   onShatter?: (point: THREE.Vector3) => void;
   /** Ein Brandpfeil hat eingeschlagen: kleiner Brand am Treffpunkt. */
   onIgnite?: (point: THREE.Vector3) => void;
+  /** Eine Rohrbombe ist gelandet: Zünder läuft. */
+  onBomb?: (point: THREE.Vector3) => void;
 }
 
 const GRAVITY = PROJECTILE_GRAVITY;
@@ -237,6 +239,11 @@ export class Projectiles {
       this.d.audio.play('glassBreak', { position: p.position });
       this.d.particles.burst(p.position, { count: 10, color: 0x6f8a5a, speed: 2.5, size: 0.02 });
       this.d.onShatter?.(p.position.clone());
+      return;
+    }
+    // Rohrbomben bleiben liegen, wo sie landen – der Zünder läuft.
+    if (p.itemId === 'pipeBomb') {
+      this.d.onBomb?.(p.position.clone());
       return;
     }
     // Brandpfeile verbrennen beim Einschlag und lassen ein kleines Feuer zurück.

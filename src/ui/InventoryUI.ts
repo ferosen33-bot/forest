@@ -322,14 +322,15 @@ export class InventoryUI {
       );
     }
     this.el.detailStats.append(...w.perks.map((p) => row(`◆ ${getWeaponPerk(p).name}: ${getWeaponPerk(p).text}`, '', true)));
-    if (w.mod) {
-      const el = ELEMENTS[w.mod];
+    const element = w.mod ?? getItem(id).builtIn;
+    if (element) {
+      const el = ELEMENTS[element];
       const li = document.createElement('li');
       li.className = 'is-mod';
       li.style.setProperty('--element', el.css);
       const text = document.createElement('small');
       text.textContent = el.text;
-      li.append(`✦ Mod: ${el.name}`, text);
+      li.append(`✦ ${w.mod ? 'Mod' : 'Eingebaut'}: ${el.name}`, text);
       this.el.detailStats.append(li);
     } else if (canMod(w)) {
       this.el.detailStats.append(row('Mod: keiner (an der Werkbank anbringen)', '', true));

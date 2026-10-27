@@ -1,5 +1,5 @@
 import type { Slot } from '../systems/Inventory';
-import type { ItemId } from '../entities/items/ItemDefs';
+import { getItem, type ItemId } from '../entities/items/ItemDefs';
 import { getRarity, maxDurability } from '../entities/items/Weapons';
 import { ELEMENTS } from '../entities/items/Elements';
 
@@ -14,7 +14,7 @@ export function renderSlot(el: HTMLElement, slot: Slot, icons: IconSet): void {
   const max = slot ? maxDurability(slot.id, slot.weapon) : undefined;
   const condition = slot && max !== undefined && slot.durability !== undefined ? Math.min(1, Math.round((slot.durability / max) * 50) / 50) : null;
   const rarity = slot?.weapon?.rarity ?? '';
-  const mod = slot?.weapon?.mod;
+  const mod = slot ? (slot.weapon?.mod ?? getItem(slot.id).builtIn) : undefined;
   const key = slot ? `${slot.id}:${slot.count}:${condition ?? ''}:${rarity}:${mod ?? ''}` : '';
   if (el.dataset.content === key) return;
   el.dataset.content = key;

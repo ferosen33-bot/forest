@@ -12,8 +12,8 @@ export type Recipe =
   | { id: string; kind: 'structure'; result: StructureId; cost: ItemCost[] };
 
 const item = (result: ItemId, cost: ItemCost[], count = 1): Recipe => ({ id: result, kind: 'item', result, count, cost });
-/** Waffenmods entstehen nur an der Werkbank. */
-const mod = (result: ItemId, cost: ItemCost[]): Recipe => ({ id: result, kind: 'item', result, count: 1, cost, bench: true });
+/** Waffenmods und selbst gebaute Waffen entstehen nur an der Werkbank. */
+const mod = (result: ItemId, cost: ItemCost[], count = 1): Recipe => ({ id: result, kind: 'item', result, count, cost, bench: true });
 const structure = (result: StructureId): Recipe => ({
   id: result,
   kind: 'structure',
@@ -95,6 +95,20 @@ export const RECIPES: Recipe[] = [
     { item: 'bone', count: 2 },
     { item: 'flint', count: 2 },
   ]),
+  mod('nailBat', [
+    { item: 'log', count: 1 },
+    { item: 'nails', count: 8 },
+  ]),
+  mod('shockBar', [
+    { item: 'crowbar', count: 1 },
+    { item: 'battery', count: 2 },
+    { item: 'hide', count: 1 },
+  ]),
+  mod('pipeBomb', [
+    { item: 'lampOil', count: 1 },
+    { item: 'nails', count: 4 },
+    { item: 'battery', count: 1 },
+  ]),
   structure('campfire'),
   structure('floor'),
   structure('wall'),
@@ -126,7 +140,7 @@ export const needsWorkbench = (r: Recipe): boolean =>
 
 /** Abschnitt im Herstellen-Menü. */
 export const recipeGroup = (r: Recipe): string =>
-  r.kind === 'structure' ? 'Baupläne' : getItem(r.result).mod ? 'Waffenmods' : 'Werkzeuge';
+  r.kind === 'structure' ? 'Baupläne' : getItem(r.result).mod ? 'Waffenmods' : r.bench ? 'Waffenbau' : 'Werkzeuge';
 
 export const recipeName = (r: Recipe): string =>
   r.kind === 'item' ? getItem(r.result).name : getStructure(r.result).name;

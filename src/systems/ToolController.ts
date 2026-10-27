@@ -141,7 +141,7 @@ export class ToolController {
     // Das ViewModel zeigt immer, was im gewählten Slot liegt (auch nach Inventar-Änderungen).
     const stack = this.equipped;
     this.viewModel.equip(stack?.id ?? null);
-    this.viewModel.setElement(stack?.weapon?.mod ?? null);
+    this.viewModel.setElement(stack ? (stack.weapon?.mod ?? getItem(stack.id).builtIn ?? null) : null);
     // Fackeln brennen ab, solange man sie in der Hand hält; die Taschenlampe leert ihre Batterie
     // (sie geht dabei nicht kaputt – eine leere Lampe bleibt für neue Batterien im Rucksack).
     if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt * this.torchBurnRate);
@@ -183,8 +183,8 @@ export class ToolController {
 
     if (!stack || this.swing || this.eating || this.viewModel.busy) return;
 
-    // Brandflaschen wirft man, statt damit zuzuschlagen.
-    if (stack.id === 'molotov') {
+    // Brandflaschen und Rohrbomben wirft man, statt damit zuzuschlagen.
+    if (stack.id === 'molotov' || stack.id === 'pipeBomb') {
       if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwEquipped(def!);
       return;
     }
@@ -314,7 +314,7 @@ export class ToolController {
         if (crit) this.events.emit('weapon:crit', { position: this.point.clone() });
         if (counter) this.events.emit('combat:tag', { text: 'KONTER!', color: '#ffe08a', big: true });
         // Waffenmod: Der Treffer kann sein Element auslösen.
-        const mod = stack?.weapon?.mod;
+        const mod = stack ? (stack.weapon?.mod ?? getItem(stack.id).builtIn) : undefined;
         if (mod) this.elements?.strike(enemy, mod, tool.weaponClass, this.point, crit || heavy >= 1);
         // Wuchtwaffen lassen den Getroffenen taumeln.
         const stun = (tool.stun ?? (this.staggerAll ? 0.5 : 0)) + (stats?.stagger ?? 0) + (crit ? 0.4 : 0);
