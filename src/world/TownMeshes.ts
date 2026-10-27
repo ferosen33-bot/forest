@@ -53,11 +53,28 @@ export interface DoorSpec {
   halfZ: number;
 }
 
+/** Fenster- oder Türöffnung eines Wohnhauses (zum Verbarrikadieren). */
+export interface OpeningSpec {
+  id: number;
+  building: number;
+  kind: 'door' | 'window';
+  /** Mitte der Öffnung auf der Wandmitte (Welt), Unterkante (Welt-y), Breite und Höhe. */
+  position: THREE.Vector3;
+  bottom: number;
+  width: number;
+  height: number;
+  /** Drehung um Y, bei der lokal +Z aus dem Haus hinaus zeigt. */
+  yaw: number;
+  /** Wanddicke (die Bretter sitzen außen davor). */
+  wall: number;
+}
+
 export interface TownModel {
   group: THREE.Group;
   colliders: ColliderSpec[];
   containers: ContainerSpec[];
   doors: DoorSpec[];
+  openings: OpeningSpec[];
   /** Welche Notiz in welchem Wohnhaus liegt (Gebäude-Index → Notiz-Id). */
   houseNotes: Map<number, string>;
 }
@@ -95,6 +112,7 @@ export class Builder {
   readonly colliders: ColliderSpec[] = [];
   readonly containers: ContainerSpec[] = [];
   readonly doors: DoorSpec[] = [];
+  readonly openings: OpeningSpec[] = [];
   private readonly parts: Record<Bucket, THREE.BufferGeometry[]> = { in: [], out: [] };
   /** Aktuelles Bezugssystem (Ort → Gebäude), in Weltkoordinaten. */
   base = new THREE.Matrix4();
@@ -195,6 +213,29 @@ export class Builder {
       if (alongX) this.box(len, h, WALL, cx + mid, y, cz, { color, collide: true, nav: true, surface });
       else this.box(WALL, h, len, cx, y, cz + mid, { color, collide: true, nav: true, surface });
     }
+  }
+
+  /**
+   * Öffnung in einer Außenwand vormerken (zum Verbarrikadieren). (x, z) = Wandmitte wie bei `wall`,
+   * `outward` = +1/−1: Richtung aus dem Haus hinaus (entlang lokal Z bei Wänden entlang X, sonst X).
+   */
+  opening(kind: 'door' | 'window', x: number, z: number, alongX: boolean, o: Opening, outward: 1 | -1): void {
+    const local = alongX ? new THREE.Vector3(x + o.at, FLOOR + (o.y0 + o.y1) / 2, z) : new THREE.Vector3(x, FLOOR + (o.y0 + o.y1) / 2, z + o.at);
+    const position = local.applyMatrix4(this.base);
+    const q = new THREE.Quaternion();
+    this.base.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+    const out = (alongX ? new THREE.Vector3(0, 0, outward) : new THREE.Vector3(outward, 0, 0)).applyQuaternion(q);
+    this.openings.push({
+      id: this.openings.length,
+      building: this.building,
+      kind,
+      position,
+      bottom: position.y - (o.y1 - o.y0) / 2,
+      width: o.width,
+      height: o.y1 - o.y0,
+      yaw: Math.atan2(out.x, out.z),
+      wall: WALL,
+    });
   }
 
   /** Tür als Durchgang für die Wegfindung melden (lokal, Durchgang quer zur Wand). */
@@ -338,11 +379,20 @@ function house(b: Builder, t: TownBuilding, rng: RandomFn, ruin: boolean, note?:
   b.box(w, FLOOR, d, 0, FLOOR / 2, 0, { color: ruin ? C.char : C.floorWood, collide: true });
   // Außenwände mit Tür und Fenstern
   const win = (at: number): Opening => ({ at, width: 1.2, y0: 0.95, y1: 1.95 });
-  b.wall(0, d / 2 - WALL / 2, true, w, top(), [{ at: doorAt, width: 1.1, y0: 0, y1: 2.15 }, win(w / 4 + 0.3)], color);
+  const front: Opening = { at: doorAt, width: 1.1, y0: 0, y1: 2.15 };
+  b.wall(0, d / 2 - WALL / 2, true, w, top(), [front, win(w / 4 + 0.3)], color);
   b.door(doorAt, d / 2 - WALL / 2, true, 1.1);
   b.wall(0, -d / 2 + WALL / 2, true, w, top(), [win(-w / 4), win(w / 4)], color);
   b.wall(-w / 2 + WALL / 2, 0, false, d - 2 * WALL, top(), [win(0.8)], color);
   b.wall(w / 2 - WALL / 2, 0, false, d - 2 * WALL, top(), [win(-0.8)], color);
+  // Bewohnbare Häuser lassen sich verbarrikadieren: Tür und alle Fenster.
+  if (!ruin) {
+    b.opening('door', 0, d / 2 - WALL / 2, true, front, 1);
+    b.opening('window', 0, d / 2 - WALL / 2, true, win(w / 4 + 0.3), 1);
+    for (const at of [-w / 4, w / 4]) b.opening('window', 0, -d / 2 + WALL / 2, true, win(at), -1);
+    b.opening('window', -w / 2 + WALL / 2, 0, false, win(0.8), -1);
+    b.opening('window', w / 2 - WALL / 2, 0, false, win(-0.8), 1);
+  }
   // Zwischenwand mit Durchgang: vorne Wohnküche, hinten Schlafzimmer.
   const split = -0.5;
   const passAt = w / 4;
@@ -584,5 +634,5 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
   };
   const group = b.finish({ in: material(false), out: material(true) });
   group.add(signs);
-  return { group, colliders: b.colliders, containers: b.containers, doors: b.doors, houseNotes };
+  return { group, colliders: b.colliders, containers: b.containers, doors: b.doors, openings: b.openings, houseNotes };
 }

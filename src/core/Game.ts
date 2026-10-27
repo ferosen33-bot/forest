@@ -90,6 +90,7 @@ import { ElementEffects } from '../systems/ElementEffects';
 import { CombatMoves } from '../systems/CombatMoves';
 import { Gore } from '../systems/Gore';
 import { Explosives } from '../systems/Explosives';
+import { HouseBases } from '../systems/HouseBases';
 import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
@@ -238,6 +239,8 @@ export class Game {
   gore!: Gore;
   /** Rohrbomben. */
   explosives!: Explosives;
+  /** Verbarrikadierte Stadthäuser als Basis (fehlt ohne Stadt). */
+  houseBases: HouseBases | null = null;
   private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
@@ -664,6 +667,21 @@ export class Game {
       });
       this.scene.add(this.settlement.group);
       this.footsteps.town = this.settlement;
+      this.houseBases = new HouseBases({
+        openings: this.settlement.openings,
+        building: this.building,
+        crafting: this.crafting,
+        audio: this.audio,
+        events: this.events,
+        particles: this.particles,
+        onClaim: (_house, center, quiet) => {
+          this.respawnPoint.copy(center).setY(center.y + 0.1);
+          if (quiet) return;
+          this.audio.play('craft');
+          this.events.emit('hud:message', { text: 'Das Haus ist rundum verbarrikadiert – ab jetzt ist es deine Basis. Hier wachst du künftig auf.' });
+          this.saveNow();
+        },
+      });
     }
     this.enemies.onCaveDwellerKilled = (cave, slot) => this.caves.dwellerKilled(cave, slot, this.dayNight.day);
     // Schrei der Schreierin: Mark und Bein – Ausdauer weg, Furcht steigt, die Sicht bebt.
@@ -793,7 +811,7 @@ export class Game {
       config: cfg,
       onTalk: (npc) => this.talkTo(npc),
       usePrompt: (id) => this.usePrompt(id),
-      fallback: () => this.mudAction(),
+      fallback: () => this.mudAction() ?? this.houseBases?.action(this.camera.position, this.camera.getWorldDirection(new THREE.Vector3())) ?? null,
       onUse: (id) => this.useThing(id),
       onCave: (target) => this.startCaveTransition(target),
       onReadNote: (id) => this.readNote(id),
@@ -1081,6 +1099,7 @@ export class Game {
     this.world.vegetation.load(d.vegetation);
     this.harvest.load(d.harvest);
     const structures = this.building.load(d.structures, isStructureId);
+    this.houseBases?.refresh();
     this.cooking.load(d.cooking, structures);
     this.camp.load(d.camp, structures);
     this.worldItems.load(d.items, isItemId);

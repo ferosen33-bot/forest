@@ -61,6 +61,22 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 51 – Basisbau (Teil B: Häuser verbarrikadieren)
+
+- **Jedes bewohnbare Haus in Altwasser** (nicht die Ruinen) hat eine Haustür und fünf Fenster, die sich
+  sichern lassen. Man stellt sich davor, zielt in die Öffnung und drückt `E`:
+  - *Fenster vernageln* (3 Stöcke, 2 Nägel): Bretter kreuz und quer, außen vor dem Fenster.
+  - *Tür einsetzen* (2 Stämme, 4 Nägel): eine schwere Brettertür im Rahmen, mit `E` zu öffnen und zu
+    schließen.
+  - Der Hinweis zeigt, was fehlt und wie viel vom Haus schon gesichert ist (z. B. 3/6).
+- **Basis:** Ist ein Haus rundum gesichert, wird es zur Basis. Dort wacht man nach dem Tod auf (auf
+  Karte und Kompass als Zuhause). Nach dem Laden erkennt das Spiel die Basis von selbst wieder.
+- **Belagerung:** Schrate, die hineinwollen, schlagen Tür und Bretter ein (ein Schrat braucht für die
+  Tür etwa 13 Sekunden). Beschädigtes lässt sich wie jedes Bauwerk mit `R` reparieren. Wer abreißen will,
+  tut es wie bei anderen Bauwerken.
+- `systems/HouseBases.ts` enthält Öffnungen, Sichern und Basis. Das Stadtmodell merkt sich die Öffnungen
+  beim Bauen.
+
 ### Meilenstein 51 – Basisbau (Teil A: Stockwerke & neue Bauteile)
 
 - **Mehrstöckig bauen:**

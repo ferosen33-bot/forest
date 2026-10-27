@@ -35,7 +35,9 @@ export type StructureId =
   | 'windowWall'
   | 'stoneWall'
   | 'lantern'
-  | 'storageShelf';
+  | 'storageShelf'
+  | 'windowBoards'
+  | 'houseDoor';
 
 /** Lager-Bauwerke mit eigenem Zustand (Camp-System). */
 export type CampKind = 'workbench' | 'rack' | 'barrel' | 'garden' | 'pot';
@@ -1375,6 +1377,90 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'StorageShelf');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(0.95, 0.9, 0.34).setTranslation(0, 0.9, 0)],
+  },
+
+  // Verbarrikadieren der Stadthäuser (wird direkt in eine Öffnung gesetzt, nicht frei gebaut).
+  windowBoards: {
+    id: 'windowBoards',
+    name: 'Vernageltes Fenster',
+    description: 'Kreuz und quer vernagelte Bretter vor einem Fenster. Hält Schrate draußen, bis sie es einschlagen.',
+    cost: [
+      { item: 'stick', count: 3 },
+      { item: 'nails', count: 2 },
+    ],
+    halfExtents: v(0.7, 0.55, 0.06),
+    maxStep: 99,
+    maxHealth: 130,
+    repair: [{ item: 'stick', count: 2 }],
+    // Ursprung = Unterkante der Fensteröffnung, außen auf der Wand; +Z zeigt nach draußen.
+    build() {
+      const g = new THREE.Group();
+      const rng = mulberry32(31);
+      for (let i = 0; i < 4; i++) {
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.17, 0.035), i % 2 ? M.cut : M.barkDark);
+        plank.position.set((rng() - 0.5) * 0.08, 0.14 + i * 0.25, 0.02 + i * 0.004);
+        plank.rotation.z = (rng() - 0.5) * 0.35;
+        g.add(plank);
+      }
+      // Zwei Querlatten diagonal darüber.
+      for (const sgn of [-1, 1]) {
+        const brace = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 0.03), M.cut);
+        brace.position.set(0, 0.5, 0.05);
+        brace.rotation.z = sgn * 0.55;
+        g.add(brace);
+      }
+      return finish(g, 'WindowBoards');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.68, 0.5, 0.05).setTranslation(0, 0.5, 0.02)],
+  },
+
+  houseDoor: {
+    id: 'houseDoor',
+    name: 'Haustür',
+    description: 'Eine schwere Brettertür mit Riegel im Türrahmen. E öffnet und schließt sie – geschlossen kommen Schrate nur durch, wenn sie sie einschlagen.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'nails', count: 4 },
+    ],
+    halfExtents: v(0.56, 1.08, 0.1),
+    maxStep: 99,
+    maxHealth: 220,
+    interaction: 'door',
+    repair: [{ item: 'log', count: 1 }],
+    doorCollider: 0,
+    // Ursprung = Mitte der Türschwelle auf der Wandmitte; Scharnier links.
+    build() {
+      const frame = new THREE.Group();
+      const leafG = new THREE.Group();
+      const width = 1.04;
+      const height = 2.1;
+      const rng = mulberry32(37);
+      for (let i = 0; i < 5; i++) {
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(width / 5 - 0.008, height, 0.05), i % 2 ? M.cut : M.bark);
+        plank.position.set(width / 10 + (i * width) / 5, height / 2, 0);
+        plank.scale.y = 1 - rng() * 0.02;
+        leafG.add(plank);
+      }
+      for (const y of [0.35, 1.75]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(width - 0.06, 0.14, 0.04), M.barkDark);
+        bar.position.set(width / 2, y, 0.045);
+        leafG.add(bar);
+      }
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.035), M.barkDark);
+      brace.position.set(width / 2, 1.05, 0.05);
+      brace.rotation.z = 0.98;
+      leafG.add(brace);
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.008, 4, 8), M.iron);
+      handle.position.set(width - 0.12, 1.05, 0.08);
+      leafG.add(handle);
+      const leaf = finish(leafG, 'HouseDoorLeaf');
+      leaf.name = 'leaf';
+      leaf.position.set(-width / 2, 0, 0);
+      const out = finish(frame, 'HouseDoor');
+      out.add(leaf);
+      return out;
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.52, 1.05, 0.05).setTranslation(0, 1.05, 0)],
   },
 };
 

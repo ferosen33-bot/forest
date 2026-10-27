@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../core/Physics';
 import type { EventBus } from '../core/EventBus';
-import { buildTown, LOOT_LABELS, type ContainerSpec, type DoorSpec, type LootKind } from '../world/TownMeshes';
+import { buildTown, LOOT_LABELS, type ContainerSpec, type DoorSpec, type LootKind, type OpeningSpec } from '../world/TownMeshes';
 import { pavedAt, type TownLayout } from '../world/Town';
 import type { ItemId } from '../entities/items/ItemDefs';
 import { deriveSeed, mulberry32 } from '../utils/random';
@@ -60,6 +60,8 @@ export interface SettlementDeps {
 export class Settlement {
   readonly group: THREE.Group;
   readonly containers: LootContainer[] = [];
+  /** Fenster und Türen der Wohnhäuser (zum Verbarrikadieren). */
+  readonly openings: OpeningSpec[];
   discovered = false;
   private readonly byCollider = new Map<number, LootContainer>();
   private readonly notes = new Map<number, string>();
@@ -72,6 +74,7 @@ export class Settlement {
     const model = buildTown(d.town, d.seed);
     this.group = model.group;
     this.houseNotes = model.houseNotes;
+    this.openings = model.openings;
     for (const c of model.containers) this.containers.push({ spec: c, label: LOOT_LABELS[c.kind], searched: false });
 
     const body = d.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
