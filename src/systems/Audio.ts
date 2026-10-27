@@ -52,6 +52,8 @@ export type SoundId =
   | 'sizzle'
   | 'zap'
   | 'kick'
+  | 'sever'
+  | 'crush'
   | 'stomp'
   | 'parry'
   | 'dodge'
@@ -407,6 +409,20 @@ export class Audio {
         break;
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
+        break;
+      // Abgetrennt: nasser Schnitt, dann ein trockenes Knacken.
+      case 'sever':
+        this.noise(t, 0.14, 'bandpass', 1400 * pitch, 0.9, 0.8, 500);
+        this.noise(t + 0.06, 0.05, 'highpass', 2600, 0.8, 0.7);
+        this.tone(t + 0.06, 'square', 240 * pitch, 90, 0.05, 0.35, 1400);
+        this.noise(t + 0.1, 0.4, 'lowpass', 700, 0.8, 0.35);
+        break;
+      // Schädel zertrümmert: dumpfer Schlag mit splitterndem Knirschen.
+      case 'crush':
+        this.noise(t, 0.1, 'lowpass', 450, 0.8, 1.0);
+        this.tone(t, 'sine', 70, 30, 0.22, 1.0);
+        for (let i = 0; i < 8; i++) this.noise(t + Math.random() * 0.14, 0.025, 'bandpass', 1500 + Math.random() * 2000, 2, 0.55);
+        this.noise(t + 0.08, 0.5, 'lowpass', 600, 0.9, 0.4);
         break;
       // Tritt: dumpfer Aufprall eines Stiefels.
       case 'kick':

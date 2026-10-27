@@ -61,6 +61,29 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 49 – Nahkampf-Ausbau (Teil 4: Zerstückelung)
+
+- **Klingen trennen ab:** Macheten, Säbel, Messer, Äxte und die Feuerwehraxt schneiden Arme, Beine und Köpfe ab.
+  - Wo geschnitten wird, hängt vom Trefferpunkt ab (Ellbogen oder Schulter, Knie oder Hüfte).
+  - Ein Kopf geht nur beim tödlichen Treffer ab. Ein tödlicher Hieb in den Rumpf kostet Kopf oder Arm.
+  - Lebende verlieren Gliedmaßen bei wuchtigen Hieben (ab etwa einem Drittel ihrer Lebenspunkte oder mit
+    voll aufgeladenem schweren Schlag). Stöße (Speer) trennen nichts ab.
+- **Wuchtwaffen zertrümmern Schädel:** Ein tödlicher Kopftreffer mit Schläger, Rohrzange, Brecheisen oder
+  Vorschlaghammer lässt den Kopf zerplatzen, ebenso jeder tödliche Bodenstampfer. Es spritzen Blut, Fleisch
+  und Knochensplitter.
+- **Abgetrennte Stücke** fliegen vom Angreifer weg, überschlagen sich, tropfen und bleiben im Gras liegen
+  (mit Physik, gut 50 Sekunden lang). Es sind echte Teile der Figur in ihrer letzten Haltung, mit blutigem
+  Ende. Strahlen, Spieler und Gegner gehen durch sie hindurch.
+- **Stümpfe:** Am Körper fällt das Glied im Gelenk zusammen. Dort sitzt ein blutiger Stumpf mit Knochen, aus
+  dem drei Sekunden lang im Herzschlag Blut spritzt, immer schwächer.
+- **Folgen:** Ohne Bein kriecht der Gegner weiter (eigene Kriech-Animation, niedrige Trefferfläche, gut ein
+  Drittel so schnell). Mit einem Arm weniger schlägt er schwächer, ohne Arme beißt er nur noch.
+- **Wunden:** Jeder Nahkampftreffer hinterlässt eine Wunde am getroffenen Körperteil, bis zu zehn je Gegner.
+  Klingen reißen lange, nasse Schnitte, Wucht hinterlässt dunkle Quetschungen.
+- Eigene Klänge fürs Abtrennen und Zertrümmern. In den Einstellungen abschaltbar („Zerstückelung“).
+- `entities/enemies/Gore.ts` enthält die Regeln, `systems/Gore.ts` die fliegenden Stücke und Blutfontänen,
+  `EnemyAvatars` die Schnitte am Skelett.
+
 ### Meilenstein 49 – Nahkampf-Ausbau (Teil 3: Kampfmanöver)
 
 - **Schwerer Schlag:** Linksklick mit einer Waffe gedrückt halten, um auszuholen (die Waffe geht über die

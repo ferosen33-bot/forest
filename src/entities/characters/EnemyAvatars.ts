@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Avatar, CharacterId, CharacterLibrary } from './CharacterLibrary';
 import type { EnemyKind } from '../enemies/EnemyKinds';
 import type { EnemyRig } from '../enemies/EnemyRig';
+import { LIMB_BONES, LIMBS, type Limb } from '../enemies/Gore';
 
 /**
  * Darstellung der Schrate als animierte Figuren. Die KI und das bisherige Prozedur-Skelett bleiben
@@ -100,6 +101,78 @@ const HIT = 'Hit_Chest';
 const YELL = 'Zombie Yell';
 /** Aufrappeln nach dem Umwerfen. */
 const RISE = 'Zombie_Rise';
+/** Ohne Bein: kriechen. */
+const CRAWL = 'Crawl';
+
+/** Dicke am Schnitt (m bei 1,8 m Körpergröße): Hals, Ober-/Unterarm, Ober-/Unterschenkel. */
+const CUT_RADIUS: Record<Limb, { high: number; low: number }> = {
+  head: { high: 0.06, low: 0.06 },
+  armL: { high: 0.05, low: 0.042 },
+  armR: { high: 0.05, low: 0.042 },
+  legL: { high: 0.075, low: 0.058 },
+  legR: { high: 0.075, low: 0.058 },
+};
+/** Knochen für Wunden: Knochen → Nachfolger (Segment) und Dicke (m bei 1,8 m). */
+const WOUND_BONES: [string, string, number][] = [
+  ['pelvis', 'spine_01', 0.13],
+  ['spine_01', 'spine_02', 0.13],
+  ['spine_02', 'spine_03', 0.14],
+  ['spine_03', 'neck_01', 0.13],
+  ['neck_01', 'head', 0.055],
+  ['head', 'head_leaf', 0.09],
+  ['upperarm_l', 'lowerarm_l', 0.05],
+  ['lowerarm_l', 'hand_l', 0.042],
+  ['upperarm_r', 'lowerarm_r', 0.05],
+  ['lowerarm_r', 'hand_r', 0.042],
+  ['thigh_l', 'calf_l', 0.075],
+  ['calf_l', 'foot_l', 0.058],
+  ['thigh_r', 'calf_r', 0.075],
+  ['calf_r', 'foot_r', 0.058],
+];
+const MAX_WOUNDS = 10;
+
+const FLESH = new THREE.MeshStandardMaterial({ color: 0x5e0d0b, roughness: 0.28 });
+const FLESH_DARK = new THREE.MeshStandardMaterial({ color: 0x3e0605, roughness: 0.3 });
+const BONE = new THREE.MeshStandardMaterial({ color: 0xe8dcc4, roughness: 0.6 });
+const WOUND_BRUISE = new THREE.MeshStandardMaterial({ color: 0x3a0a14, roughness: 0.5 });
+const SPHERE = new THREE.SphereGeometry(1, 12, 8);
+
+/** Blutiger Stumpf: rohes Fleisch mit dem Knochen in der Mitte (Größe in Metern). */
+function createStump(radius: number): THREE.Group {
+  const g = new THREE.Group();
+  const flesh = new THREE.Mesh(SPHERE, FLESH);
+  flesh.scale.setScalar(radius * 0.85);
+  const rim = new THREE.Mesh(SPHERE, FLESH_DARK);
+  rim.scale.setScalar(radius * 1.08);
+  rim.scale.y = radius * 0.5;
+  const bone = new THREE.Mesh(SPHERE, BONE);
+  bone.scale.setScalar(radius * 0.38);
+  bone.position.y = radius * 0.55;
+  g.add(flesh, rim, bone);
+  return g;
+}
+
+/** Weltmaßstab eines Knochens (Figuren sind in Modelleinheiten skaliert). */
+const worldScale = (o: THREE.Object3D): number => new THREE.Vector3().setFromMatrixScale(o.matrixWorld).x;
+
+/** Abstand eines Punkts zur Strecke a–b; `t` wird auf den Anteil entlang der Strecke gesetzt. */
+function segmentDistance(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, out?: THREE.Vector3): number {
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const t = THREE.MathUtils.clamp(new THREE.Vector3().subVectors(p, a).dot(ab) / Math.max(ab.lengthSq(), 1e-6), 0, 1);
+  const c = a.clone().addScaledVector(ab, t);
+  out?.copy(c);
+  return c.distanceTo(p);
+}
+
+/** Abgetrenntes Körperteil: eigene Figur in eingefrorener Pose, nur das Glied ist sichtbar. */
+export interface SeveredPart {
+  object: THREE.Object3D;
+  /** Schnittstelle und Ende des Glieds (Welt). */
+  joint: THREE.Vector3;
+  end: THREE.Vector3;
+  radius: number;
+  dispose(): void;
+}
 /** Körperhöhe eines Schrats bei Skalierung 1 (wie das Prozedur-Skelett). */
 const BASE_HEIGHT = 1.8;
 
@@ -111,11 +184,20 @@ export interface AvatarTarget {
   /** Werfer (Späher) nutzen beim Angriff die Wurfbewegung. */
   ranged: boolean;
   dead: boolean;
+  severed: ReadonlySet<Limb>;
+  crawling: boolean;
 }
 
 interface Driven {
   avatar: Avatar;
   kind: EnemyKind;
+  model: CharacterId;
+  height: number;
+  tint: THREE.Color;
+  /** Abgetrennte Glieder und wo geschnitten wurde; Stümpfe, die schon sitzen; Zahl der Wunden. */
+  cuts: Map<Limb, 'high' | 'low'>;
+  stumps: Set<Limb>;
+  wounds: number;
   death: string;
   wasDead: boolean;
   /** Liegt gerade umgeworfen am Boden (die Fall-Animation läuft einmal ab). */
@@ -173,7 +255,7 @@ export class EnemyAvatars {
     this.tint.setRGB(v * r, v * g, v * b);
     const avatar = this.lib.create(model, BASE_HEIGHT * t.rig.scale, { eyes: true, tint: this.tint });
     this.group.add(avatar.object);
-    for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL, RISE]) {
+    for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL, RISE, CRAWL]) {
       const a = avatar.action(name);
       if (a) {
         a.play();
@@ -185,6 +267,12 @@ export class EnemyAvatars {
     return {
       avatar,
       kind: t.kind,
+      model,
+      height: BASE_HEIGHT * t.rig.scale,
+      tint: this.tint.clone(),
+      cuts: new Map(),
+      stumps: new Set(),
+      wounds: 0,
       death: DEATHS[t.id % DEATHS.length],
       wasDead: false,
       downed: false,
@@ -262,7 +350,12 @@ export class EnemyAvatars {
       d.lastHit = hit;
       d.hitTimer = Math.max(0, d.hitTimer - frame);
 
-      if (a.attack >= 0) {
+      if (t.crawling) {
+        // Ohne Bein: kriechen – beim Angriff hastiger.
+        const crawl = d.avatar.action(CRAWL);
+        if (crawl) crawl.timeScale = a.attack >= 0 ? 2.2 : THREE.MathUtils.clamp(a.speed / 0.5, 0.15, 2.2);
+        target.set(CRAWL, 1);
+      } else if (a.attack >= 0) {
         // Angriff: die Bewegung folgt genau dem Fortschritt der KI (Treffer im richtigen Moment).
         const atk = d.avatar.action(cast.attack);
         if (atk) {
@@ -299,6 +392,146 @@ export class EnemyAvatars {
       if (!action.isRunning() && w > 0.001 && name !== d.death) action.play();
     }
     d.avatar.mixer.update(frame);
+    this.applyCuts(d, t);
+  }
+
+  /** Abgetrennte Glieder fallen im Gelenk zusammen (Knochen auf null skaliert), dort sitzt ein Stumpf. */
+  private applyCuts(d: Driven, t: AvatarTarget): void {
+    for (const limb of t.severed) if (!d.cuts.has(limb)) d.cuts.set(limb, 'low');
+    for (const [limb, level] of d.cuts) {
+      const bone = d.avatar.bones.get(LIMB_BONES[limb][level]);
+      if (!bone) continue;
+      bone.scale.setScalar(1e-4);
+      if (d.stumps.has(limb) || !bone.parent) continue;
+      d.stumps.add(limb);
+      d.avatar.object.updateMatrixWorld(true);
+      const stump = createStump(1);
+      stump.position.copy(bone.position);
+      stump.scale.setScalar((CUT_RADIUS[limb][level] * d.height) / 1.8 / worldScale(bone.parent));
+      bone.parent.add(stump);
+    }
+  }
+
+  /** Schnittstelle eines abgetrennten Glieds am Körper (Welt), solange die Figur sichtbar ist. */
+  jointPosition(id: number, limb: Limb, out: THREE.Vector3): THREE.Vector3 | null {
+    const d = this.driven.get(id);
+    const level = d?.cuts.get(limb);
+    const bone = level ? d!.avatar.bones.get(LIMB_BONES[limb][level]) : undefined;
+    return bone ? bone.getWorldPosition(out) : null;
+  }
+
+  /** Welches Glied liegt einem Trefferpunkt am nächsten (null = Rumpf)? */
+  nearestLimb(id: number, point: THREE.Vector3): { limb: Limb; level: 'high' | 'low' } | null {
+    const d = this.driven.get(id);
+    if (!d) return null;
+    const bones = d.avatar.bones;
+    const pos = (name: string) => bones.get(name)?.getWorldPosition(new THREE.Vector3()) ?? null;
+    let best: { limb: Limb; level: 'high' | 'low' } | null = null;
+    let bestD = Infinity;
+    // Rumpf zuerst: Wer ihn trifft, trennt nichts ab.
+    const pelvis = pos('pelvis');
+    const chest = pos('spine_03');
+    if (pelvis && chest) bestD = segmentDistance(point, pelvis, chest) - 0.06 * (d.height / 1.8);
+    for (const limb of LIMBS) {
+      if (d.cuts.has(limb)) continue;
+      const b = LIMB_BONES[limb];
+      const high = pos(limb === 'head' ? 'neck_01' : b.high);
+      const low = pos(b.low);
+      const end = pos(b.end);
+      if (!high || !low || !end) continue;
+      const upper = segmentDistance(point, high, low);
+      const lower = segmentDistance(point, low, end);
+      if (upper < bestD) {
+        bestD = upper;
+        best = { limb, level: 'high' };
+      }
+      if (lower < bestD) {
+        bestD = lower;
+        best = { limb, level: 'low' };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Trennt ein Glied ab: Am Körper fällt es im Gelenk zusammen, und eine eigene Figur in der aktuellen
+   * Pose zeigt nur das abgetrennte Stück (der Rest fällt in die Schnittstelle zusammen).
+   */
+  cut(id: number, limb: Limb, level: 'high' | 'low'): SeveredPart | null {
+    const d = this.driven.get(id);
+    if (!d || d.cuts.has(limb)) return null;
+    d.cuts.set(limb, level);
+    const src = d.avatar;
+    const part = this.lib.create(d.model, d.height, { eyes: limb === 'head', tint: d.tint });
+    part.object.position.copy(src.object.position);
+    part.object.quaternion.copy(src.object.quaternion);
+    for (const [name, b] of src.bones) {
+      const pb = part.bones.get(name);
+      if (!pb) continue;
+      pb.position.copy(b.position);
+      pb.quaternion.copy(b.quaternion);
+      pb.scale.copy(b.scale);
+    }
+    this.group.add(part.object);
+    part.object.updateMatrixWorld(true);
+    const cutBone = part.bones.get(LIMB_BONES[limb][level]);
+    const endBone = part.bones.get(LIMB_BONES[limb].end);
+    const root = part.bones.get('root') ?? part.bones.get('pelvis');
+    if (!cutBone || !endBone || !root?.parent) {
+      part.dispose();
+      return null;
+    }
+    // Andere abgetrennte Glieder sind auch am Teil nicht mehr dran.
+    for (const [other, l] of d.cuts) if (other !== limb) part.bones.get(LIMB_BONES[other][l])?.scale.setScalar(1e-4);
+    const joint = cutBone.getWorldPosition(new THREE.Vector3());
+    const end = endBone.getWorldPosition(new THREE.Vector3());
+    // Glied vom Skelett lösen (Weltlage bleibt), den Rest in die Schnittstelle zusammenfallen lassen.
+    part.object.attach(cutBone);
+    root.parent.updateMatrixWorld(true);
+    root.position.copy(root.parent.worldToLocal(joint.clone()));
+    root.scale.setScalar(1e-4);
+    part.object.updateMatrixWorld(true);
+    const radius = (CUT_RADIUS[limb][level] * d.height) / 1.8;
+    const stump = createStump(1);
+    stump.scale.setScalar(radius / worldScale(cutBone));
+    cutBone.add(stump);
+    for (const m of part.meshes) m.castShadow = true;
+    return { object: part.object, joint, end, radius, dispose: () => part.dispose() };
+  }
+
+  /** Wunde am Körper: blutiger Riss (Klinge) oder dunkle Quetschung (Wucht) am nächsten Knochen. */
+  wound(id: number, point: THREE.Vector3, cut: boolean, size: number): void {
+    const d = this.driven.get(id);
+    if (!d || d.wounds >= MAX_WOUNDS) return;
+    const bones = d.avatar.bones;
+    const k = d.height / 1.8;
+    let best: { bone: THREE.Bone; at: THREE.Vector3; radius: number } | null = null;
+    let bestD = Infinity;
+    const at = new THREE.Vector3();
+    for (const [a, b, r] of WOUND_BONES) {
+      const ba = bones.get(a);
+      const bb = bones.get(b);
+      if (!ba || !bb || ba.scale.x < 0.01) continue;
+      const dist = segmentDistance(point, ba.getWorldPosition(new THREE.Vector3()), bb.getWorldPosition(new THREE.Vector3()), at) - r * k;
+      if (dist < bestD) {
+        bestD = dist;
+        best = { bone: ba, at: at.clone(), radius: r * k };
+      }
+    }
+    if (!best) return;
+    d.wounds++;
+    // Auf die Körperoberfläche, zur Trefferseite hin.
+    const dir = point.clone().sub(best.at);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    dir.normalize();
+    const mesh = new THREE.Mesh(SPHERE, cut ? FLESH : WOUND_BRUISE);
+    mesh.position.copy(best.at).addScaledVector(dir, best.radius * 0.82);
+    mesh.lookAt(mesh.position.clone().add(dir));
+    const w = size * k;
+    // Klingen reißen lange Schnitte, Wucht hinterlässt runde Quetschungen.
+    mesh.scale.set(cut ? w * 1.6 : w, cut ? w * 0.32 : w * 0.9, w * 0.35);
+    mesh.rotateZ(Math.random() * Math.PI);
+    best.bone.attach(mesh);
   }
 
   dispose(): void {

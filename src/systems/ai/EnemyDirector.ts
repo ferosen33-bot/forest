@@ -120,7 +120,8 @@ export class EnemyDirector {
   readonly camps: Camp[] = [];
 
   private readonly renderer = new EnemyRenderer(MAX_ENEMIES + MAX_HORDE + 8);
-  private readonly avatars: EnemyAvatars | null;
+  /** Animierte Figuren (null = einfache Prozedur-Körper). */
+  readonly avatars: EnemyAvatars | null;
   private readonly byCollider = new Map<number, { enemy: Enemy; zone: HitZone }>();
   private readonly ctx: EnemyContext;
   private readonly cfg: GameConfig['ai'];
@@ -778,7 +779,16 @@ export class EnemyDirector {
     if (this.avatars) {
       setEyeGlow(d.playerHidden() ? 1 : 1 - d.dayNight.daylight * 0.9);
       this.avatars.render(
-        visible.map((v) => ({ id: v.enemy.id, rig: v.rig, kind: v.kind, tone: v.tone, ranged: !!v.enemy.kind.ranged, dead: v.enemy.isDead })),
+        visible.map((v) => ({
+          id: v.enemy.id,
+          rig: v.rig,
+          kind: v.kind,
+          tone: v.tone,
+          ranged: !!v.enemy.kind.ranged,
+          dead: v.enemy.isDead,
+          severed: v.enemy.severed,
+          crawling: v.enemy.crawling,
+        })),
         dt,
         d.camera.position,
       );

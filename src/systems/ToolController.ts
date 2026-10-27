@@ -3,7 +3,7 @@ import type { Input, Action } from '../core/Input';
 import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
 import type { ViewModel } from '../entities/ViewModel';
-import { getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
+import { cutsLimbs, getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
 import { CRIT_MULTIPLIER, isWeapon, weaponStats } from '../entities/items/Weapons';
 import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
@@ -18,6 +18,7 @@ import type { Caves } from './Caves';
 import type { Skills } from './Skills';
 import type { ElementEffects } from './ElementEffects';
 import { COUNTER_MULTIPLIER, type CombatMoves } from './CombatMoves';
+import type { Gore } from './Gore';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -292,6 +293,13 @@ export class ToolController {
         const damage = tool.damage * sk.meleeDamage * (crit ? CRIT_MULTIPLIER : 1) * (counter ? COUNTER_MULTIPLIER : 1);
         const kind = counter ? 'counter' : crit ? 'crit' : heavy ? 'heavy' : 'normal';
         this.enemies.damage(enemy, damage, target.zone, this.player.position, this.point, this.normal, kind);
+        // Wunden und Zerstückelung: Klingen trennen ab, Wucht zertrümmert.
+        this.gore?.onHit(enemy, this.point, this.player.position, {
+          cut: cutsLimbs(tool),
+          heavy,
+          damage: enemy.lastDamage,
+          headshot: target.zone === 'head',
+        });
         if (crit) this.events.emit('weapon:crit', { position: this.point.clone() });
         if (counter) this.events.emit('combat:tag', { text: 'KONTER!', color: '#ffe08a', big: true });
         // Waffenmod: Der Treffer kann sein Element auslösen.
@@ -338,6 +346,7 @@ export class ToolController {
   /** Elemente der Waffenmods und Kampfmanöver (setzt das Spiel). */
   elements: ElementEffects | null = null;
   combat: CombatMoves | null = null;
+  gore: Gore | null = null;
 
   /** Talente: jeder Nahkampftreffer betäubt kurz; Gekochtes macht satter. */
   staggerAll = false;

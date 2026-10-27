@@ -8,6 +8,7 @@ import type { EnemyDirector } from './ai/EnemyDirector';
 import type { Audio } from './Audio';
 import type { Blood } from './Blood';
 import type { Skills } from './Skills';
+import type { Gore } from './Gore';
 
 export interface CombatDeps {
   input: Input;
@@ -18,6 +19,7 @@ export interface CombatDeps {
   events: EventBus;
   skills: Skills;
   blood?: Pick<Blood, 'spray' | 'pool'>;
+  gore?: Gore;
 }
 
 /** Tritt am Boden: Reichweite, Schaden, Rückstoß, Ausdauer. */
@@ -195,7 +197,10 @@ export class CombatMoves {
     const damage = STOMP.damage * this.d.skills.meleeDamage * (counter ? COUNTER_MULTIPLIER : 1);
     this.d.enemies.damage(e, damage, 'body', p.position.clone(), head, new THREE.Vector3(0, 1, 0), 'heavy');
     this.d.blood?.spray(head, new THREE.Vector3(0, 0.3, 0), 1);
-    if (e.isDead) this.d.blood?.pool(e.feet, 1.4);
+    if (e.isDead) {
+      this.d.blood?.pool(e.feet, 1.4);
+      this.d.gore?.crushHead(e);
+    }
     this.d.audio.play('stomp');
     p.addShake(0.7);
     this.impact(1);

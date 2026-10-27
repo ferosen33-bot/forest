@@ -7,6 +7,7 @@ import { EnemyRig } from './EnemyRig';
 import { ENEMY_KINDS, type EnemyKind, type EnemyKindDef } from './EnemyKinds';
 import { aimBallistic } from '../../utils/ballistics';
 import { createStatus, statusSlow, vulnerability } from '../items/Elements';
+import { armFactor, CRAWL_SPEED, isLeg, type Limb } from './Gore';
 import { clamp, damp } from '../../utils/math';
 
 export type EnemyState =
@@ -118,6 +119,8 @@ export class Enemy {
   private downTime = 0;
   /** Zuletzt erlittener Schaden (nach Verätzung) – für die Schadenszahlen. */
   lastDamage = 0;
+  /** Abgetrennte Gliedmaßen. */
+  readonly severed = new Set<Limb>();
 
   /** Wachsamkeit 0–1: ab 0,4 nachsehen, bei 1 Jagd. */
   suspicion = 0;
@@ -327,6 +330,33 @@ export class Enemy {
     }
     this.setState('stagger');
     this.timer = seconds;
+  }
+
+  /** Ohne Bein kriecht er nur noch. */
+  get crawling(): boolean {
+    return this.severed.has('legL') || this.severed.has('legR');
+  }
+
+  /**
+   * Gliedmaße abgetrennt. Ohne Bein kriecht er (flacher, langsamer), ohne Arm schlägt er schwächer.
+   * @returns false, wenn sie schon fehlte.
+   */
+  sever(limb: Limb): boolean {
+    if (this.severed.has(limb)) return false;
+    const wasCrawling = this.crawling;
+    this.severed.add(limb);
+    this.rig.sever(limb);
+    if (isLeg(limb) && !wasCrawling && !this.isDead) {
+      // Kriechend: niedrige Kapsel, der Kopf ist vorne unten.
+      const s = this.rig.scale;
+      this.collider.setHalfHeight(Math.max(0.02, 0.4 - RADIUS) * s);
+      this.collider.setTranslationWrtParent({ x: 0, y: 0.4 * s, z: 0 });
+      this.headCollider.setTranslationWrtParent({ x: 0, y: 0.45 * s, z: 0.45 * s });
+      this.knockback.set(0, 0, 0);
+      this.setState('stagger');
+      this.timer = 1.2;
+    }
+    return true;
   }
 
   /** Liegt umgeworfen am Boden (Bodenstampfer möglich). */
@@ -672,7 +702,7 @@ export class Enemy {
           player.receiveHit(this.cfg.attackDamage * this.kind.damage * (1 - (0.5 * dist) / boss.slamRadius), this.curr);
         }
       } else if (dist < this.attackRange + 0.65 * this.rig.scale && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
-        const outcome = player.receiveHit(this.cfg.attackDamage * this.kind.damage * (0.85 + Math.random() * 0.3), this.curr);
+        const outcome = player.receiveHit(this.cfg.attackDamage * this.kind.damage * armFactor(this.severed) * (0.85 + Math.random() * 0.3), this.curr);
         if (outcome === 'parried') {
           this.parried(player.position);
           return;
@@ -822,7 +852,7 @@ export class Enemy {
     // Erst ausrichten, dann loslaufen – verhindert seitliches "Gleiten".
     const facing = this.desiredSpeed > 0 ? Math.max(0, this.forward.dot(this.desired)) : 0;
     // Blutende Wunden verlangsamen.
-    const targetSpeed = this.desiredSpeed * (0.3 + 0.7 * facing) * (1 - statusSlow(this.status));
+    const targetSpeed = this.desiredSpeed * (0.3 + 0.7 * facing) * (1 - statusSlow(this.status)) * (this.crawling ? CRAWL_SPEED : 1);
     const tvx = this.desired.x * targetSpeed;
     const tvz = this.desired.z * targetSpeed;
 

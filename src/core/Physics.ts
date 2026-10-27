@@ -14,10 +14,15 @@ export const CollisionGroup = {
   ENEMY: 1 << 3,
   ITEM: 1 << 4,
   ANIMAL: 1 << 5,
+  /** Abgetrennte Gliedmaßen: liegen nur auf Boden und Bauwerken, Strahlen und Figuren gehen hindurch. */
+  DEBRIS: 1 << 6,
 } as const;
 
 export const interactionGroups = (membership: number, filter = 0xffff): number =>
   ((membership & 0xffff) << 16) | (filter & 0xffff);
+
+/** Strahlen treffen alles außer herumliegenden Körperteilen. */
+const RAY_GROUPS = interactionGroups(0xffff, 0xffff & ~CollisionGroup.DEBRIS);
 
 export interface RaycastHit {
   collider: RAPIER.Collider;
@@ -81,7 +86,7 @@ export class Physics {
   ): RaycastHit | null {
     const ray = new RAPIER.Ray(origin, dir);
     const flags = excludeSensors ? RAPIER.QueryFilterFlags.EXCLUDE_SENSORS : undefined;
-    const hit = this.world.castRayAndGetNormal(ray, maxDist, true, flags, undefined, exclude);
+    const hit = this.world.castRayAndGetNormal(ray, maxDist, true, flags, RAY_GROUPS, exclude);
     if (!hit) return null;
     const t = hit.timeOfImpact;
     return {

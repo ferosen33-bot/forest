@@ -88,7 +88,12 @@ export interface ToolStats {
   stun?: number;
   /** Waffenklasse (Nahkampfwaffen mit Seltenheit): Klinge schneidet, Stumpf zerschmettert, Schwer wirft um. */
   weaponClass?: 'blade' | 'blunt' | 'heavy';
+  /** Schwere Waffe mit Schneide (Feuerwehraxt): trennt wie eine Klinge Gliedmaßen ab. */
+  edge?: boolean;
 }
+
+/** Trennt die Waffe Gliedmaßen ab? (Klingen und Äxte im Hieb, nicht im Stoß.) */
+export const cutsLimbs = (t: ToolStats): boolean => (t.weaponClass === 'blade' || t.edge === true) && t.animation === 'swing';
 
 /** Lichtquelle, solange das Item in der Hand gehalten wird. */
 export interface HeldLight {
@@ -612,6 +617,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       animation: 'swing',
       stun: 0.6,
       weaponClass: 'heavy',
+      edge: true,
     },
   },
   sabre: {

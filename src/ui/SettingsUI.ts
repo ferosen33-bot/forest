@@ -3,7 +3,7 @@ import { QUALITY, type Quality, type Settings } from '../systems/Settings';
 type Field =
   | { kind: 'section'; label: string }
   | { kind: 'range'; key: 'masterVolume' | 'sfxVolume' | 'ambienceVolume' | 'mouseSensitivity' | 'fov'; label: string; min: number; max: number; step: number; format: (v: number) => string }
-  | { kind: 'check'; key: 'invertY' | 'postProcessing' | 'motionBlur' | 'damageNumbers'; label: string }
+  | { kind: 'check'; key: 'invertY' | 'postProcessing' | 'motionBlur' | 'damageNumbers' | 'gore'; label: string }
   | { kind: 'quality'; label: string };
 
 const percent = (v: number) => `${Math.round(v * 100)} %`;
@@ -22,6 +22,7 @@ const FIELDS: Field[] = [
   { kind: 'check', key: 'postProcessing', label: 'Lichtstrahlen & Bloom' },
   { kind: 'check', key: 'motionBlur', label: 'Bewegungsunschärfe' },
   { kind: 'check', key: 'damageNumbers', label: 'Schadenszahlen' },
+  { kind: 'check', key: 'gore', label: 'Zerstückelung' },
 ];
 
 /**

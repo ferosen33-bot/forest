@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Limb } from './Gore';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, damp, smoothstep } from '../../utils/math';
 import { jitter } from '../../world/VegetationGeometry';
@@ -209,6 +210,12 @@ export class EnemyRig {
   headPosition(out: THREE.Vector3): THREE.Vector3 {
     this.root.updateMatrixWorld(true);
     return this.neck.getWorldPosition(out).add(new THREE.Vector3(0, 0.15 * this.scale, 0));
+  }
+
+  /** Abgetrenntes Glied ausblenden (Ellbogen, Knie, Hals fallen in sich zusammen). */
+  sever(limb: Limb): void {
+    const bone = { head: this.neck, armL: this.elbowL, armR: this.elbowR, legL: this.kneeL, legR: this.kneeR }[limb];
+    bone.scale.setScalar(1e-4);
   }
 
   /** Berechnet die Pose aus `anim` und aktualisiert alle Weltmatrizen. */

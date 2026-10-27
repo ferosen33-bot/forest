@@ -88,6 +88,7 @@ import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 import { ElementEffects } from '../systems/ElementEffects';
 import { CombatMoves } from '../systems/CombatMoves';
+import { Gore } from '../systems/Gore';
 import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
@@ -224,6 +225,8 @@ export class Game {
   hud!: HUD;
   /** Kampfmanöver (Tritte, Ausweichen, Parade, Trefferstopp) und Schadenszahlen. */
   combat!: CombatMoves;
+  /** Wunden und abgetrennte Gliedmaßen. */
+  gore!: Gore;
   private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
@@ -810,7 +813,12 @@ export class Game {
       this.skills,
     );
     this.tools.elements = this.elementFx;
+    this.gore = new Gore({ physics: this.physics, enemies: this.enemies, blood: this.blood, particles: this.particles, audio: this.audio });
+    this.gore.enabled = this.settings.gore;
+    this.scene.add(this.gore.group);
+    this.tools.gore = this.gore;
     this.combat = new CombatMoves({
+      gore: this.gore,
       input: this.input,
       player: this.player,
       viewModel: this.viewModel,
@@ -1959,6 +1967,7 @@ export class Game {
     this.defenses.update(dt);
     this.enemies.update(dt, alpha);
     this.elementFx.update(dt);
+    this.gore.update(dt);
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);
@@ -2379,6 +2388,7 @@ export class Game {
     const s = this.settings;
     this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.ambienceVolume);
     if (this.damageNumbers) this.damageNumbers.enabled = s.damageNumbers;
+    if (this.gore) this.gore.enabled = s.gore;
     if (this.player) {
       this.player.mouseScale = s.mouseSensitivity;
       this.player.invertY = s.invertY;

@@ -20,6 +20,8 @@ export interface Settings {
   motionBlur: boolean;
   /** Schadenszahlen über getroffenen Gegnern. */
   damageNumbers: boolean;
+  /** Wunden und abgetrennte Gliedmaßen. */
+  gore: boolean;
 }
 
 export interface QualityPreset {
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   postProcessing: true,
   motionBlur: true,
   damageNumbers: true,
+  gore: true,
 };
 
 const STORAGE_KEY = 'wildwood.settings';
@@ -72,6 +75,7 @@ export function sanitizeSettings(data: unknown): Settings {
     postProcessing: typeof d.postProcessing === 'boolean' ? d.postProcessing : def.postProcessing,
     motionBlur: typeof d.motionBlur === 'boolean' ? d.motionBlur : def.motionBlur,
     damageNumbers: typeof d.damageNumbers === 'boolean' ? d.damageNumbers : def.damageNumbers,
+    gore: typeof d.gore === 'boolean' ? d.gore : def.gore,
   };
 }
 

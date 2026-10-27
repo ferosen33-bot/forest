@@ -199,6 +199,34 @@ describe('Enemy (KI)', () => {
     p.dispose();
   });
 
+  it('kriecht ohne Bein langsam weiter', () => {
+    const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 12)));
+    const walker = spawnFacing(w.origin.clone().add(new THREE.Vector3(-3, 0, 0)), 0);
+    const crawler = spawnFacing(w.origin.clone().add(new THREE.Vector3(3, 0, 0)), 0);
+    expect(crawler.sever('legL')).toBe(true);
+    expect(crawler.sever('legL')).toBe(false);
+    expect(crawler.crawling).toBe(true);
+    const ctx = makeCtx(p.target, [walker, crawler]);
+    const z0 = crawler.feet.z;
+    walker.alertedBy(p.target.position, ctx);
+    crawler.alertedBy(p.target.position, ctx);
+    for (let i = 0; i < 2.5 / DT; i++) {
+      ctx.time += DT;
+      walker.fixedUpdate(DT, ctx);
+      crawler.fixedUpdate(DT, ctx);
+      w.physics.step();
+      walker.afterPhysicsStep();
+      crawler.afterPhysicsStep();
+    }
+    const walked = walker.feet.z - w.origin.z;
+    const crawled = crawler.feet.z - z0;
+    expect(crawled).toBeGreaterThan(0.1);
+    expect(crawled).toBeLessThan(walked * 0.7);
+    walker.dispose();
+    crawler.dispose();
+    p.dispose();
+  });
+
   it('verletzt sich an einer Stachelfalle, die im Weg steht', () => {
     const trapPos = w.origin.clone().add(new THREE.Vector3(0, 0, 4));
     const trapCollider = w.physics.world.createCollider(
