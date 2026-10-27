@@ -51,6 +51,11 @@ export type SoundId =
   | 'throw'
   | 'sizzle'
   | 'zap'
+  | 'kick'
+  | 'stomp'
+  | 'parry'
+  | 'dodge'
+  | 'heavySwing'
   | 'acidHiss'
   | 'vaporBlast'
   | 'thunder'
@@ -402,6 +407,32 @@ export class Audio {
         break;
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
+        break;
+      // Tritt: dumpfer Aufprall eines Stiefels.
+      case 'kick':
+        this.noise(t, 0.09, 'lowpass', 600, 0.9, 1.0);
+        this.tone(t, 'sine', 120, 50, 0.16, 0.9);
+        break;
+      // Bodenstampfer: Knirschen und ein schwerer, nasser Schlag.
+      case 'stomp':
+        this.noise(t, 0.12, 'lowpass', 500, 0.8, 1.0);
+        this.tone(t, 'sine', 90, 35, 0.25, 1.0);
+        for (let i = 0; i < 5; i++) this.noise(t + 0.02 + Math.random() * 0.1, 0.03, 'bandpass', 1800 + Math.random() * 1200, 2, 0.5);
+        break;
+      // Parade: Metall auf Holz, ein heller, nachklingender Ton.
+      case 'parry':
+        this.noise(t, 0.05, 'highpass', 2500, 0.6, 0.9);
+        this.tone(t, 'triangle', 1250 * pitch, 1180, 0.45, 0.35);
+        this.tone(t, 'sine', 2480 * pitch, 2400, 0.3, 0.18);
+        break;
+      // Ausweichen: kurzer Luftzug und Schritte im Laub.
+      case 'dodge':
+        this.noise(t, 0.22, 'bandpass', 700, 0.8, 0.45, 1600);
+        this.noise(t + 0.12, 0.06, 'lowpass', 900, 1, 0.4);
+        break;
+      // Schwerer Schlag: tiefer, langer Luftzug.
+      case 'heavySwing':
+        this.noise(t, 0.42, 'bandpass', 380, 1.1, 0.8, 900);
         break;
       // Stromschlag: brummender Lichtbogen mit trockenem Knistern.
       case 'zap':

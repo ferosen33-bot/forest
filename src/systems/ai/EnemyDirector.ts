@@ -9,6 +9,7 @@ import type { Player } from '../../entities/Player';
 import { Enemy, type EnemyContext, type PlayerTarget } from '../../entities/enemies/Enemy';
 import { elementFactor, ENEMY_KINDS, isEnemyKind, SNEAK_MULTIPLIER, type EnemyKind } from '../../entities/enemies/EnemyKinds';
 import type { ElementId } from '../../entities/items/Elements';
+import type { DamageKind } from '../../core/EventBus';
 import { EnemyRenderer } from '../../entities/enemies/EnemyRenderer';
 import { EnemyAvatars } from '../../entities/characters/EnemyAvatars';
 import { setEyeGlow, type CharacterLibrary } from '../../entities/characters/CharacterLibrary';
@@ -196,8 +197,9 @@ export class EnemyDirector {
         return player.velocity;
       },
       receiveHit: (amount, from) => {
-        player.receiveHit(amount, from);
-        d.audio.play('hurt');
+        const outcome = player.receiveHit(amount, from);
+        if (outcome === 'hit' || outcome === 'blocked') d.audio.play('hurt');
+        return outcome;
       },
     };
 
@@ -403,8 +405,9 @@ export class EnemyDirector {
         return player.velocity;
       },
       receiveHit: (amount, from) => {
-        player.receiveHit(amount, from);
-        d.audio.play('hurt');
+        const outcome = player.receiveHit(amount, from);
+        if (outcome === 'hit' || outcome === 'blocked') d.audio.play('hurt');
+        return outcome;
       },
     };
     const ctx: EnemyContext = {
@@ -605,7 +608,15 @@ export class EnemyDirector {
   }
 
   /** Treffer durch eine Waffe des Spielers. */
-  damage(enemy: Enemy, amount: number, zone: HitZone, from: THREE.Vector3, point: THREE.Vector3, normal: THREE.Vector3): void {
+  damage(
+    enemy: Enemy,
+    amount: number,
+    zone: HitZone,
+    from: THREE.Vector3,
+    point: THREE.Vector3,
+    normal: THREE.Vector3,
+    kind: DamageKind = 'normal',
+  ): void {
     if (enemy.isDead) return;
     const ctx = this.ctxFor(enemy);
     const headshot = zone === 'head';
@@ -614,6 +625,7 @@ export class EnemyDirector {
     const sneak = enemy.unaware;
     const total = amount * (headshot ? this.cfg.headshotMultiplier : 1) * (sneak ? SNEAK_MULTIPLIER * this.sneakFactor : 1);
     const killed = enemy.takeDamage(total, from, ctx);
+    this.d.events.emit('damage:number', { position: point.clone(), amount: enemy.lastDamage, kind: sneak ? 'sneak' : headshot && kind === 'normal' ? 'crit' : kind });
 
     this.d.particles.burst(point, { count: headshot ? 16 : 10, color: 0x5c0f10, direction: normal, speed: 3, size: 0.035 });
     this.d.blood?.spray(point, this.bloodDir.subVectors(point, from).setY(0).normalize(), Math.min(1, total / 45 + (headshot ? 0.3 : 0)));

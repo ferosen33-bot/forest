@@ -4,7 +4,7 @@ import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
 import type { ViewModel } from '../entities/ViewModel';
 import { getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
-import { CRIT_MULTIPLIER, weaponStats } from '../entities/items/Weapons';
+import { CRIT_MULTIPLIER, isWeapon, weaponStats } from '../entities/items/Weapons';
 import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
@@ -17,10 +17,15 @@ import type { ItemService } from './ItemService';
 import type { Caves } from './Caves';
 import type { Skills } from './Skills';
 import type { ElementEffects } from './ElementEffects';
+import { COUNTER_MULTIPLIER, type CombatMoves } from './CombatMoves';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
 const EAT_AT = 0.55;
+/** Schwerer Schlag: Bis hierhin zählt ein Klick als normaler Schlag, danach lädt er auf (s). */
+const CHARGE_TAP = 0.2;
+/** … und ist nach dieser Zeit voll aufgeladen. */
+const CHARGE_FULL = 0.65;
 /** Bis zu dieser Entfernung wird der Wurf auf das anvisierte Ziel ausgerichtet (m). */
 const AIM_RANGE = 40;
 
@@ -36,7 +41,10 @@ export class ToolController {
   /** Ausgewählter Slot der Schnellzugriffsleiste. */
   selected = 0;
 
-  private swing: { tool: ToolStats; time: number; impactDone: boolean } | null = null;
+  /** Laufender Schlag; `heavy` 0 = normal, sonst Stärke des schweren Schlags (0,5 … 1). */
+  private swing: { tool: ToolStats; time: number; impactDone: boolean; heavy: number } | null = null;
+  /** Linke Maustaste wird mit einer Waffe gehalten: schwerer Schlag lädt auf. */
+  private charging: number | null = null;
   private eating: { def: ItemDef; time: number; done: boolean } | null = null;
   /** Wurfwaffe angelegt (rechte Maustaste gehalten). */
   aiming = false;
@@ -86,7 +94,18 @@ export class ToolController {
     this.selected = index;
     this.swing = null;
     this.eating = null;
+    this.cancelCharge();
     this.cancelDraw();
+  }
+
+  /** Läuft gerade ein Schlag, Aufladen oder Essen? */
+  get busy(): boolean {
+    return !!this.swing || !!this.eating || this.charging !== null;
+  }
+
+  private cancelCharge(): void {
+    this.charging = null;
+    this.viewModel.setCharge(0);
   }
 
   private cancelDraw(): void {
@@ -144,9 +163,13 @@ export class ToolController {
       if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwEquipped(def!);
       return;
     }
-    if (blocking || rmb) return;
+    // Deckung, Menü oder Tod brechen das Aufladen ab.
+    if (blocking || rmb || !active || this.player.stats.isDead) {
+      if (this.charging !== null) this.cancelCharge();
+      return;
+    }
 
-    if (!active || this.player.stats.isDead || !stack || this.swing || this.eating || this.viewModel.busy) return;
+    if (!stack || this.swing || this.eating || this.viewModel.busy) return;
 
     // Brandflaschen wirft man, statt damit zuzuschlagen.
     if (stack.id === 'molotov') {
@@ -158,19 +181,63 @@ export class ToolController {
       if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwStone();
       return;
     }
+    if (this.charging !== null) {
+      this.updateCharge(dt);
+      return;
+    }
+    // Waffen: Gedrückt halten lädt einen schweren Schlag auf – außer man hackt gerade Holz oder Stein.
+    if (def?.tool && this.input.isMouseDown(0) && isWeapon(stack.id) && !this.aimingAtHarvest(def.tool.reach)) {
+      this.charging = 0;
+      return;
+    }
     if (def?.tool && this.input.isMouseDown(0)) this.startSwing(this.equippedTool!);
     else if (def?.food && this.input.wasMousePressed(0)) this.startEating(def);
   }
 
-  private startSwing(tool: ToolStats): void {
-    if (!this.player.stats.useStamina(tool.staminaCost * this.skills.meleeStamina)) {
+  /** Blick auf Baum, Fels, Bauwerk oder Feuerstein in Reichweite? (Dort schlägt man im Takt weiter.) */
+  private aimingAtHarvest(reach: number): boolean {
+    const t = this.interaction.raycast(reach)?.type;
+    return t === 'tree' || t === 'rock' || t === 'structure' || t === 'cave';
+  }
+
+  /** Taste gehalten: aufladen; losgelassen: normaler oder schwerer Schlag. */
+  private updateCharge(dt: number): void {
+    const held = (this.charging ?? 0) + dt;
+    if (this.input.isMouseDown(0)) {
+      this.charging = held;
+      this.viewModel.setCharge(held < CHARGE_TAP ? 0 : Math.min(1, (held - CHARGE_TAP) / (CHARGE_FULL - CHARGE_TAP)));
+      return;
+    }
+    this.cancelCharge();
+    const tool = this.equippedTool;
+    if (!tool) return;
+    if (held < CHARGE_TAP) {
+      this.startSwing(tool);
+      return;
+    }
+    // 0,5 bei kurzem Aufladen, 1 bei vollem.
+    const level = 0.5 + 0.5 * Math.min(1, (held - CHARGE_TAP) / (CHARGE_FULL - CHARGE_TAP));
+    this.startSwing(tool, level);
+  }
+
+  private startSwing(tool: ToolStats, heavy = 0): void {
+    const stamina = tool.staminaCost * this.skills.meleeStamina * (heavy ? 1.4 + heavy : 1);
+    if (!this.player.stats.useStamina(stamina)) {
       if (this.exhaustedHintCooldown <= 0) {
         this.events.emit('hud:message', { text: 'Zu erschöpft zum Zuschlagen.' });
         this.exhaustedHintCooldown = 2;
       }
       return;
     }
-    this.swing = { tool, time: 0, impactDone: false };
+    if (heavy) {
+      // Schwerer Schlag: mehr Wucht, etwas langsamer.
+      const t = { ...tool, damage: tool.damage * (1.25 + 0.75 * heavy), treeDamage: tool.treeDamage * (1 + heavy), swingTime: tool.swingTime * 1.1, impactAt: 0.3 };
+      this.swing = { tool: t, time: 0, impactDone: false, heavy };
+      this.viewModel.playSwing(t.swingTime, t.animation, true);
+      this.audio.play('heavySwing');
+      return;
+    }
+    this.swing = { tool, time: 0, impactDone: false, heavy: 0 };
     this.viewModel.playSwing(tool.swingTime, tool.animation);
   }
 
@@ -179,13 +246,13 @@ export class ToolController {
     swing.time += dt;
     if (!swing.impactDone && swing.time >= swing.tool.swingTime * swing.tool.impactAt) {
       swing.impactDone = true;
-      this.resolveImpact(swing.tool);
+      this.resolveImpact(swing.tool, swing.heavy);
     }
     if (swing.time >= swing.tool.swingTime) this.swing = null;
   }
 
   /** Trefferprüfung im Moment des Aufpralls. */
-  private resolveImpact(tool: ToolStats): void {
+  private resolveImpact(tool: ToolStats, heavy: number): void {
     const target = this.interaction.raycast(tool.reach);
     // Horizontale Schlagrichtung aus der Blickrichtung des Spielers.
     this.fromDir.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
@@ -215,19 +282,31 @@ export class ToolController {
         this.building.damage(target.structure, tool.treeDamage, this.point, this.normal);
         break;
       case 'enemy': {
+        const enemy = target.enemy;
         const stack = this.equipped;
         const stats = stack?.weapon ? weaponStats(stack.id, stack.weapon) : null;
-        // Kritischer Treffer: deutlich mehr Schaden, eigener Trefferanzeiger.
-        const crit = Math.random() < (stats?.crit ?? 0);
-        const damage = tool.damage * sk.meleeDamage * (crit ? CRIT_MULTIPLIER : 1);
-        this.enemies.damage(target.enemy, damage, target.zone, this.player.position, this.point, this.normal);
+        // Konter (nach perfekter Parade oder perfektem Ausweichen): immer kritisch und stärker.
+        const counter = this.combat?.consumeCounter() ?? false;
+        // Kritischer Treffer: deutlich mehr Schaden, eigener Trefferanzeiger. Schwere Schläge treffen öfter kritisch.
+        const crit = counter || Math.random() < (stats?.crit ?? 0) + heavy * 0.1;
+        const damage = tool.damage * sk.meleeDamage * (crit ? CRIT_MULTIPLIER : 1) * (counter ? COUNTER_MULTIPLIER : 1);
+        const kind = counter ? 'counter' : crit ? 'crit' : heavy ? 'heavy' : 'normal';
+        this.enemies.damage(enemy, damage, target.zone, this.player.position, this.point, this.normal, kind);
         if (crit) this.events.emit('weapon:crit', { position: this.point.clone() });
+        if (counter) this.events.emit('combat:tag', { text: 'KONTER!', color: '#ffe08a', big: true });
         // Waffenmod: Der Treffer kann sein Element auslösen.
         const mod = stack?.weapon?.mod;
-        if (mod) this.elements?.strike(target.enemy, mod, tool.weaponClass, this.point, crit);
+        if (mod) this.elements?.strike(enemy, mod, tool.weaponClass, this.point, crit || heavy >= 1);
         // Wuchtwaffen lassen den Getroffenen taumeln.
         const stun = (tool.stun ?? (this.staggerAll ? 0.5 : 0)) + (stats?.stagger ?? 0) + (crit ? 0.4 : 0);
-        if (stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(stun);
+        if (!enemy.isDead && heavy) {
+          // Voll aufgeladene schwere Waffen werfen um, sonst schleudert der Schlag zurück.
+          if (tool.weaponClass === 'heavy' && heavy >= 1) enemy.knockdown(2.2, this.player.position, 7);
+          else enemy.shove(this.player.position, 4 + 4 * heavy, 0.5 + stun);
+        } else if (stun && !enemy.isDead && !enemy.kind.boss) enemy.stun(stun);
+        // Trefferstopp: Die Welt hält kurz an – je wuchtiger der Treffer, desto länger.
+        this.combat?.impact(enemy.isDead ? 0.7 : heavy ? 0.45 + 0.4 * heavy : crit ? 0.4 : 0.15);
+        if (heavy) this.player.addShake(0.2 + 0.25 * heavy);
         if (stats?.heal) {
           const st = this.player.stats;
           st.health = Math.min(st.max, st.health + stats.heal);
@@ -256,8 +335,9 @@ export class ToolController {
     this.wearEquipped(1);
   }
 
-  /** Elemente der Waffenmods (setzt das Spiel). */
+  /** Elemente der Waffenmods und Kampfmanöver (setzt das Spiel). */
   elements: ElementEffects | null = null;
+  combat: CombatMoves | null = null;
 
   /** Talente: jeder Nahkampftreffer betäubt kurz; Gekochtes macht satter. */
   staggerAll = false;

@@ -155,15 +155,10 @@ export class HUD {
     events.on('weapon:element', ({ element, combo, weak, resist }) => {
       const def = ELEMENTS[element];
       const note = weak ? ' · ANFÄLLIG' : resist ? ' · WIDERSTEHT' : '';
-      const tag = this.el.elementTag;
-      tag.textContent = (combo ? `${combo}!` : def.tag) + note;
-      tag.style.color = def.css;
-      tag.classList.toggle('is-combo', !!combo);
-      // Animation neu starten (sie blendet den Schriftzug selbst wieder aus).
-      tag.classList.remove('is-visible');
-      void tag.offsetWidth;
-      tag.classList.add('is-visible');
+      this.showTag((combo ? `${combo}!` : def.tag) + note, def.css, !!combo);
     });
+    // Kampfmanöver: Konter, Parade, Sprungtritt …
+    events.on('combat:tag', ({ text, color, big }) => this.showTag(text, color, !!big));
     events.on('tool:hit', ({ target }) => {
       if ((this.hitKind === 'kill' || this.hitKind === 'crit') && this.hitTimer > 0) return;
       this.hitKind = target === 'creature' ? 'creature' : 'normal';
@@ -177,6 +172,17 @@ export class HUD {
       this.toast(drink ? 'Wasser getrunken' : `${getItem(item).name} gegessen`, item);
     });
     events.on('hud:message', ({ text }) => this.toast(text));
+  }
+
+  /** Schriftzug unter dem Fadenkreuz; die CSS-Animation blendet ihn selbst wieder aus. */
+  private showTag(text: string, color: string, big: boolean): void {
+    const tag = this.el.elementTag;
+    tag.textContent = text;
+    tag.style.color = color;
+    tag.classList.toggle('is-combo', big);
+    tag.classList.remove('is-visible');
+    void tag.offsetWidth;
+    tag.classList.add('is-visible');
   }
 
   set visible(v: boolean) {

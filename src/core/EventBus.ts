@@ -5,6 +5,9 @@
 import type { Vector3 } from 'three';
 import type { ItemId } from '../entities/items/ItemDefs';
 import type { ElementId } from '../entities/items/Elements';
+
+/** Art eines Treffers für die Schadenszahlen. */
+export type DamageKind = 'normal' | 'crit' | 'heavy' | 'counter' | 'sneak' | ElementId;
 import type { StructureId } from '../systems/building/StructureDefs';
 import type { PerkId, SkillId } from '../systems/Skills';
 
@@ -12,6 +15,14 @@ export type GameEvents = {
   /** `from`: Position des Angreifers (für die Richtungsanzeige). */
   'player:damaged': { amount: number; source: DamageSource; from?: Vector3 };
   'player:blocked': { amount: number };
+  /** Deckung im letzten Moment gehoben: Schlag ganz abgewehrt, Angreifer taumelt. */
+  'player:parried': { from: Vector3 };
+  /** Einem Schlag im letzten Moment ausgewichen. */
+  'player:dodged': { perfect: boolean; from: Vector3 };
+  /** Kurzer Schriftzug unter dem Fadenkreuz (Konter, Sprungtritt …). */
+  'combat:tag': { text: string; color: string; big?: boolean };
+  /** Schadenszahl über dem Getroffenen. */
+  'damage:number': { position: Vector3; amount: number; kind: DamageKind };
   /** Landung nach einem Sprung/Fall (Aufprallgeschwindigkeit in m/s). */
   'player:landed': { impact: number };
   'player:died': { cause: DamageSource };

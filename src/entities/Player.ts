@@ -5,6 +5,7 @@ import type { EventBus } from '../core/EventBus';
 import type { GameConfig } from '../config';
 import type { HeightMap } from '../world/HeightMap';
 import { PlayerStats } from './PlayerStats';
+import type { HitOutcome } from './enemies/Enemy';
 import { approach, clamp, damp } from '../utils/math';
 
 const DEG = Math.PI / 180;
@@ -38,6 +39,14 @@ const OPEN_SEA_DEPTH = 12;
 
 /** Knochenrüstung: Schadensfaktor bei Treffern und Auffälligkeit. */
 export const ARMOR_FACTOR = 0.67;
+/** Perfekte Parade: so kurz nach dem Heben der Deckung (s). */
+export const PARRY_WINDOW = 0.28;
+/** Ausweichschritt: Dauer, unverwundbar am Anfang, Tempo, Kosten, Pause (s, m/s, Ausdauer). */
+export const DODGE_TIME = 0.32;
+export const DODGE_IFRAMES = 0.24;
+const DODGE_SPEED = 11;
+const DODGE_STAMINA = 16;
+const DODGE_COOLDOWN = 0.55;
 export const ARMOR_VISIBILITY = 1.25;
 
 export class Player {
@@ -104,6 +113,15 @@ export class Player {
   private wantsUp = false;
   private submersion = 0;
   private shake = 0;
+  /** Ausweichschritt: vergangene Zeit (< 0 = keiner), Richtung, Kamerakippen, Pause bis zum nächsten. */
+  private dodgeTime = -1;
+  private readonly dodgeDir = new THREE.Vector3();
+  private dodgeRoll = 0;
+  private roll = 0;
+  private dodgeCooldown = 0;
+  /** Seit wann die Deckung oben ist (s) – kurz nach dem Heben pariert sie perfekt. */
+  private blockTime = Infinity;
+  private wasBlocking = false;
 
   constructor(
     private readonly physics: Physics,
@@ -212,13 +230,25 @@ export class Player {
   }
 
   /**
-   * Treffer eines Gegners. Blocken (Angreifer vorne, genug Ausdauer) fängt den Großteil ab.
+   * Treffer eines Gegners. Wer gerade ausweicht, wird nicht getroffen. Blocken (Angreifer vorne, genug
+   * Ausdauer) fängt den Großteil ab – wer die Deckung im letzten Moment hebt, pariert ganz.
    */
-  receiveHit(amount: number, from: THREE.Vector3): void {
-    if (this.stats.isDead) return;
+  receiveHit(amount: number, from: THREE.Vector3): HitOutcome {
+    if (this.stats.isDead) return 'hit';
+    if (this.invulnerable) {
+      this.events.emit('player:dodged', { perfect: true, from: from.clone() });
+      return 'dodged';
+    }
     const to = new THREE.Vector3(from.x - this.currFeet.x, 0, from.z - this.currFeet.z).normalize();
     const facing = to.dot(this.forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)));
+    if (this.blocking && facing > 0.3 && this.blockTime < PARRY_WINDOW) {
+      this.events.emit('player:parried', { from: from.clone() });
+      this.addShake(0.35);
+      return 'parried';
+    }
+    let outcome: HitOutcome = 'hit';
     if (this.blocking && facing > 0.3) {
+      outcome = 'blocked';
       if (this.stats.useStamina(14 * this.blockStamina)) {
         this.events.emit('player:blocked', { amount });
         this.addShake(0.25);
@@ -235,6 +265,45 @@ export class Player {
     // Leichter Rückstoß weg vom Angreifer.
     this.velocity.x -= to.x * 3;
     this.velocity.z -= to.z * 3;
+    return outcome;
+  }
+
+  /** Unverwundbar: in den ersten Augenblicken eines Ausweichschritts. */
+  get invulnerable(): boolean {
+    return this.dodgeTime >= 0 && this.dodgeTime < DODGE_IFRAMES;
+  }
+
+  /** Läuft gerade ein Ausweichschritt? */
+  get dodging(): boolean {
+    return this.dodgeTime >= 0 && this.dodgeTime < DODGE_TIME;
+  }
+
+  /**
+   * Ausweichschritt in Laufrichtung (ohne Richtungstaste nach hinten).
+   * @returns true, wenn ausgewichen wurde (am Boden, genug Ausdauer, nicht zu kurz nach dem letzten).
+   */
+  dodge(): boolean {
+    if (this.stats.isDead || this.swimming || this.carrier || !this.grounded || this.dodgeCooldown > 0) return false;
+    if (!this.stats.useStamina(DODGE_STAMINA)) return false;
+    const fx = -Math.sin(this.yaw);
+    const fz = -Math.cos(this.yaw);
+    let x = fx * this.moveInput.y + Math.cos(this.yaw) * this.moveInput.x;
+    let z = fz * this.moveInput.y - Math.sin(this.yaw) * this.moveInput.x;
+    const len = Math.hypot(x, z);
+    if (len < 0.1) {
+      x = -fx;
+      z = -fz;
+    } else {
+      x /= len;
+      z /= len;
+    }
+    this.dodgeDir.set(x, 0, z);
+    this.dodgeTime = 0;
+    this.dodgeCooldown = DODGE_COOLDOWN;
+    // Seitliche Schritte kippen die Kamera, Rückwärtsschritte senken sie leicht.
+    this.dodgeRoll = -(x * Math.cos(this.yaw) - z * Math.sin(this.yaw)) * 0.09;
+    this.landDipVel -= 0.5;
+    return true;
   }
 
   addShake(amount: number): void {
@@ -347,6 +416,22 @@ export class Player {
       this.velocity.x += (dvx / dvLen) * maxDv;
       this.velocity.z += (dvz / dvLen) * maxDv;
     }
+
+    // Ausweichschritt überlagert die normale Bewegung (schnell raus, am Ende abbremsen).
+    this.dodgeCooldown -= dt;
+    if (this.dodgeTime >= 0) {
+      this.dodgeTime += dt;
+      if (this.dodgeTime < DODGE_TIME) {
+        const v = DODGE_SPEED * (1 - 0.6 * (this.dodgeTime / DODGE_TIME));
+        this.velocity.x = this.dodgeDir.x * v;
+        this.velocity.z = this.dodgeDir.z * v;
+      } else {
+        this.dodgeTime = -1;
+      }
+    }
+    if (this.blocking && !this.wasBlocking) this.blockTime = 0;
+    else if (this.blocking) this.blockTime += dt;
+    this.wasBlocking = this.blocking;
 
     // --- Vertikal: Schwerkraft, Sprung, Auftrieb ---
     this.coyoteTimer = this.grounded ? cfg.coyoteTime : this.coyoteTimer - dt;
@@ -498,7 +583,9 @@ export class Player {
     this.shake = damp(this.shake, 0, 6, dt);
     const sx = (Math.random() - 0.5) * this.shake * 0.06;
     const sy = (Math.random() - 0.5) * this.shake * 0.06;
-    this.camera.rotation.set(this.pitch + sy, this.yaw + sx, -bobX * 0.15 + sx * 0.5, 'YXZ');
+    // Ausweichen kippt die Kamera kurz zur Seite.
+    this.roll = damp(this.roll, this.dodging ? this.dodgeRoll : 0, this.dodging ? 18 : 7, dt);
+    this.camera.rotation.set(this.pitch + sy, this.yaw + sx, -bobX * 0.15 + sx * 0.5 + this.roll, 'YXZ');
 
     // Sprint-FOV
     const targetFov = (this.sprinting && hs > 2 ? this.fov + (cfg.sprintFov - cfg.fov) : this.fov) * (1 - 0.32 * this.zoom);

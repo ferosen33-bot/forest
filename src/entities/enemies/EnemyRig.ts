@@ -115,6 +115,10 @@ export interface AnimState {
   hit: number;
   /** Fortschritt der Todesanimation in [0, 1] oder < 0. */
   death: number;
+  /** Umgeworfen: wie weit er am Boden liegt (0 … 1) oder < 0. */
+  down: number;
+  /** Aufrappeln nach dem Umwerfen in [0, 1] oder < 0. */
+  rise: number;
   /** Schreien/Alarm in [0, 1]. */
   alert: number;
   /** Kopfdrehung relativ zum Körper (rad). */
@@ -129,7 +133,7 @@ export class EnemyRig {
   /** Fußpunkt + Blickrichtung (vom Gegner gesetzt). */
   readonly root = new THREE.Object3D();
   readonly parts: { type: PartType; bone: THREE.Object3D }[] = [];
-  readonly anim: AnimState = { speed: 0, attack: -1, hit: 0, death: -1, alert: 0, lookYaw: 0 };
+  readonly anim: AnimState = { speed: 0, attack: -1, hit: 0, death: -1, down: -1, rise: -1, alert: 0, lookYaw: 0 };
 
   private readonly body = new THREE.Object3D(); // Drehpunkt für das Umfallen
   private readonly pelvis = new THREE.Object3D();
@@ -282,8 +286,10 @@ export class EnemyRig {
     }
 
     // --- Tod: rückwärts umfallen, Arme ausgebreitet ---
-    if (a.death >= 0) {
-      const t = 1 - (1 - Math.min(1, a.death)) ** 3;
+    // Umgeworfen liegt er wie ein Toter – nur steht er wieder auf.
+    const fallen = a.death >= 0 ? a.death : a.down;
+    if (fallen >= 0) {
+      const t = 1 - (1 - Math.min(1, fallen)) ** 3;
       this.body.rotation.set(-t * Math.PI * 0.48, 0, 0);
       this.body.position.y = 0.12 * t;
       this.shoulderL.rotation.set(-1.2 * t, 0, 1.0 * t);

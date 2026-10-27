@@ -87,6 +87,8 @@ import { NOTES } from '../systems/Notes';
 import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
 import { ElementEffects } from '../systems/ElementEffects';
+import { CombatMoves } from '../systems/CombatMoves';
+import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -220,6 +222,9 @@ export class Game {
   elementFx!: ElementEffects;
   private readonly intruderCache = new WeakMap<object, Intruder>();
   hud!: HUD;
+  /** Kampfmanöver (Tritte, Ausweichen, Parade, Trefferstopp) und Schadenszahlen. */
+  combat!: CombatMoves;
+  private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
   mode: GameMode = 'loading';
@@ -805,6 +810,17 @@ export class Game {
       this.skills,
     );
     this.tools.elements = this.elementFx;
+    this.combat = new CombatMoves({
+      input: this.input,
+      player: this.player,
+      viewModel: this.viewModel,
+      enemies: this.enemies,
+      audio: this.audio,
+      events: this.events,
+      skills: this.skills,
+      blood: this.blood,
+    });
+    this.tools.combat = this.combat;
     wireSkillEvents(this.skills, this.events);
     this.fishing = new Fishing({
       heightMap: this.world.heightMap,
@@ -863,6 +879,8 @@ export class Game {
     // UI (Icons werden aus den 3D-Modellen gerendert)
     const icons = renderIcons();
     this.hud = new HUD(this.opts.hudRoot, this.events, this.inventory, icons.items);
+    this.damageNumbers = new DamageNumbers(this.opts.hudRoot, this.events);
+    this.damageNumbers.enabled = this.settings.damageNumbers;
     this.inventoryUI = new InventoryUI(
       this.opts.inventoryRoot,
       this.inventory,
@@ -1858,7 +1876,8 @@ export class Game {
       this.closeInventory();
     }
 
-    if (this.mode === 'playing' || this.mode === 'inventory') this.simulate(dt);
+    // Trefferstopp und Zeitlupe verlangsamen die Spielwelt, nicht aber Menüs und Anzeige.
+    if (this.mode === 'playing' || this.mode === 'inventory') this.simulate(dt * this.combat.timeScale(dt));
 
     this.render();
     const building = this.building.isActive;
@@ -1871,6 +1890,7 @@ export class Game {
     const boss = this.enemies.activeBoss;
     this.hud.setBoss(boss ? { name: boss.kind.name, fraction: boss.health / boss.maxHealth } : null);
     this.hud.update(dt, this.player, clock, prompt, this.tools.selected, this.buildHint());
+    this.damageNumbers.update(dt, this.camera, window.innerWidth, window.innerHeight);
     this.updateNavigation(dt);
     if (this.hud.debugVisible) this.hud.updateDebug(this.debugLines());
     this.input.endFrame();
@@ -1932,6 +1952,7 @@ export class Game {
     if (this.noteUI.open && (player.position.distanceTo(this.noteAt) > 3.5 || this.mode !== 'playing')) this.noteUI.hide();
     // Im Gespräch wählen die Zifferntasten Antworten statt Werkzeuge (und es wird nicht zugeschlagen).
     this.tools.update(dt, playing && !building && !this.dialogueUI.open);
+    this.combat.update(dt, playing && !building && !this.dialogueUI.open, this.tools.busy);
     this.harvest.update(dt);
     this.building.update(dt, player.position);
     this.defenses.rain = this.climate.weather.rain * (1 - this.climate.season.snowfall * 0.5);
@@ -2357,6 +2378,7 @@ export class Game {
   private applySettings(): void {
     const s = this.settings;
     this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.ambienceVolume);
+    if (this.damageNumbers) this.damageNumbers.enabled = s.damageNumbers;
     if (this.player) {
       this.player.mouseScale = s.mouseSensitivity;
       this.player.invertY = s.invertY;

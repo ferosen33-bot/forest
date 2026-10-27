@@ -217,7 +217,7 @@ export class ElementEffects {
   private electrify(enemy: Enemy, damage: number, stun: number, at: THREE.Vector3): void {
     enemy.status.shock = Math.max(enemy.status.shock, stun + 0.3);
     this.d.embers.burst(at, { count: 12, color: 0x9fdcff, speed: 3.5, gravity: 6, life: 0.35, size: 0.02 });
-    this.d.hurt(enemy, damage, at, 'shock');
+    this.hurt(enemy, damage, at, 'shock');
     if (!enemy.isDead && !enemy.kind.boss) enemy.stun(stun);
   }
 
@@ -230,7 +230,7 @@ export class ElementEffects {
       if (o.isDead || !o.active) continue;
       const dist = o.feet.distanceTo(source.feet);
       if (dist > r) continue;
-      this.d.hurt(o, VAPOR_BLAST.damage * (1 - (0.5 * dist) / r), center, 'fire');
+      this.hurt(o, VAPOR_BLAST.damage * (1 - (0.5 * dist) / r), center, 'fire');
       this.ignite(o, 3);
     }
     const toPlayer = this.d.player.position.distanceTo(source.feet);
@@ -273,7 +273,7 @@ export class ElementEffects {
           t.tick = DOT_TICK;
           for (const k in t.pending) {
             const amount = t.pending[k as ElementId]!;
-            if (amount > 0 && !e.isDead) this.d.hurt(e, amount, e.feet, k as ElementId);
+            if (amount > 0 && !e.isDead) this.hurt(e, amount, e.feet, k as ElementId);
           }
           t.pending = {};
         }
@@ -475,6 +475,14 @@ export class ElementEffects {
   // ---------------------------------------------------------------------------
   // Hilfen
   // ---------------------------------------------------------------------------
+
+  /** Schaden durch ein Element, mit Schadenszahl in seiner Farbe. */
+  private hurt(e: Enemy, amount: number, from: THREE.Vector3, element: ElementId): void {
+    if (e.isDead) return;
+    this.d.hurt(e, amount, from, element);
+    const at = this.chest(e, new THREE.Vector3()).add(this.randomOffset(0.25 * e.rig.scale));
+    this.d.events.emit('damage:number', { position: at, amount: e.lastDamage, kind: element });
+  }
 
   private chest(e: Enemy, out: THREE.Vector3): THREE.Vector3 {
     return out.copy(e.position).setY(e.position.y + (e.isDead ? 0.3 : 1.2) * e.rig.scale);

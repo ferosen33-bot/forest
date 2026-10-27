@@ -22,6 +22,9 @@ export type EnemyState =
   | 'throw'
   | 'dead';
 
+/** Ausgang eines Treffers am Spieler: getroffen, abgeblockt, perfekt pariert oder ausgewichen. */
+export type HitOutcome = 'hit' | 'blocked' | 'parried' | 'dodged';
+
 /** Was ein Gegner über den Spieler wissen darf. */
 export interface PlayerTarget {
   position: THREE.Vector3;
@@ -32,7 +35,7 @@ export interface PlayerTarget {
   stealthy: boolean;
   /** Bewegung (für vorausschauendes Zielen beim Steinwurf). */
   velocity: THREE.Vector3;
-  receiveHit(amount: number, from: THREE.Vector3): void;
+  receiveHit(amount: number, from: THREE.Vector3): HitOutcome;
 }
 
 /** Vom EnemyDirector bereitgestellte Umgebung. */
@@ -73,6 +76,9 @@ const RELEASE_AT = 0.55;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const STRIKE_AT = 0.6;
+/** Umgeworfen: so lange fällt er (s), und so lange braucht er zum Aufstehen. */
+const FALL_TIME = 0.35;
+const RISE_TIME = 0.9;
 const RADIUS = 0.32;
 const HEIGHT = 1.8;
 
@@ -107,6 +113,11 @@ export class Enemy {
   deadFor = 0;
   /** Zustände durch Waffenmods (Brand, Schock, Säure, Blutung, Nässe). */
   readonly status = createStatus();
+  /** Umgeworfen: Dauer am Boden (inkl. Aufstehen) und bisher vergangene Zeit. */
+  private downFor = 0;
+  private downTime = 0;
+  /** Zuletzt erlittener Schaden (nach Verätzung) – für die Schadenszahlen. */
+  lastDamage = 0;
 
   /** Wachsamkeit 0–1: ab 0,4 nachsehen, bei 1 Jagd. */
   suspicion = 0;
@@ -262,6 +273,7 @@ export class Enemy {
     if (this.isDead) return false;
     // Verätzte nehmen mehr Schaden.
     amount *= vulnerability(this.status);
+    this.lastDamage = amount;
     this.health -= amount;
     this.rig.anim.hit = 1;
     if (this.health <= 0) {
@@ -285,7 +297,8 @@ export class Enemy {
     this.suspicion = 1;
     this.lastSeen.copy(ctx.player.position);
     this.lastSeenTime = ctx.time;
-    if (!flinch) {
+    // Wer am Boden liegt, bleibt liegen; Schaden über Zeit lässt nicht taumeln.
+    if (!flinch || this.downed) {
       if (!this.isAggressive && this.state !== 'stagger') this.setState('chase');
       return false;
     }
@@ -307,8 +320,60 @@ export class Enemy {
     this.knockback.set(0, 0, 0);
     this.velocity.set(0, 0, 0);
     this.rig.anim.attack = -1;
+    // Liegt er schon, verkürzt eine Betäubung das Liegen nicht.
+    if (this.downed) {
+      this.timer = Math.max(this.timer, seconds);
+      return;
+    }
     this.setState('stagger');
     this.timer = seconds;
+  }
+
+  /** Liegt umgeworfen am Boden (Bodenstampfer möglich). */
+  get downed(): boolean {
+    return this.downFor > 0 && !this.isDead;
+  }
+
+  /**
+   * Umgeworfen (Sprungtritt, schwerer Schlag): fällt hin, liegt eine Weile und rappelt sich auf.
+   * Endgegner bleiben stehen.
+   * @returns true, wenn er zu Boden ging.
+   */
+  knockdown(seconds: number, from: THREE.Vector3, force = 6): boolean {
+    if (this.isDead || this.kind.boss) return false;
+    this.push(from, force);
+    this.velocity.set(0, 0, 0);
+    this.rig.anim.attack = -1;
+    this.setState('stagger');
+    this.timer = seconds;
+    this.downFor = seconds;
+    this.downTime = 0;
+    return true;
+  }
+
+  /** Weggestoßen (Tritt): Rückstoß und kurz aus dem Tritt – schwere Gegner wanken nur. */
+  shove(from: THREE.Vector3, force: number, seconds: number): void {
+    if (this.isDead) return;
+    const heavy = this.kind.staggerThreshold > 0;
+    this.push(from, heavy ? force * 0.35 : force);
+    if (heavy || this.downed) return;
+    this.rig.anim.attack = -1;
+    this.setState('stagger');
+    this.timer = Math.max(this.timer, seconds);
+  }
+
+  /** Der Spieler hat den Schlag perfekt pariert: Der Angreifer taumelt zurück. */
+  parried(from: THREE.Vector3): void {
+    this.rig.anim.hit = 1;
+    if (this.kind.boss) return;
+    this.push(from, 3.5);
+    this.rig.anim.attack = -1;
+    this.setState('stagger');
+    this.timer = 1.3;
+  }
+
+  private push(from: THREE.Vector3, force: number): void {
+    this.knockback.subVectors(this.curr, from).setY(0).normalize().multiplyScalar(force / this.rig.scale);
   }
 
   /** Fiebernacht: rasend – fürchtet kein Feuer mehr. */
@@ -344,8 +409,27 @@ export class Enemy {
       return;
     }
     this.perceive(dt, ctx);
+    this.updateDown(dt);
     this.think(dt, ctx);
     this.move(dt, ctx);
+  }
+
+  /** Umgeworfen: hinfallen, liegen, aufrappeln (setzt die Animation). */
+  private updateDown(dt: number): void {
+    const a = this.rig.anim;
+    if (this.downFor <= 0) {
+      a.down = a.rise = -1;
+      return;
+    }
+    this.downTime += dt;
+    const left = this.downFor - this.downTime;
+    if (left <= 0) {
+      this.downFor = 0;
+      a.down = a.rise = -1;
+      return;
+    }
+    a.rise = left < RISE_TIME ? 1 - left / RISE_TIME : -1;
+    a.down = a.rise >= 0 ? 1 - a.rise : Math.min(1, this.downTime / FALL_TIME);
   }
 
   afterPhysicsStep(): void {
@@ -588,7 +672,11 @@ export class Enemy {
           player.receiveHit(this.cfg.attackDamage * this.kind.damage * (1 - (0.5 * dist) / boss.slamRadius), this.curr);
         }
       } else if (dist < this.attackRange + 0.65 * this.rig.scale && angle < THREE.MathUtils.degToRad(70) && !player.isDead) {
-        player.receiveHit(this.cfg.attackDamage * this.kind.damage * (0.85 + Math.random() * 0.3), this.curr);
+        const outcome = player.receiveHit(this.cfg.attackDamage * this.kind.damage * (0.85 + Math.random() * 0.3), this.curr);
+        if (outcome === 'parried') {
+          this.parried(player.position);
+          return;
+        }
       }
     }
     if (u >= 1) {

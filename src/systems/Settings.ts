@@ -18,6 +18,8 @@ export interface Settings {
   postProcessing: boolean;
   /** Bewegungsunschärfe beim Umsehen. */
   motionBlur: boolean;
+  /** Schadenszahlen über getroffenen Gegnern. */
+  damageNumbers: boolean;
 }
 
 export interface QualityPreset {
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   postProcessing: true,
   motionBlur: true,
+  damageNumbers: true,
 };
 
 const STORAGE_KEY = 'wildwood.settings';
@@ -68,6 +71,7 @@ export function sanitizeSettings(data: unknown): Settings {
     quality: d.quality === 'low' || d.quality === 'medium' || d.quality === 'high' ? d.quality : def.quality,
     postProcessing: typeof d.postProcessing === 'boolean' ? d.postProcessing : def.postProcessing,
     motionBlur: typeof d.motionBlur === 'boolean' ? d.motionBlur : def.motionBlur,
+    damageNumbers: typeof d.damageNumbers === 'boolean' ? d.damageNumbers : def.damageNumbers,
   };
 }
 

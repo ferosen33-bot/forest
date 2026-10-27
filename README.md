@@ -61,6 +61,40 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 49 – Nahkampf-Ausbau (Teil 3: Kampfmanöver)
+
+- **Schwerer Schlag:** Linksklick mit einer Waffe gedrückt halten, um auszuholen (die Waffe geht über die
+  Schulter und zittert, wenn sie voll aufgeladen ist), dann loslassen.
+  - Ein kurzer Klick bleibt ein normaler Schlag.
+  - Der schwere Schlag macht bis zu doppelten Schaden, trifft öfter kritisch und kostet mehr Ausdauer.
+  - Er schleudert Gegner zurück. Voll aufgeladene schwere Waffen (Vorschlaghammer, Feuerwehraxt) werfen sie um.
+  - Schaut man auf Baum, Fels oder Bauwerk, schlägt man wie bisher im Takt weiter.
+- **Ausweichen** (`Q`): ein schneller Schritt in Laufrichtung (ohne Richtungstaste nach hinten), mit
+  Kamerakippen. In den ersten Augenblicken ist man unverwundbar. Wer einem Schlag so im letzten Moment
+  ausweicht, bekommt eine kurze Zeitlupe und ein Konterfenster.
+- **Perfekte Parade:** Hebt man die Deckung (Rechtsklick) knapp vor dem Treffer, prallt der Schlag ganz ab
+  (PARIERT!). Der Angreifer taumelt zurück, und der nächste Schlag ist ein **Konter**: immer kritisch und noch
+  einmal +50 % Schaden.
+- **Treten** (`F`): stößt Gegner zurück und bringt sie aus dem Tritt, schafft also Luft. Kolosse wanken nur.
+- **Sprungtritt:** aus dem Sprint springen und in der Luft treten. Man fliegt mit Schwung hinein und wirft bis
+  zu zwei Gegner um.
+- **Bodenstampfer:** `F` bei einem umgeworfenen Gegner bringt einen verheerenden Tritt (70 Schaden).
+- **Umgeworfen:** Gegner fallen hin (die Figuren spielen einen Sturz), bleiben gut zwei Sekunden liegen und
+  rappeln sich mit einer eigenen Aufsteh-Animation wieder hoch. Treffer verlängern das Liegen nicht, Endgegner
+  fallen nicht um.
+- **Schadenszahlen** steigen über dem Getroffenen auf:
+  - normal weiß, schwere Treffer orange, kritische gelb mit „!“, Konter groß, Schleichangriffe violett
+  - Elementschaden klein in der Farbe des Elements
+  - in den Einstellungen abschaltbar
+- **Trefferstopp:** Bei wuchtigen Treffern steht die Welt für Sekundenbruchteile still (schwere Schläge,
+  Kills, Tritte). Dazu kommen Kamerawackeln und Schriftzüge (PARIERT!, AUSGEWICHEN!, KONTER!,
+  SPRUNGTRITT!, BODENSTAMPFER!).
+- Beim Treten erscheint das eigene Bein mit Stiefel im Bild.
+- Schläge kommen zur Hälfte aus dem Handgelenk, deshalb schwingt der Arm nicht mehr samt Schulter ins Bild.
+- Eigene Klänge für Tritt, Bodenstampfer, Parade, Ausweichen und schweren Schlag.
+- `systems/CombatMoves.ts` enthält Tritte, Konter, Trefferstopp und Zeitlupe, `ui/DamageNumbers.ts` die
+  Schadenszahlen.
+
 ### Meilenstein 49 – Nahkampf-Ausbau (Teil 2: Mods & Elemente)
 
 - **Vier Waffenmods**, an der Werkbank hergestellt (eigener Abschnitt „Waffenmods“) oder gefunden:

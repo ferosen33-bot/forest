@@ -17,6 +17,10 @@ export const KEY_BINDINGS = {
   // daher zusätzlich C als Ducken-Taste.
   crouch: ['ControlLeft', 'ControlRight', 'KeyC'],
   interact: ['KeyE'],
+  /** Ausweichschritt in Laufrichtung. */
+  dodge: ['KeyQ'],
+  /** Treten (in der Luft: Sprungtritt, auf Liegende: Bodenstampfer). */
+  kick: ['KeyF'],
   hotbar1: ['Digit1'],
   hotbar2: ['Digit2'],
   hotbar3: ['Digit3'],

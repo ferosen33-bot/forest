@@ -82,6 +82,35 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
 };
 
+/** Bein für Tritte (Kamera-Raum): Hüfte unter und hinter der Kamera, Stiefelsohle zeigt in Beinrichtung. */
+function createLeg(): THREE.Group {
+  const jeans = new THREE.MeshStandardMaterial({ color: 0x4a5a72, roughness: 0.92 });
+  const boot = new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.6 });
+  const sole = new THREE.MeshStandardMaterial({ color: 0x24201c, roughness: 0.95 });
+  const hip = new THREE.Group();
+  hip.position.set(0.05, -0.9, 0.0);
+  hip.scale.setScalar(0.85);
+  const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.08, 0.55, 14), jeans);
+  thigh.position.y = -0.27;
+  const knee = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), jeans);
+  knee.position.y = -0.55;
+  const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.38, 14), jeans);
+  shin.position.y = -0.74;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.07, 0.16, 14), boot);
+  shaft.position.y = -0.94;
+  // Stiefel: Spitze zeigt lokal −Z (beim Tritt nach oben), die Sohle schließt das Bein ab.
+  const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.058, 0.17, 6, 14), boot);
+  foot.rotation.x = Math.PI / 2;
+  foot.scale.set(1, 1, 0.85);
+  foot.position.set(0, -1.05, -0.07);
+  const soleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.2, 4, 14), sole);
+  soleMesh.rotation.x = Math.PI / 2;
+  soleMesh.scale.set(1.05, 1, 0.3);
+  soleMesh.position.set(0, -1.1, -0.07);
+  hip.add(thigh, knee, shin, shaft, foot, soleMesh);
+  return hip;
+}
+
 /** Versatz aller Halte-Posen, sobald die echte Hand sichtbar ist. */
 const HAND_LIFT = new THREE.Vector3(-0.025, 0.13, 0.04);
 const ZERO = new THREE.Vector3();
@@ -105,6 +134,19 @@ const THRUST_KEYS: typeof SWING_KEYS = [
   { t: 0.6, pos: [-0.06, 0.03, -0.38], rot: [-0.05, 0, 0] },
   { t: 1, pos: [0, 0, 0], rot: [0, 0, 0] },
 ];
+
+/** Schwerer Schlag: aus der Ausholhaltung (über der Schulter) schräg nach unten durchziehen. */
+const HEAVY_WINDUP = { pos: [0.1, 0.05, 0.14] as [number, number, number], rot: [0.3, 0.85, -0.4] as [number, number, number] };
+const HEAVY_KEYS: typeof SWING_KEYS = [
+  { t: 0, pos: HEAVY_WINDUP.pos, rot: HEAVY_WINDUP.rot },
+  { t: 0.12, pos: [0.12, 0.06, 0.16], rot: [0.34, 0.95, -0.45] },
+  { t: 0.3, pos: [-0.26, -0.06, -0.26], rot: [-0.3, -1.1, 0.45] },
+  { t: 0.5, pos: [-0.3, -0.1, -0.22], rot: [-0.35, -1.2, 0.5] },
+  { t: 1, pos: [0, 0, 0], rot: [0, 0, 0] },
+];
+
+/** Tritt: Winkel des Beins (um die Hüfte, 0 = hängt senkrecht) über den Ablauf. */
+const KICK_KEYS = { kick: 2.4, dropkick: 2.55, stomp: 2.35 };
 
 /** Essen: zum Mund führen und zurück. */
 const EAT_KEYS: typeof SWING_KEYS = [
@@ -172,8 +214,20 @@ export class ViewModel {
 
   /** 0 = weggesteckt, 1 = in der Hand. */
   private raise = 0;
-  private action: { keys: typeof SWING_KEYS; time: number; duration: number } | null = null;
+  /** Laufende Bewegung; `wrist`: Anteil der Drehung, den das Handgelenk statt des ganzen Arms übernimmt. */
+  private action: { keys: typeof SWING_KEYS; time: number; duration: number; wrist?: number } | null = null;
+  /** Ruhe-Drehung des Items am Griff (die Handgelenk-Drehung kommt beim Schlagen hinzu). */
+  private readonly restGrip = new THREE.Quaternion();
+  private readonly wristQ = new THREE.Quaternion();
+  private readonly wristE = new THREE.Euler();
   private recoil = 0;
+  /** Aufladen des schweren Schlags 0..1. */
+  private charge = 0;
+  private chargeTarget = 0;
+  /** Tritt: Bein am Hüftpunkt, Ablauf und Art. */
+  private readonly leg = createLeg();
+  private kick: { time: number; duration: number; angle: number } | null = null;
+  private dodgeDip = 0;
   private block = 0;
   private blocking = false;
   private aim = 0;
@@ -208,6 +262,8 @@ export class ViewModel {
 
   constructor() {
     this.scene.add(this.camera, this.hemi, this.light, this.light.target);
+    this.leg.visible = false;
+    this.camera.add(this.leg);
     this.camera.add(this.handLight);
     this.handLight.position.set(0.25, -0.05, -0.45);
     this.camera.add(this.root);
@@ -279,9 +335,26 @@ export class ViewModel {
     if (!this.hasPending) this.aura.attach(this.model?.children[0] ?? null, element);
   }
 
-  /** Startet eine Schlag- bzw. Stoßanimation über `duration` Sekunden. */
-  playSwing(duration: number, style: 'swing' | 'thrust' = 'swing'): void {
-    this.action = { keys: style === 'thrust' ? THRUST_KEYS : SWING_KEYS, time: 0, duration };
+  /** Startet eine Schlag- bzw. Stoßanimation über `duration` Sekunden (`heavy`: schwerer Hieb aus dem Ausholen). */
+  playSwing(duration: number, style: 'swing' | 'thrust' = 'swing', heavy = false): void {
+    // Schläge kommen zur Hälfte aus dem Handgelenk – sonst schwingt der ganze Arm samt Schulter ins Bild.
+    this.action = { keys: heavy ? HEAVY_KEYS : style === 'thrust' ? THRUST_KEYS : SWING_KEYS, time: 0, duration, wrist: 0.5 };
+    if (heavy) this.charge = this.chargeTarget = 0;
+  }
+
+  /** Schweren Schlag aufladen: 0 = nicht, 1 = voll ausgeholt (zittert). */
+  setCharge(level: number): void {
+    this.chargeTarget = level;
+  }
+
+  /** Tritt, Sprungtritt oder Bodenstampfer: das Bein schnellt von unten ins Bild. */
+  playKick(duration: number, move: keyof typeof KICK_KEYS): void {
+    this.kick = { time: 0, duration, angle: KICK_KEYS[move] };
+  }
+
+  /** Ausweichschritt: Waffe kurz abgesenkt. */
+  playDodge(): void {
+    this.dodgeDip = 1;
   }
 
   /** Weltposition der Fackelflamme (gleiches Koordinatensystem wie die Spielwelt), sonst null. */
@@ -399,6 +472,18 @@ export class ViewModel {
       else sampleKeys(this.action.keys, u, this.animPos, this.animRot);
     }
     this.recoil = damp(this.recoil, 0, 14, dt);
+    // Aufladen: in die Ausholhaltung des schweren Schlags, voll aufgeladen zittert die Waffe.
+    this.charge = damp(this.charge, this.chargeTarget, this.chargeTarget > this.charge ? 8 : 14, dt);
+    if (this.charge > 0.001 && !this.action) {
+      const c = smoothstep(0, 1, this.charge);
+      const tremble = this.chargeTarget >= 1 ? Math.sin(this.time * 47) * 0.004 : 0;
+      this.animPos.set(HEAVY_WINDUP.pos[0] * c + tremble, HEAVY_WINDUP.pos[1] * c + tremble, HEAVY_WINDUP.pos[2] * c);
+      this.animRot.set(HEAVY_WINDUP.rot[0] * c, HEAVY_WINDUP.rot[1] * c, HEAVY_WINDUP.rot[2] * c);
+    }
+    this.updateLeg(dt);
+    this.dodgeDip = damp(this.dodgeDip, 0, 6, dt);
+    this.animPos.y -= 0.07 * this.dodgeDip;
+    this.animRot.z += 0.12 * this.dodgeDip;
     this.block = damp(this.block, this.blocking ? 1 : 0, 14, dt);
     if (this.block > 0.001) {
       this.animPos.x -= 0.22 * this.block;
@@ -461,7 +546,12 @@ export class ViewModel {
     const pose = this.currentId ? POSES[this.currentId] : undefined;
     if (pose) {
       this.pose.position.copy(pose.position).add(this.animPos);
-      this.pose.rotation.set(this.animRot.x, this.animRot.y, this.animRot.z);
+      const wrist = this.action?.wrist ?? (this.charge > 0.001 ? 0.5 : 0);
+      this.pose.rotation.set(this.animRot.x * (1 - wrist), this.animRot.y * (1 - wrist), this.animRot.z * (1 - wrist));
+      if (this.model) {
+        this.wristQ.setFromEuler(this.wristE.set(this.animRot.x * wrist, this.animRot.y * wrist, this.animRot.z * wrist));
+        this.model.quaternion.multiplyQuaternions(this.wristQ, this.restGrip);
+      }
     }
 
     // Beleuchtung aus der Welt übernehmen (ohne Schatten).
@@ -488,6 +578,27 @@ export class ViewModel {
 
   get visible(): boolean {
     return this.model !== null;
+  }
+
+  /** Bein beim Tritt: hochschnellen, kurz halten, zurück. Die Waffe geht dabei etwas aus dem Weg. */
+  private updateLeg(dt: number): void {
+    const k = this.kick;
+    if (!k) {
+      this.leg.visible = false;
+      return;
+    }
+    k.time += dt;
+    const u = k.time / k.duration;
+    if (u >= 1) {
+      this.kick = null;
+      this.leg.visible = false;
+      return;
+    }
+    const out = smoothstep(0, 0.3, u) * (1 - smoothstep(0.5, 1, u));
+    this.leg.visible = true;
+    this.leg.rotation.set(0.5 + (k.angle - 0.5) * out, 0, -0.06 * out);
+    this.animPos.y -= 0.1 * out;
+    this.animPos.x += 0.05 * out;
   }
 
   private swapModel(): void {
@@ -517,6 +628,7 @@ export class ViewModel {
     // Griff-Gruppe trägt die Ruhe-Ausrichtung; gedreht wird um den Griffpunkt (= Hand).
     const grip = new THREE.Group();
     grip.rotation.copy(pose.rotation);
+    this.restGrip.copy(grip.quaternion);
     grip.add(this.model);
     this.model = grip;
     this.pose.add(grip);

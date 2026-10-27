@@ -58,7 +58,10 @@ describe('Enemy (KI)', () => {
       isDead: false,
       stealthy: false,
       velocity: new THREE.Vector3(),
-      receiveHit: (amount) => hits.push(amount),
+      receiveHit: (amount) => {
+        hits.push(amount);
+        return 'hit';
+      },
     };
     return { target, hits, dispose: () => w.physics.world.removeCollider(collider, false) };
   }
@@ -143,6 +146,56 @@ describe('Enemy (KI)', () => {
     expect(e.takeDamage(1000, p.target.position, ctx)).toBe(true);
     expect(e.isDead).toBe(true);
     expect(w.physics.world.bodies.len()).toBe(bodies - 1);
+    p.dispose();
+  });
+
+  it('taumelt nach einer perfekten Parade zurück', () => {
+    const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 1.4)));
+    p.target.receiveHit = (amount) => {
+      p.hits.push(amount);
+      return 'parried';
+    };
+    const e = spawnFacing(w.origin, 0);
+    const ctx = makeCtx(p.target, [e]);
+    e.alertedBy(p.target.position, ctx);
+    expect(run(e, ctx, 6, () => p.hits.length > 0)).toBe(true);
+    expect(e.state).toBe('stagger');
+    e.dispose();
+    p.dispose();
+  });
+
+  it('geht beim Umwerfen zu Boden, bleibt liegen und steht wieder auf', () => {
+    const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 3)));
+    const e = spawnFacing(w.origin, 0);
+    const ctx = makeCtx(p.target, [e]);
+    expect(e.knockdown(2, p.target.position)).toBe(true);
+    run(e, ctx, 0.5);
+    expect(e.downed).toBe(true);
+    expect(e.rig.anim.down).toBeGreaterThan(0.9);
+    // Treffer und Betäubungen verkürzen das Liegen nicht.
+    e.takeDamage(10, p.target.position, ctx);
+    e.stun(0.1);
+    run(e, ctx, 0.9);
+    expect(e.downed).toBe(true);
+    expect(e.rig.anim.rise).toBeGreaterThan(0);
+    run(e, ctx, 1);
+    expect(e.downed).toBe(false);
+    expect(e.rig.anim.down).toBeLessThan(0);
+    e.dispose();
+    p.dispose();
+  });
+
+  it('schwere Gegner wanken beim Tritt nur, Endgegner fallen nicht um', () => {
+    const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 3)));
+    const k = new Enemy(2, w.physics, w.origin, w.origin, CONFIG.ai, 0, 1.4, 'koloss');
+    const ctx = makeCtx(p.target, [k]);
+    k.shove(p.target.position, 7, 1);
+    expect(k.state).not.toBe('stagger');
+    const h = new Enemy(3, w.physics, w.origin.clone().add(new THREE.Vector3(4, 0, 0)), w.origin, CONFIG.ai, 0, 1.75, 'hansen');
+    expect(h.knockdown(2, p.target.position)).toBe(false);
+    run(k, ctx, 0.1);
+    k.dispose();
+    h.dispose();
     p.dispose();
   });
 

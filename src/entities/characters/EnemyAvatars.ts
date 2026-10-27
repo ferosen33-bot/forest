@@ -98,6 +98,8 @@ const KIND_TINT: Partial<Record<EnemyKind, [number, number, number]>> = {
 const DEATHS = ['Death_A', 'Death_B', 'Death_C', 'Death_D'];
 const HIT = 'Hit_Chest';
 const YELL = 'Zombie Yell';
+/** Aufrappeln nach dem Umwerfen. */
+const RISE = 'Zombie_Rise';
 /** Körperhöhe eines Schrats bei Skalierung 1 (wie das Prozedur-Skelett). */
 const BASE_HEIGHT = 1.8;
 
@@ -116,6 +118,8 @@ interface Driven {
   kind: EnemyKind;
   death: string;
   wasDead: boolean;
+  /** Liegt gerade umgeworfen am Boden (die Fall-Animation läuft einmal ab). */
+  downed: boolean;
   hitTimer: number;
   lastHit: number;
   weights: Map<string, number>;
@@ -169,7 +173,7 @@ export class EnemyAvatars {
     this.tint.setRGB(v * r, v * g, v * b);
     const avatar = this.lib.create(model, BASE_HEIGHT * t.rig.scale, { eyes: true, tint: this.tint });
     this.group.add(avatar.object);
-    for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL]) {
+    for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL, RISE]) {
       const a = avatar.action(name);
       if (a) {
         a.play();
@@ -183,6 +187,7 @@ export class EnemyAvatars {
       kind: t.kind,
       death: DEATHS[t.id % DEATHS.length],
       wasDead: false,
+      downed: false,
       hitTimer: 0,
       lastHit: 0,
       weights: new Map(),
@@ -213,15 +218,41 @@ export class EnemyAvatars {
       if (!d.wasDead) {
         d.wasDead = true;
         const death = d.avatar.action(d.death);
-        if (death) {
+        // Wer schon am Boden liegt, bleibt einfach liegen.
+        if (death && !d.downed) {
           death.reset();
+          death.timeScale = 1;
           death.setLoop(THREE.LoopOnce, 1);
           death.clampWhenFinished = true;
           death.play();
         }
       }
       target.set(d.death, 1);
+    } else if (a.down >= 0) {
+      // Umgeworfen: fällt hin wie ein Toter, bleibt liegen und rappelt sich dann auf.
+      if (a.rise >= 0) {
+        const rise = d.avatar.action(RISE);
+        if (rise) {
+          rise.time = Math.min(0.999, a.rise) * rise.getClip().duration;
+          rise.timeScale = 0;
+          target.set(RISE, 1);
+        }
+      } else {
+        if (!d.downed) {
+          d.downed = true;
+          const fall = d.avatar.action(d.death);
+          if (fall) {
+            fall.reset();
+            fall.setLoop(THREE.LoopOnce, 1);
+            fall.clampWhenFinished = true;
+            fall.timeScale = 1.6;
+            fall.play();
+          }
+        }
+        target.set(d.death, 1);
+      }
     } else {
+      d.downed = false;
       // Treffer: kurzes Zusammenzucken
       const hit = t.rig.hitPulse;
       if (hit > 0.6 && d.lastHit <= 0.6) {
