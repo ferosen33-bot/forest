@@ -29,7 +29,13 @@ export type StructureId =
   | 'cookingPot'
   | 'bed'
   | 'raft'
-  | 'climbRope';
+  | 'climbRope'
+  | 'ceiling'
+  | 'upStairs'
+  | 'windowWall'
+  | 'stoneWall'
+  | 'lantern'
+  | 'storageShelf';
 
 /** Lager-Bauwerke mit eigenem Zustand (Camp-System). */
 export type CampKind = 'workbench' | 'rack' | 'barrel' | 'garden' | 'pot';
@@ -57,8 +63,13 @@ export interface StructureDef {
   /** Maximal erlaubter Höhenunterschied des Bodens unter der Grundfläche. */
   maxStep: number;
   maxHealth: number;
-  /** Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden. */
-  snap?: 'wall' | 'floor' | 'stairs';
+  /**
+   * Wände/Tore rasten an Wandenden und Bodenkanten ein, Böden an Nachbarböden, Decken über Böden und an
+   * Nachbardecken, Treppen an freie Bodenkanten, Treppen nach oben an Deckenkanten über einem Loch.
+   */
+  snap?: 'wall' | 'floor' | 'stairs' | 'ceiling' | 'upStairs';
+  /** Decke: liegt ein Stockwerk über einem Boden (trägt wie ein Boden Wände und Möbel). */
+  ceiling?: boolean;
   /** Interaktion per `E`. */
   interaction?: 'fire' | 'light' | 'sleep' | 'door' | 'storage' | 'snare' | 'trap' | 'pit' | 'camp' | 'raft' | 'rope';
   /** Nur an einer Steilkante (Kletterseil): lokales +Z zeigt über die Kante. */
@@ -108,6 +119,10 @@ const M = {
   barkDark: texturize(mat(0x3e2c1b), 'bark', 0.4),
   cut: texturize(mat(0xb08a5a), 'planks', 0.3, 0.6),
   stone: texturize(mat(0x7d7a73), 'mossyRock', 0.5),
+  masonry: texturize(mat(0x8a857c), 'mossyRock', 0.35),
+  mortar: mat(0x5a564e),
+  glass: new THREE.MeshStandardMaterial({ color: 0xffe2a8, roughness: 0.2, transparent: true, opacity: 0.55, emissive: 0xffb050, emissiveIntensity: 0.6 }),
+  iron: new THREE.MeshStandardMaterial({ color: 0x3a3a38, roughness: 0.6, metalness: 0.4 }),
   ash: mat(0x2c2826),
   leaves: mat(0x3e5e2a),
   leavesDark: mat(0x2f4a22),
@@ -213,9 +228,14 @@ const FLOOR_THICKNESS = 0.16;
 /** Torflügel: Scharnier links (lokal x = -GATE_LEAF_HALF*2 + …), Öffnungswinkel. */
 const GATE_POST_X = WALL_HALF_WIDTH - 0.12;
 export const GATE_OPEN_ANGLE = Math.PI * 0.55;
+/** Höhe eines Stockwerks: Oberkante der Decke über den Dielen darunter. */
+export const STORY = WALL_HEIGHT + 0.25;
 /** Treppe: Länge (nach außen) und Höhenunterschied. */
 const STAIRS_RUN = 1.7;
 const STAIRS_RISE = 1.1;
+/** Fensterwand: Brüstung und Sturz der Öffnung. */
+const WINDOW_LOW = 1.0;
+const WINDOW_HIGH = 1.7;
 
 /** Torflügel als eigenes (animiertes) Teil: Ursprung am Scharnier, Flügel reicht nach +X. */
 function gateLeaf(): THREE.Group {
@@ -1137,6 +1157,224 @@ export const STRUCTURES: Record<StructureId, StructureDef> = {
       return finish(g, 'Bed');
     },
     colliders: () => [RAPIER.ColliderDesc.cuboid(0.62, 0.22, 1.12).setTranslation(0, 0.22, 0)],
+  },
+
+  ceiling: {
+    id: 'ceiling',
+    name: 'Decke',
+    description: 'Ein Dielendeck auf Balken, ein Stockwerk über einem Boden. Dach für dein Haus – und Boden für das nächste Stockwerk.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 3 },
+    ],
+    halfExtents: v(FLOOR_HALF, FLOOR_THICKNESS / 2, FLOOR_HALF),
+    maxStep: 99,
+    maxHealth: 160,
+    snap: 'ceiling',
+    support: true,
+    ceiling: true,
+    walkable: true,
+    repair: [{ item: 'log', count: 1 }],
+    build() {
+      const g = new THREE.Group();
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        const z = -FLOOR_HALF + FLOOR_HALF / n + (i * 2 * FLOOR_HALF) / n;
+        const plank = log(v(-FLOOR_HALF, -FLOOR_THICKNESS / 2, z), v(FLOOR_HALF, -FLOOR_THICKNESS / 2, z), FLOOR_HALF / n);
+        plank.scale.x *= 0.98;
+        plank.scale.z *= 0.45;
+        g.add(plank);
+      }
+      // Tragbalken unter den Dielen (liegen auf den Wänden auf).
+      for (const x of [-FLOOR_HALF + 0.2, 0, FLOOR_HALF - 0.2]) g.add(log(v(x, -FLOOR_THICKNESS - 0.07, -FLOOR_HALF), v(x, -FLOOR_THICKNESS - 0.07, FLOOR_HALF), 0.08, M.barkDark));
+      return finish(g, 'Ceiling');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(FLOOR_HALF, FLOOR_THICKNESS / 2, FLOOR_HALF).setTranslation(0, -FLOOR_THICKNESS / 2, 0)],
+  },
+
+  upStairs: {
+    id: 'upStairs',
+    name: 'Treppe nach oben',
+    description: 'Eine steile Stiege von einer Deckenkante hinab ins Stockwerk darunter. Neben der Treppe darf keine Decke liegen – dort ist das Treppenloch.',
+    cost: [
+      { item: 'log', count: 2 },
+      { item: 'stick', count: 4 },
+    ],
+    halfExtents: v(FLOOR_HALF * 0.8, STORY / 2, FLOOR_HALF),
+    maxStep: 99,
+    maxHealth: 110,
+    snap: 'upStairs',
+    walkable: true,
+    // Ursprung = Mitte der oberen Kante auf Dielenhöhe der Decke; die Treppe führt nach +Z hinab.
+    build() {
+      const g = new THREE.Group();
+      const w = FLOOR_HALF * 0.75;
+      const run = FLOOR_HALF * 2 - 0.05;
+      for (const x of [-w, w]) g.add(log(v(x, -0.1, 0), v(x, -STORY - 0.05, run), 0.08, M.barkDark));
+      const steps = 8;
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 0.5) / steps;
+        const tread = log(v(-w - 0.06, -STORY * t, run * t), v(w + 0.06, -STORY * t, run * t), 0.12);
+        tread.scale.z *= 0.42;
+        g.add(tread);
+      }
+      // Geländer an einer Seite
+      g.add(log(v(w + 0.08, 0.9, 0.05), v(w + 0.08, 0.9 - STORY, run), 0.035, M.bark));
+      for (const t of [0.15, 0.55, 0.92]) g.add(log(v(w + 0.08, -STORY * t, run * t), v(w + 0.08, -STORY * t + 0.9, run * t), 0.03, M.bark));
+      return finish(g, 'UpStairs');
+    },
+    colliders: () => {
+      const w = FLOOR_HALF * 0.75;
+      const run = FLOOR_HALF * 2 - 0.05;
+      const points: number[] = [];
+      for (const x of [-w, w]) points.push(x, 0, 0, x, -STORY, run, x, -STORY, 0);
+      return [RAPIER.ColliderDesc.convexHull(new Float32Array(points))!];
+    },
+  },
+
+  windowWall: {
+    id: 'windowWall',
+    name: 'Fensterwand',
+    description: 'Ein Palisadenstück mit Schießscharte in Brusthöhe. Man sieht hinaus (und kann hindurchschießen), Schrate kommen nicht hinein.',
+    cost: [{ item: 'log', count: 2 }],
+    halfExtents: v(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.22),
+    maxStep: 1.0,
+    maxHealth: 100,
+    snap: 'wall',
+    repair: [{ item: 'log', count: 1 }],
+    build() {
+      const g = new THREE.Group();
+      const n = 5;
+      const rng = mulberry32(19);
+      for (let i = 0; i < n; i++) {
+        const x = -WALL_HALF_WIDTH + 0.22 + (i * (WALL_HALF_WIDTH * 2 - 0.44)) / (n - 1);
+        const h = WALL_HEIGHT + (rng() - 0.5) * 0.25;
+        if (i === 0 || i === n - 1) {
+          g.add(stake(v(x, -0.6, 0), v(0, 1, 0), h + 0.6, 0.2));
+        } else {
+          g.add(log(v(x, -0.6, 0), v(x, WINDOW_LOW, 0), 0.2));
+          g.add(stake(v(x, WINDOW_HIGH, 0), v(0, 1, 0), h - WINDOW_HIGH, 0.2));
+        }
+      }
+      g.add(log(v(-WALL_HALF_WIDTH, WINDOW_LOW + 0.02, 0.05), v(WALL_HALF_WIDTH, WINDOW_LOW + 0.02, 0.05), 0.09, M.barkDark));
+      g.add(log(v(-WALL_HALF_WIDTH, WINDOW_HIGH - 0.02, 0.05), v(WALL_HALF_WIDTH, WINDOW_HIGH - 0.02, 0.05), 0.09, M.barkDark));
+      return finish(g, 'WindowWall');
+    },
+    colliders: () => [
+      RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, WINDOW_LOW / 2, 0.2).setTranslation(0, WINDOW_LOW / 2, 0),
+      RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, (WALL_HEIGHT - WINDOW_HIGH) / 2, 0.2).setTranslation(0, (WALL_HEIGHT + WINDOW_HIGH) / 2, 0),
+      RAPIER.ColliderDesc.cuboid(0.22, (WINDOW_HIGH - WINDOW_LOW) / 2, 0.2).setTranslation(-WALL_HALF_WIDTH + 0.22, (WINDOW_LOW + WINDOW_HIGH) / 2, 0),
+      RAPIER.ColliderDesc.cuboid(0.22, (WINDOW_HIGH - WINDOW_LOW) / 2, 0.2).setTranslation(WALL_HALF_WIDTH - 0.22, (WINDOW_LOW + WINDOW_HIGH) / 2, 0),
+    ],
+  },
+
+  stoneWall: {
+    id: 'stoneWall',
+    name: 'Steinmauer',
+    description: 'Eine Mauer aus gesetzten Steinen auf einem Holzrahmen. Dreimal so zäh wie eine Palisade – Kolosse brauchen lange dafür.',
+    cost: [
+      { item: 'stone', count: 8 },
+      { item: 'log', count: 1 },
+    ],
+    halfExtents: v(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.24),
+    maxStep: 1.0,
+    maxHealth: 380,
+    snap: 'wall',
+    repair: [{ item: 'stone', count: 3 }],
+    build() {
+      const g = new THREE.Group();
+      const rng = mulberry32(23);
+      const rows = 7;
+      const rowH = (WALL_HEIGHT + 0.5) / rows;
+      for (let r = 0; r < rows; r++) {
+        const y = -0.5 + rowH * (r + 0.5);
+        const offset = r % 2 ? 0.27 : 0;
+        for (let x = -WALL_HALF_WIDTH + offset; x < WALL_HALF_WIDTH - 0.05; x += 0.54) {
+          const wdt = Math.min(0.5, WALL_HALF_WIDTH - x);
+          if (wdt < 0.12) continue;
+          const block = new THREE.Mesh(STONE_GEOMETRY, M.masonry);
+          block.scale.set(wdt / 2 + 0.02, rowH / 2 + 0.015, 0.21 + rng() * 0.03);
+          block.position.set(x + wdt / 2, y, (rng() - 0.5) * 0.03);
+          block.rotation.set((rng() - 0.5) * 0.2, (rng() - 0.5) * 0.2, (rng() - 0.5) * 0.15);
+          g.add(block);
+        }
+      }
+      const core = new THREE.Mesh(new THREE.BoxGeometry(WALL_HALF_WIDTH * 2, WALL_HEIGHT + 0.5, 0.3), M.mortar);
+      core.position.y = (WALL_HEIGHT - 0.5) / 2;
+      g.add(core);
+      g.add(log(v(-WALL_HALF_WIDTH, WALL_HEIGHT + 0.02, 0), v(WALL_HALF_WIDTH, WALL_HEIGHT + 0.02, 0), 0.1, M.barkDark));
+      return finish(g, 'StoneWall');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(WALL_HALF_WIDTH, WALL_HEIGHT / 2, 0.22).setTranslation(0, WALL_HEIGHT / 2, 0)],
+  },
+
+  lantern: {
+    id: 'lantern',
+    name: 'Laterne',
+    description: 'Eine Öllampe hinter Glas an einem Pfahl. Heller und ruhiger als eine Fackel – auch drinnen, auch im Regen.',
+    cost: [
+      { item: 'lampOil', count: 1 },
+      { item: 'bottle', count: 1 },
+      { item: 'stick', count: 2 },
+    ],
+    halfExtents: v(0.22, 0.7, 0.22),
+    maxStep: 0.6,
+    maxHealth: 40,
+    interaction: 'light',
+    flame: { size: 0.1, height: 1.17, lightHeight: 1.25, intensity: 22, distance: 16, warmth: false },
+    build() {
+      const g = new THREE.Group();
+      g.add(log(v(0, -0.05, 0), v(0, 1.05, 0), 0.035, M.barkDark));
+      for (const [x, z] of [[0.18, 0], [-0.09, 0.16], [-0.09, -0.16]]) g.add(log(v(0, 0.02, 0), v(x, -0.02, z), 0.03, M.barkDark));
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.2, 8), M.glass);
+      glass.position.y = 1.17;
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.08, 8), M.iron);
+      cap.position.y = 1.31;
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 8), M.iron);
+      base.position.y = 1.06;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 4, 8), M.iron);
+      ring.position.y = 1.38;
+      g.add(glass, cap, base, ring);
+      return finish(g, 'Lantern');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cylinder(0.65, 0.07).setTranslation(0, 0.65, 0)],
+  },
+
+  storageShelf: {
+    id: 'storageShelf',
+    name: 'Lagerregal',
+    description: 'Ein großes Regal mit Kisten und Körben – 32 Lagerplätze. E öffnet es; wird es zerstört, fällt der Inhalt heraus.',
+    cost: [
+      { item: 'log', count: 3 },
+      { item: 'stick', count: 4 },
+      { item: 'nails', count: 4 },
+    ],
+    halfExtents: v(0.95, 0.9, 0.35),
+    maxStep: 0.4,
+    maxHealth: 140,
+    interaction: 'storage',
+    storageSlots: 32,
+    needsWorkbench: true,
+    build() {
+      const g = new THREE.Group();
+      for (const x of [-0.9, 0.9]) for (const z of [-0.3, 0.3]) g.add(log(v(x, -0.05, z), v(x, 1.8, z), 0.04, M.barkDark));
+      for (const y of [0.15, 0.95, 1.7]) {
+        const board = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.05, 0.66), M.cut);
+        board.position.y = y;
+        g.add(board);
+      }
+      const rng = mulberry32(29);
+      for (const y of [0.18, 0.98]) {
+        for (let i = 0; i < 3; i++) {
+          const crate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.34 + rng() * 0.1, 0.48), i % 2 ? M.cut : M.bark);
+          crate.position.set(-0.6 + i * 0.6, y + 0.2, (rng() - 0.5) * 0.08);
+          crate.rotation.y = (rng() - 0.5) * 0.2;
+          g.add(crate);
+        }
+      }
+      return finish(g, 'StorageShelf');
+    },
+    colliders: () => [RAPIER.ColliderDesc.cuboid(0.95, 0.9, 0.34).setTranslation(0, 0.9, 0)],
   },
 };
 

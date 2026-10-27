@@ -11,7 +11,7 @@ import type { Crafting } from '../Crafting';
 import type { Particles } from '../Particles';
 import type { LightPool, LightRequest } from '../LightPool';
 import type { Audio } from '../Audio';
-import { FLOOR_HALF, GATE_OPEN_ANGLE, getStructure, WALL_HALF_WIDTH, type StructureDef, type StructureId } from './StructureDefs';
+import { FLOOR_HALF, GATE_OPEN_ANGLE, getStructure, STORY, WALL_HALF_WIDTH, type StructureDef, type StructureId } from './StructureDefs';
 
 /** Neue Tarnung für eine Fallgrube. */
 export const PIT_REARM_COST: ItemCost[] = [{ item: 'stick', count: 2 }];
@@ -116,6 +116,8 @@ export class BuildingSystem {
     depthWrite: false,
   });
   private userRotation = 0;
+  /** Höhe des anvisierten Punkts: entscheidet, auf welchem Stockwerk gebaut wird (null = egal). */
+  refY: number | null = null;
   private nextId = 1;
   private readonly byCollider = new Map<number, Structure>();
 
@@ -185,6 +187,8 @@ export class BuildingSystem {
     const point = new THREE.Vector3();
     if (hit) point.set(hit.point.x, 0, hit.point.z);
     else point.set(origin.x + dir.x * 4, 0, origin.z + dir.z * 4);
+    // Stockwerk: dort, wo der Blick auftrifft – ohne Treffer auf Fußhöhe des Spielers.
+    this.refY = hit ? hit.point.y : origin.y - 1.6;
 
     // Abstand zum Spieler begrenzen: nicht weiter als die Reichweite, nicht unter die eigenen Füße.
     const dx = point.x - origin.x;
@@ -253,7 +257,11 @@ export class BuildingSystem {
           ? this.snapFloor(position)
           : def.snap === 'stairs'
             ? this.snapStairs(position)
-            : null;
+            : def.snap === 'ceiling'
+              ? this.snapCeiling(position)
+              : def.snap === 'upStairs'
+                ? this.snapUpStairs(position)
+                : null;
     const snapped = snap !== null;
     if (snap?.rotation !== undefined) rotation = snap.rotation;
 
@@ -270,7 +278,7 @@ export class BuildingSystem {
       [-he.x, he.z],
       [he.x, he.z],
     ]) {
-      const h = this.supportHeight(position.x + lx * cos + lz * sin, position.z - lx * sin + lz * cos);
+      const h = this.supportHeight(position.x + lx * cos + lz * sin, position.z - lx * sin + lz * cos, this.levelLimit);
       min = Math.min(min, h);
       max = Math.max(max, h);
     }
@@ -286,6 +294,16 @@ export class BuildingSystem {
     }
 
     const result: Placement = { valid: true, position, rotation, snapped };
+    // Decken und Treppen nach oben hängen nur am Gebauten (über Böden, an Deckenkanten).
+    if (def.snap === 'ceiling' || def.snap === 'upStairs') {
+      position.y = snap?.y ?? position.y;
+      if (!snapped) return { ...result, valid: false, reason: def.snap === 'ceiling' ? 'Nur über einem Boden oder neben einer Decke' : 'Nur an einer Deckenkante über einem Treppenloch' };
+      if (def.snap === 'ceiling') {
+        const blocker = this.findBlocker(def, position, rotation, true);
+        if (blocker === 'player') return { ...result, valid: false, reason: 'Du stehst im Weg' };
+      }
+      return result;
+    }
     if (def.inWater) {
       // Fischreuse: die Mitte muss passend tief im Wasser liegen; der Korb ragt etwas heraus.
       position.y = Math.max(ground, this.heightMap.waterLevel - def.inWater.sink);
@@ -339,10 +357,12 @@ export class BuildingSystem {
    * Oberkante, auf der an (x, z) gebaut wird: Gelände – oder die Dielen eines Bodens darüber.
    * Dadurch stehen Feuer, Unterstand und Fallen auf Böden statt darunter.
    */
-  supportHeight(x: number, z: number): number {
+  supportHeight(x: number, z: number, maxY = Infinity): number {
     let h = this.heightMap.heightAt(x, z);
     for (const s of this.structures) {
       if (!s.def.support || Math.abs(s.position.x - x) > 2 || Math.abs(s.position.z - z) > 2) continue;
+      // Decken über dem anvisierten Stockwerk zählen nicht (sonst landet die Kiste auf dem Dach).
+      if (s.position.y > maxY) continue;
       // In lokale Koordinaten des Bodens drehen
       const dx = x - s.position.x;
       const dz = z - s.position.z;
@@ -355,12 +375,77 @@ export class BuildingSystem {
     return h;
   }
 
+  /** Höchste Dielenhöhe, die beim Bauen noch zählt (etwas über dem anvisierten Punkt). */
+  private get levelLimit(): number {
+    return this.refY === null ? Infinity : this.refY + 0.6;
+  }
+
+  /** Liegt das Bauteil auf einem anderen Stockwerk als dem anvisierten? */
+  private otherLevel(y: number): boolean {
+    return this.refY !== null && Math.abs(y - this.refY) > 1.4;
+  }
+
+  /** Ist an (x, y, z) schon ein Boden bzw. eine Decke? */
+  private supportAt(x: number, y: number, z: number): boolean {
+    return this.structures.some((o) => o.def.support && Math.hypot(o.position.x - x, o.position.z - z) < 0.5 && Math.abs(o.position.y - y) < 0.5);
+  }
+
+  /** Decken: ein Stockwerk über einem Boden (oder einer Decke) oder Kante an Kante neben einer Decke. */
+  private snapCeiling(position: THREE.Vector3): Snap | null {
+    let best: { x: number; z: number; y: number; rotation: number } | null = null;
+    let bestDist = 2.0;
+    const consider = (x: number, y: number, z: number, rotation: number) => {
+      const d = Math.hypot(position.x - x, position.z - z);
+      const better = d < bestDist - 0.01 || (best && Math.abs(d - bestDist) <= 0.01 && y < best.y);
+      if (!better || this.supportAt(x, y, z)) return;
+      bestDist = d;
+      best = { x, z, y, rotation };
+    };
+    for (const s of this.structures) {
+      if (!s.def.support || Math.hypot(s.position.x - position.x, s.position.z - position.z) > 6) continue;
+      consider(s.position.x, s.position.y + STORY, s.position.z, s.rotation);
+      if (!s.def.ceiling) continue;
+      for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const off = new THREE.Vector3(ox * FLOOR_HALF * 2, 0, oz * FLOOR_HALF * 2).applyAxisAngle(UP, s.rotation);
+        consider(s.position.x + off.x, s.position.y, s.position.z + off.z, s.rotation);
+      }
+    }
+    const b = best as { x: number; z: number; y: number; rotation: number } | null;
+    if (!b) return null;
+    position.x = b.x;
+    position.z = b.z;
+    return { y: b.y, rotation: b.rotation };
+  }
+
+  /** Treppe nach oben: hängt an einer Deckenkante und führt durch das freie Feld daneben hinab. */
+  private snapUpStairs(position: THREE.Vector3): Snap | null {
+    let best: { x: number; z: number; y: number; rotation: number } | null = null;
+    let bestDist = 1.8;
+    for (const s of this.structures) {
+      if (!s.def.ceiling || Math.hypot(s.position.x - position.x, s.position.z - position.z) > 6) continue;
+      for (const [ox, oz, turn] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]) {
+        const off = new THREE.Vector3(ox * FLOOR_HALF, 0, oz * FLOOR_HALF).applyAxisAngle(UP, s.rotation);
+        // Das Feld daneben ist das Treppenloch: dort darf keine Decke liegen.
+        if (this.supportAt(s.position.x + off.x * 2, s.position.y, s.position.z + off.z * 2)) continue;
+        if (this.structures.some((o) => o.def.snap === 'upStairs' && Math.hypot(o.position.x - s.position.x - off.x, o.position.z - s.position.z - off.z) < 0.5)) continue;
+        const d = Math.hypot(position.x - (s.position.x + off.x * 2), position.z - (s.position.z + off.z * 2));
+        if (d >= bestDist) continue;
+        bestDist = d;
+        best = { x: s.position.x + off.x, z: s.position.z + off.z, y: s.position.y, rotation: s.rotation + turn };
+      }
+    }
+    if (!best) return null;
+    position.x = best.x;
+    position.z = best.z;
+    return { y: best.y, rotation: best.rotation };
+  }
+
   /** Böden rasten Kante an Kante an Nachbarböden ein (gleiche Höhe und Ausrichtung). */
   private snapFloor(position: THREE.Vector3): Snap | null {
     let best: { x: number; z: number; y: number; rotation: number } | null = null;
     let bestDist = SNAP_DISTANCE + 0.2;
     for (const s of this.structures) {
-      if (!s.def.support || s.position.distanceTo(position) > 6) continue;
+      if (!s.def.support || s.def.ceiling || s.position.distanceTo(position) > 6) continue;
       for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const off = new THREE.Vector3(ox * FLOOR_HALF * 2, 0, oz * FLOOR_HALF * 2).applyAxisAngle(UP, s.rotation);
         const cx = s.position.x + off.x;
@@ -384,7 +469,7 @@ export class BuildingSystem {
     let best: { x: number; z: number; y: number; rotation: number } | null = null;
     let bestDist = 1.8;
     for (const s of this.structures) {
-      if (!s.def.support || s.position.distanceTo(position) > 5) continue;
+      if (!s.def.support || s.def.ceiling || s.position.distanceTo(position) > 5) continue;
       for (const [ox, oz, turn] of [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]]) {
         const off = new THREE.Vector3(ox * FLOOR_HALF, 0, oz * FLOOR_HALF).applyAxisAngle(UP, s.rotation);
         const ex = s.position.x + off.x;
@@ -415,7 +500,7 @@ export class BuildingSystem {
     let edge: { x: number; z: number; y: number; rotation: number } | null = null;
     let edgeDist = SNAP_DISTANCE;
     for (const s of this.structures) {
-      if (!s.def.support || s.position.distanceTo(position) > 4) continue;
+      if (!s.def.support || Math.hypot(s.position.x - position.x, s.position.z - position.z) > 4 || this.otherLevel(s.position.y)) continue;
       for (const [ox, oz, turn] of [[0, 1, 0], [0, -1, 0], [1, 0, Math.PI / 2], [-1, 0, Math.PI / 2]]) {
         const off = new THREE.Vector3(ox * FLOOR_HALF, 0, oz * FLOOR_HALF).applyAxisAngle(UP, s.rotation);
         const d = Math.hypot(position.x - (s.position.x + off.x), position.z - (s.position.z + off.z));
@@ -443,7 +528,7 @@ export class BuildingSystem {
     let best: THREE.Vector3 | null = null;
     let bestDist = SNAP_DISTANCE;
     for (const s of this.structures) {
-      if (s.def.snap !== 'wall' || s.position.distanceTo(position) > 4) continue;
+      if (s.def.snap !== 'wall' || Math.hypot(s.position.x - position.x, s.position.z - position.z) > 4 || this.otherLevel(s.position.y)) continue;
       for (const sign of [-1, 1]) {
         const end = new THREE.Vector3(sign * WALL_HALF_WIDTH, 0, 0).applyAxisAngle(UP, s.rotation).add(s.position);
         for (const own of ownEnds) {

@@ -11,7 +11,7 @@ import { Particles } from '../Particles';
 import { LightPool } from '../LightPool';
 import { Audio } from '../Audio';
 import { BuildingSystem } from './BuildingSystem';
-import { FLOOR_HALF, getStructure, WALL_HALF_WIDTH } from './StructureDefs';
+import { FLOOR_HALF, getStructure, STORY, WALL_HALF_WIDTH } from './StructureDefs';
 
 async function setup() {
   const physics = await Physics.create();
@@ -107,6 +107,36 @@ describe('BuildingSystem', () => {
 
     // Exakt auf die bestehende Wand: nicht erlaubt.
     expect(w.building.evaluate(wallDef, base.clone(), 0).valid).toBe(false);
+  });
+
+  it('baut in die Höhe: Decke über dem Boden, Wände oben, Treppe durchs Loch, Kiste unten', () => {
+    const b = w.building;
+    for (const s of [...b.structures]) b.demolish(s);
+    const base = w.flat.clone().add(new THREE.Vector3(10, 0, 10));
+    const floor = b.place('floor', base.clone().setY(base.y + 0.2), 0);
+    const next = b.place('floor', floor.position.clone().add(new THREE.Vector3(FLOOR_HALF * 2, 0, 0)), 0);
+    // Decke rastet über dem Boden ein, ein Stockwerk höher.
+    b.refY = floor.position.y + 2;
+    const c = b.evaluate(getStructure('ceiling'), floor.position.clone().add(new THREE.Vector3(0.4, 0, 0.3)), 0);
+    expect(c.valid).toBe(true);
+    expect(c.position.y).toBeCloseTo(floor.position.y + STORY);
+    const ceiling = b.place('ceiling', c.position, c.rotation);
+    // Neben der Decke ist das Treppenloch über dem zweiten Boden: dort hängt die Treppe nach oben.
+    const st = b.evaluate(getStructure('upStairs'), next.position.clone(), 0);
+    expect(st.valid).toBe(true);
+    expect(st.position.y).toBeCloseTo(ceiling.position.y);
+    // Wände rasten oben an der Deckenkante ein, wenn man aufs obere Stockwerk zielt …
+    b.refY = ceiling.position.y;
+    const wall = b.evaluate(getStructure('wall'), ceiling.position.clone().add(new THREE.Vector3(0, 0, FLOOR_HALF)), 0);
+    expect(wall.position.y).toBeCloseTo(ceiling.position.y);
+    // … und eine Kiste unten landet auf dem Boden, nicht auf der Decke.
+    b.refY = floor.position.y;
+    const chest = b.evaluate(getStructure('chest'), floor.position.clone(), 0);
+    expect(chest.position.y).toBeLessThan(floor.position.y + 0.3);
+    // Ohne Boden darunter gibt es keine Decke.
+    b.refY = null;
+    expect(b.evaluate(getStructure('ceiling'), base.clone().add(new THREE.Vector3(-20, 0, -20)), 0).valid).toBe(false);
+    for (const s of [...b.structures]) b.demolish(s);
   });
 
   it('reißt Bauwerke ab und gibt die Hälfte des Materials zurück', () => {

@@ -61,6 +61,23 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 51 – Basisbau (Teil A: Stockwerke & neue Bauteile)
+
+- **Mehrstöckig bauen:**
+  - *Decke*: rastet ein Stockwerk über einem Boden ein oder Kante an Kante neben einer Decke. Sie ist Dach
+    und zugleich Boden für das nächste Stockwerk: Wände, Tore, Möbel und weitere Decken rasten oben ein.
+  - *Treppe nach oben*: eine steile Stiege von einer Deckenkante durch das freie Feld daneben (Treppenloch)
+    hinab. Man läuft sie einfach hinauf.
+  - Gebaut wird auf dem Stockwerk, auf das man zielt. Eine Kiste im Erdgeschoss landet nicht mehr auf der
+    Decke darüber, eine Wand oben rastet an der Deckenkante ein statt unten am Boden.
+- **Neue Bauteile:**
+  - *Fensterwand*: Palisade mit Schießscharte in Brusthöhe, zum Hinaussehen und Hindurchschießen.
+  - *Steinmauer* (8 Steine, 1 Stamm): rastet wie eine Wand ein und ist dreimal so zäh.
+  - *Laterne* (Lampenöl, Flasche, 2 Stöcke): ruhiges, helles Licht, auch drinnen.
+  - *Lagerregal* (Werkbank; 3 Stämme, 4 Stöcke, 4 Nägel): 32 Lagerplätze.
+- Damit lassen sich ganze Häuser bauen: Böden, Wände mit Fenstern und Toren, Decken, Treppe ins
+  Obergeschoss, Licht, Lager, Bett.
+
 ### Meilenstein 50 – Neue Waffen (Teil B: Nahkampf, Eigenbauten & Rohrbombe)
 
 - **Fünf neue Nahkampfwaffen**, alle mit Seltenheit, Perks und offen für Mods:
