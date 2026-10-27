@@ -1,5 +1,5 @@
 import type { Inventory } from '../systems/Inventory';
-import { canMod, getRarity, getWeaponPerk, weaponName, weaponStats, type WeaponMeta } from '../entities/items/Weapons';
+import { canMod, getRarity, getWeaponPerk, gunStats, loadedRounds, maxDurability, weaponName, weaponStats, type WeaponMeta } from '../entities/items/Weapons';
 import { ELEMENTS } from '../entities/items/Elements';
 import { getItem, type ItemId } from '../entities/items/ItemDefs';
 import { RECIPES, needsWorkbench, recipeDescription, recipeGroup, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
@@ -279,11 +279,8 @@ export class InventoryUI {
   /** Waffen: Seltenheit, Werte und Perks. */
   private renderWeapon(id: ItemId, w: WeaponMeta, durability: number | undefined): void {
     const rarity = getRarity(w.rarity);
-    const stats = weaponStats(id, w);
     this.el.detailName.textContent = weaponName(id, w);
     this.el.detailName.style.color = rarity.color;
-    const cls = { blade: 'Klinge', blunt: 'Stumpf', heavy: 'Schwer' }[stats.tool.weaponClass ?? 'blunt'];
-    this.el.detailRarity.textContent = `${rarity.name} · ${cls}`;
     this.el.detailRarity.style.color = rarity.color;
     const row = (label: string, value: string, perk = false) => {
       const li = document.createElement('li');
@@ -299,15 +296,32 @@ export class InventoryUI {
       }
       return li;
     };
-    const t = stats.tool;
-    this.el.detailStats.append(
-      row('Schaden', String(Math.round(t.damage))),
-      row('Schläge pro Sekunde', (1 / t.swingTime).toFixed(1)),
-      row('Kritisch', `${Math.round(stats.crit * 100)} %`),
-      row('Ausdauer je Schlag', String(Math.round(t.staminaCost))),
-      row('Haltbarkeit', `${Math.round(durability ?? 0)} / ${stats.maxDurability ?? 0}`),
-      ...w.perks.map((p) => row(`◆ ${getWeaponPerk(p).name}: ${getWeaponPerk(p).text}`, '', true)),
-    );
+    const max = maxDurability(id, w) ?? 0;
+    if (getItem(id).gun) {
+      const { gun, crit } = gunStats(id, w);
+      this.el.detailRarity.textContent = `${rarity.name} · Schusswaffe`;
+      this.el.detailStats.append(
+        row(gun.pellets > 1 ? `Schaden (${gun.pellets} Schrotkörner)` : 'Schaden', String(Math.round(gun.damage * gun.pellets))),
+        row('Schuss pro Sekunde', (1 / gun.fireTime).toFixed(1)),
+        row('Magazin', `${loadedRounds(id, w)} / ${gun.magazine}`),
+        row('Munition', getItem(gun.ammo).name),
+        row('Kritisch', `${Math.round(crit * 100)} %`),
+        row('Haltbarkeit', `${Math.round(durability ?? 0)} / ${max}`),
+      );
+    } else {
+      const stats = weaponStats(id, w);
+      const t = stats.tool;
+      const cls = { blade: 'Klinge', blunt: 'Stumpf', heavy: 'Schwer' }[t.weaponClass ?? 'blunt'];
+      this.el.detailRarity.textContent = `${rarity.name} · ${cls}`;
+      this.el.detailStats.append(
+        row('Schaden', String(Math.round(t.damage))),
+        row('Schläge pro Sekunde', (1 / t.swingTime).toFixed(1)),
+        row('Kritisch', `${Math.round(stats.crit * 100)} %`),
+        row('Ausdauer je Schlag', String(Math.round(t.staminaCost))),
+        row('Haltbarkeit', `${Math.round(durability ?? 0)} / ${max}`),
+      );
+    }
+    this.el.detailStats.append(...w.perks.map((p) => row(`◆ ${getWeaponPerk(p).name}: ${getWeaponPerk(p).text}`, '', true)));
     if (w.mod) {
       const el = ELEMENTS[w.mod];
       const li = document.createElement('li');

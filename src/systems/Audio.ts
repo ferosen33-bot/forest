@@ -52,6 +52,14 @@ export type SoundId =
   | 'sizzle'
   | 'zap'
   | 'kick'
+  | 'shotPistol'
+  | 'shotRevolver'
+  | 'shotShotgun'
+  | 'shotRifle'
+  | 'dryFire'
+  | 'reload'
+  | 'shellIn'
+  | 'pump'
   | 'sever'
   | 'crush'
   | 'stomp'
@@ -409,6 +417,52 @@ export class Audio {
         break;
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
+        break;
+      // Schüsse: scharfer Knall, tiefer Druck und ein Nachhall, der sich im Wald verliert.
+      case 'shotPistol':
+        this.noise(t, 0.06, 'highpass', 1800, 0.6, 1.0);
+        this.noise(t, 0.18, 'lowpass', 1400, 0.7, 0.9);
+        this.tone(t, 'sine', 160, 50, 0.12, 0.8);
+        this.noise(t + 0.08, 0.9, 'lowpass', 600, 0.6, 0.25);
+        break;
+      case 'shotRevolver':
+        this.noise(t, 0.07, 'highpass', 1400, 0.6, 1.0);
+        this.noise(t, 0.25, 'lowpass', 1000, 0.7, 1.0);
+        this.tone(t, 'sine', 120, 40, 0.18, 1.0);
+        this.noise(t + 0.1, 1.2, 'lowpass', 500, 0.6, 0.3);
+        break;
+      case 'shotShotgun':
+        this.noise(t, 0.08, 'highpass', 900, 0.5, 1.0);
+        this.noise(t, 0.35, 'lowpass', 800, 0.7, 1.0);
+        this.tone(t, 'sine', 90, 30, 0.3, 1.0);
+        this.noise(t + 0.12, 1.4, 'lowpass', 420, 0.6, 0.35);
+        break;
+      case 'shotRifle':
+        this.noise(t, 0.05, 'highpass', 2600, 0.6, 1.0);
+        this.noise(t, 0.22, 'lowpass', 1600, 0.7, 1.0);
+        this.tone(t, 'sine', 140, 45, 0.15, 0.9);
+        // Echo von den Hängen.
+        this.noise(t + 0.35, 0.5, 'lowpass', 700, 0.6, 0.18);
+        this.noise(t + 0.75, 0.6, 'lowpass', 500, 0.6, 0.1);
+        break;
+      case 'dryFire':
+        this.noise(t, 0.02, 'highpass', 3000, 1, 0.5);
+        this.tone(t, 'square', 1800, 1600, 0.02, 0.15);
+        break;
+      case 'reload':
+        this.noise(t, 0.04, 'bandpass', 2200, 2, 0.5);
+        this.tone(t, 'square', 900, 700, 0.03, 0.12);
+        this.noise(t + 0.55, 0.05, 'bandpass', 1600, 2, 0.6);
+        this.tone(t + 0.55, 'square', 700, 500, 0.04, 0.15);
+        break;
+      case 'shellIn':
+        this.noise(t, 0.05, 'bandpass', 1500, 2, 0.45);
+        this.tone(t, 'triangle', 600, 400, 0.04, 0.15);
+        break;
+      case 'pump':
+        this.noise(t, 0.08, 'bandpass', 900, 1.5, 0.7);
+        this.noise(t + 0.14, 0.07, 'bandpass', 1300, 1.5, 0.7);
+        this.tone(t + 0.14, 'square', 400, 300, 0.04, 0.15);
         break;
       // Abgetrennt: nasser Schnitt, dann ein trockenes Knacken.
       case 'sever':

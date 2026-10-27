@@ -15,6 +15,10 @@ const REFS = [
   'crosshair',
   'hitmarker',
   'elementTag',
+  'scope',
+  'ammo',
+  'ammoLoaded',
+  'ammoReserve',
   'prompt',
   'promptKey',
   'promptAction',
@@ -172,6 +176,22 @@ export class HUD {
       this.toast(drink ? 'Wasser getrunken' : `${getItem(item).name} gegessen`, item);
     });
     events.on('hud:message', ({ text }) => this.toast(text));
+  }
+
+  /** Munitionsanzeige der Schusswaffe in der Hand (null = ausblenden). */
+  setAmmo(info: { loaded: number; reserve: number; reloading: boolean } | null): void {
+    this.toggle('ammo', 'is-visible', !!info);
+    if (!info) return;
+    this.text('ammoLoaded', String(info.loaded));
+    this.text('ammoReserve', String(info.reserve));
+    this.toggle('ammo', 'is-empty', info.loaded === 0);
+    this.toggle('ammo', 'is-reloading', info.reloading);
+  }
+
+  /** Blick durchs Zielfernrohr (Fadenkreuz und Waffe ausgeblendet). */
+  setScope(on: boolean): void {
+    this.toggle('scope', 'is-visible', on);
+    this.toggle('crosshair', 'hidden', on);
   }
 
   /** Schriftzug unter dem Fadenkreuz; die CSS-Animation blendet ihn selbst wieder aus. */

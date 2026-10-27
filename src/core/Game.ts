@@ -111,11 +111,15 @@ const WORKBENCH_RADIUS = 6;
 const REPAIRABLE = new Set<ItemId>([
   'axe', 'stoneAxe', 'flintAxe', 'machete', 'spear', 'bow', 'fishingRod', 'boneClub',
   'baseballBat', 'pipeWrench', 'crowbar', 'sledgehammer', 'kitchenKnife', 'fireAxe', 'sabre',
+  'pistol', 'revolver', 'shotgun', 'huntingRifle',
 ]);
 /** Was Schrate fallen lassen können (gewichtet). */
-const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre'];
+const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre', 'pistol'];
 /** Chance, dass ein erlegter Schrat eine Waffe fallen lässt. */
 const ENEMY_WEAPON_CHANCE = 0.1;
+/** Munition, die erlegte Schrate fallen lassen können, und wie oft. */
+const ENEMY_AMMO_DROPS: ItemId[] = ['pistolAmmo', 'pistolAmmo', 'shells', 'rifleAmmo'];
+const ENEMY_AMMO_CHANCE = 0.12;
 const TOOL_REPAIR_COST: ItemCost[] = [
   { item: 'stick', count: 1 },
   { item: 'stone', count: 1 },
@@ -271,6 +275,10 @@ export class Game {
   private saveEnabled = false;
   private lastSaved: Date | null = null;
   private readonly rodTip = new THREE.Vector3();
+  /** Mündungsfeuer in der Welt (Restdauer) und Blick durchs Zielfernrohr. */
+  private muzzleTime = 0;
+  private scoped = false;
+  private readonly muzzleLight: LightRequest = { position: new THREE.Vector3(), color: new THREE.Color(0xffb060), intensity: 0, distance: 22 };
   private readonly torchLight: LightRequest = {
     position: new THREE.Vector3(),
     color: new THREE.Color(),
@@ -829,6 +837,9 @@ export class Game {
       blood: this.blood,
     });
     this.tools.combat = this.combat;
+    this.tools.particles = this.particles;
+    this.tools.waterLevel = this.world.heightMap.waterLevel;
+    this.events.on('gun:fired', () => (this.muzzleTime = 0.07));
     wireSkillEvents(this.skills, this.events);
     this.fishing = new Fishing({
       heightMap: this.world.heightMap,
@@ -847,6 +858,11 @@ export class Game {
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
     // Erlegte Schrate lassen ab und zu eine Waffe fallen; Bosse immer eine gute.
     this.events.on('enemy:killed', ({ position, boss }) => {
+      // Manche hatten noch Patronen in der Tasche.
+      if (Math.random() < ENEMY_AMMO_CHANCE) {
+        const ammo = ENEMY_AMMO_DROPS[Math.floor(Math.random() * ENEMY_AMMO_DROPS.length)];
+        this.items.drop(ammo, ammo === 'pistolAmmo' ? 4 + Math.floor(Math.random() * 6) : 2 + Math.floor(Math.random() * 3), position.clone().setY(position.y + 0.8));
+      }
       if (!boss && Math.random() > ENEMY_WEAPON_CHANCE) return;
       const id = ENEMY_WEAPON_DROPS[Math.floor(Math.random() * ENEMY_WEAPON_DROPS.length)];
       const weapon = boss ? weaponOf(Math.random() < 0.5 ? 'legendary' : 'superior') : rollWeapon(Math.random, this.items.luck);
@@ -2035,6 +2051,19 @@ export class Game {
       this.torchLight.distance = 7;
       this.lights.request(this.torchLight);
     }
+    // Mündungsfeuer: ein kurzer, heller Blitz vor der Waffe erhellt die Umgebung.
+    this.muzzleTime -= dt;
+    if (this.muzzleTime > 0) {
+      this.camera.getWorldDirection(this.tmpDir);
+      this.muzzleLight.position.copy(this.camera.position).addScaledVector(this.tmpDir, 1.2);
+      this.muzzleLight.intensity = 60 * (this.muzzleTime / 0.07);
+      this.lights.request(this.muzzleLight);
+    }
+    // Zielfernrohr: voll angelegt sieht man nur noch durchs Glas.
+    const scoped = this.tools.equipped?.id === 'huntingRifle' && this.viewModel.adsLevel > 0.9;
+    this.hud.setScope(scoped);
+    this.scoped = scoped;
+    this.hud.setAmmo(this.tools.ammoInfo);
     this.lights.update(this.camera.position);
 
     // Audio: Hörer = Kamera, Unterwasser dumpf, Kulisse und Schritte.
@@ -2205,7 +2234,7 @@ export class Game {
     this.renderer.info.reset();
     this.camera.updateMatrixWorld();
     this.shadows.update(this.dayNight.light);
-    const overlay = this.viewModel.visible && this.mode !== 'dead' ? this.viewModel : null;
+    const overlay = this.viewModel.visible && this.mode !== 'dead' && !this.scoped ? this.viewModel : null;
     if (this.postFX.enabled) {
       const look = (this.look = filmLook(
         {

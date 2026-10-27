@@ -101,7 +101,7 @@ const SURVIVOR_NOTES: [string, string][] = [
 
 const LOOT: Record<'drop' | 'ritual' | 'camp', [ItemId, number, number][]> = {
   // [Item, Anzahl, Chance]
-  drop: [['medkit', 2, 1], ['cannedFood', 3, 1], ['waterBottle', 2, 1], ['arrow', 10, 0.8], ['battery', 2, 0.8], ['flashlight', 1, 0.4], ['machete', 1, 0.3], ['jacket', 1, 0.3], ['fireAxe', 1, 0.25], ['crowbar', 1, 0.3], ['modShock', 1, 0.2], ['modFire', 1, 0.2]],
+  drop: [['medkit', 2, 1], ['cannedFood', 3, 1], ['waterBottle', 2, 1], ['arrow', 10, 0.8], ['battery', 2, 0.8], ['flashlight', 1, 0.4], ['machete', 1, 0.3], ['jacket', 1, 0.3], ['fireAxe', 1, 0.25], ['crowbar', 1, 0.3], ['modShock', 1, 0.2], ['modFire', 1, 0.2], ['pistol', 1, 0.2], ['pistolAmmo', 10, 0.5], ['shells', 6, 0.3]],
   ritual: [['hide', 2, 1], ['flint', 3, 1], ['painkillers', 1, 0.7], ['medkit', 1, 0.5], ['arrow', 6, 0.6], ['cookedMeat', 2, 0.8]],
   camp: [['cannedFood', 1, 0.8], ['waterBottle', 1, 0.8], ['medkit', 1, 0.5], ['arrow', 5, 0.5], ['battery', 1, 0.5], ['torch', 1, 0.6], ['bow', 1, 0.25], ['lampOil', 1, 0.5], ['baseballBat', 1, 0.3], ['pipeWrench', 1, 0.25]],
 };

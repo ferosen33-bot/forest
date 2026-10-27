@@ -79,6 +79,15 @@ const MATERIALS = {
   acid: mat(0x8af04a, { roughness: 0.1, emissive: 0x4ab018, emissiveIntensity: 1.4, transparent: true, opacity: 0.85, flatShading: false }),
   cork: mat(0x9a7448, { roughness: 1 }),
   ember: mat(0xff7a2a, { roughness: 1, emissive: 0xff5a10, emissiveIntensity: 1.6 }),
+  // Ohne Umgebungsspiegelung würden stark metallische Oberflächen schwarz – moderat halten.
+  gunSteel: new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.42, metalness: 0.35 }),
+  gunBlued: new THREE.MeshStandardMaterial({ color: 0x3c434c, roughness: 0.35, metalness: 0.4 }),
+  polymer: new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 0.7 }),
+  walnut: new THREE.MeshStandardMaterial({ color: 0x5e3a1e, roughness: 0.5 }),
+  scopeGlass: new THREE.MeshStandardMaterial({ color: 0x223040, roughness: 0.1, metalness: 0.3 }),
+  shellRed: mat(0xa01c18, { roughness: 0.55 }),
+  cardboard: mat(0x8a6a44, { roughness: 1 }),
+  cardboardBlue: mat(0x2e4a6e, { roughness: 1 }),
 };
 
 // Holz, Rinde und Stein bekommen Foto-Oberflächen (dreiachsig projiziert, ohne UVs).
@@ -828,6 +837,109 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    // Schusswaffen: Lauf entlang +Y (Mündung oben), Oberseite +Z, Griff nach −Z.
+    case 'pistol': {
+      const slide = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.19, 0.034), MATERIALS.gunSteel);
+      slide.position.set(0, 0.02, 0.028);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.16, 0.02), MATERIALS.polymer);
+      frame.position.set(0, 0.01, 0.003);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.029, 0.05, 0.11), MATERIALS.polymer);
+      grip.position.set(0, -0.055, -0.045);
+      grip.rotation.x = -0.25;
+      const guard = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0035, 4, 10, Math.PI), MATERIALS.polymer);
+      guard.rotation.set(0, Math.PI / 2, Math.PI / 2);
+      guard.position.set(0, 0.0, -0.01);
+      const sight = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.008, 0.008), MATERIALS.gunSteel);
+      sight.position.set(0, 0.1, 0.049);
+      g.add(slide, frame, grip, guard, sight);
+      addMuzzle(g, 0.12, 0.028);
+      break;
+    }
+    case 'revolver': {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.15, 10), MATERIALS.gunBlued);
+      barrel.position.set(0, 0.075, 0.034);
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.15, 0.01), MATERIALS.gunBlued);
+      rib.position.set(0, 0.075, 0.044);
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.045, 12), MATERIALS.gunSteel);
+      drum.position.set(0, -0.015, 0.024);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.09, 0.04), MATERIALS.gunBlued);
+      frame.position.set(0, -0.02, 0.02);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.045, 0.1), MATERIALS.walnut);
+      grip.position.set(0, -0.075, -0.035);
+      grip.rotation.x = -0.35;
+      const hammer = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.02, 0.018), MATERIALS.gunSteel);
+      hammer.position.set(0, -0.065, 0.045);
+      g.add(barrel, rib, drum, frame, grip, hammer);
+      addMuzzle(g, 0.155, 0.034);
+      break;
+    }
+    case 'shotgun': {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 12), MATERIALS.gunBlued);
+      barrel.position.set(0, 0.28, 0.03);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.46, 10), MATERIALS.gunSteel);
+      tube.position.set(0, 0.2, 0.006);
+      const pump = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.16, 0.036), MATERIALS.walnut);
+      pump.name = 'pump';
+      pump.position.set(0, 0.2, 0.006);
+      const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.18, 0.055), MATERIALS.gunSteel);
+      receiver.position.set(0, -0.06, 0.02);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.34, 0.06), MATERIALS.walnut);
+      stock.position.set(0, -0.31, -0.012);
+      stock.rotation.x = -0.12;
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.07), MATERIALS.walnut);
+      grip.position.set(0, -0.14, -0.03);
+      grip.rotation.x = -0.4;
+      g.add(barrel, tube, pump, receiver, stock, grip);
+      addMuzzle(g, 0.6, 0.03);
+      break;
+    }
+    case 'huntingRifle': {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.0095, 0.56, 10), MATERIALS.gunBlued);
+      barrel.position.set(0, 0.33, 0.03);
+      const forend = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.36, 0.04), MATERIALS.walnut);
+      forend.position.set(0, 0.13, 0.012);
+      const receiver = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.17, 10), MATERIALS.gunBlued);
+      receiver.position.set(0, -0.08, 0.03);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.42, 0.065), MATERIALS.walnut);
+      stock.position.set(0, -0.33, -0.005);
+      stock.rotation.x = -0.1;
+      const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.24, 12), MATERIALS.gunBlued);
+      scope.position.set(0, -0.06, 0.065);
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.015, 0.05, 12), MATERIALS.gunBlued);
+      bell.position.set(0, 0.08, 0.065);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.018, 12), MATERIALS.scopeGlass);
+      lens.rotation.x = -Math.PI / 2;
+      lens.position.set(0, 0.106, 0.065);
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 6), MATERIALS.gunSteel);
+      bolt.rotation.z = Math.PI / 2;
+      bolt.position.set(0.03, -0.12, 0.03);
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), MATERIALS.gunSteel);
+      knob.position.set(0.055, -0.12, 0.03);
+      g.add(barrel, forend, receiver, stock, scope, bell, lens, bolt, knob);
+      addMuzzle(g, 0.61, 0.03);
+      break;
+    }
+    case 'pistolAmmo':
+    case 'rifleAmmo': {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.06), id === 'pistolAmmo' ? MATERIALS.cardboardBlue : MATERIALS.cardboard);
+      g.add(box);
+      for (let i = 0; i < 3; i++) {
+        const round = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, id === 'pistolAmmo' ? 0.022 : 0.05, 6), MATERIALS.brass);
+        round.position.set(-0.025 + i * 0.025, 0.035 + (id === 'pistolAmmo' ? 0 : 0.014), 0);
+        g.add(round);
+      }
+      break;
+    }
+    case 'shells': {
+      for (let i = 0; i < 4; i++) {
+        const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.0095, 0.0095, 0.06, 8), MATERIALS.shellRed);
+        shell.position.set(-0.03 + i * 0.02, 0, 0);
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.0105, 0.014, 8), MATERIALS.brass);
+        head.position.set(-0.03 + i * 0.02, -0.032, 0);
+        g.add(shell, head);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -845,6 +957,14 @@ function build(id: ItemId): THREE.Object3D {
   });
   g.name = `Item_${id}`;
   return g;
+}
+
+/** Mündung einer Schusswaffe (für Mündungsfeuer): Punkt am Laufende. */
+function addMuzzle(g: THREE.Group, y: number, z: number): void {
+  const muzzle = new THREE.Object3D();
+  muzzle.name = 'muzzle';
+  muzzle.position.set(0, y, z);
+  g.add(muzzle);
 }
 
 /** Neue Instanz des Item-Modells (Geometrie und Material werden geteilt). */
@@ -963,6 +1083,17 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.ball(0.045).setDensity(1000);
     case 'modBleed':
       return RAPIER.ColliderDesc.cylinder(0.07, 0.025).setDensity(1200);
+    case 'pistol':
+    case 'revolver':
+      return RAPIER.ColliderDesc.cuboid(0.016, 0.1, 0.05).setDensity(1500);
+    case 'shotgun':
+    case 'huntingRifle':
+      return RAPIER.ColliderDesc.cuboid(0.02, 0.48, 0.04).setDensity(700);
+    case 'pistolAmmo':
+    case 'rifleAmmo':
+      return RAPIER.ColliderDesc.cuboid(0.045, 0.03, 0.03).setDensity(1200);
+    case 'shells':
+      return RAPIER.ColliderDesc.cuboid(0.04, 0.03, 0.012).setDensity(1200);
   }
 }
 

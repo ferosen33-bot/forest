@@ -61,6 +61,45 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 50 – Neue Waffen (Teil A: Schusswaffen)
+
+- **Vier Schusswaffen**, alle mit Seltenheit und Perks (Wucht, Flink → Feuerrate, Ausgewogen → weniger
+  Rückstoß, Niederschmetternd → mehr Wucht, Präzise, Robust, Blutdurst) und offen für Waffenmods:
+
+  | Waffe | Merkmale |
+  |---|---|
+  | Pistole | 12 Schuss, schnell und genau |
+  | Revolver | 6 Schuss, schwer, langsam nachzuladen |
+  | Schrotflinte | 6 Patronen, je 9 Schrotkörner; aus der Nähe wirft sie Gegner um und reißt Glieder ab, auf Entfernung verpufft das Schrot; man lädt Patrone für Patrone nach (ein Schuss bricht das ab) |
+  | Jagdgewehr | 5 Schuss, sehr wuchtig und weit, mit Zielfernrohr |
+
+- **Steuerung:** Linksklick schießt, Rechtsklick zielt über Kimme und Korn (Waffe vor dem Auge, Zoom,
+  viel geringere Streuung), `R` lädt nach. Ein leeres Magazin lädt beim nächsten Schuss von selbst nach.
+  Ohne Munition klickt es nur. Wer läuft, streut stärker, wer sich duckt, schießt ruhiger.
+- **Munition:** Pistolenmunition (Pistole und Revolver), Schrotpatronen, Gewehrpatronen. Patronen im Magazin
+  bleiben an der Waffe, auch beim Ablegen und im Spielstand.
+- **Wirkung:**
+  - Kopftreffer zählen mehr, Großkaliber zertrümmert beim tödlichen Kopftreffer den Schädel.
+  - Kugeln schleudern Getroffene zurück. Elemente greifen wie im Nahkampf.
+  - Einschläge in Holz, Stein und Erde werfen Splitter und Staub auf, ins Wasser spritzt es.
+- **Gefühl:**
+  - Rückstoß reißt die Kamera hoch, die Waffe springt zurück. Ein Mündungsfeuer blitzt an der Mündung und
+    erhellt Hand und Umgebung.
+  - Jede Waffe hat ihren eigenen Knall, das Gewehr hallt von den Hängen wider. Dazu kommen Klänge für
+    Nachladen, Durchladen und Leerklicken.
+  - Zielt man mit dem Jagdgewehr ganz an, sieht man durchs Zielfernrohr (schwarzer Rand, feines Fadenkreuz,
+    starker Zoom).
+- **Lärm:** Jeder Schuss ist weit zu hören (70–120 m) und lockt die Schrate an. Schusswaffen sind stark,
+  aber laut.
+- **Munitionsanzeige** rechts unten: Magazin groß, Vorrat klein, leer in Rot.
+- **Fundorte:**
+  - In der Moorhütte liegt sicher das Jagdgewehr, im Labor-Safe ein Revolver, im Schmugglerversteck eine
+    Schrotflinte.
+  - Pistolen findet man in Autos und Schreibtischen, Schrotflinten in Spinden.
+  - Munition liegt in Kisten, Spinden und Schreibtischen. Erlegte Schrate haben manchmal Patronen oder eine
+    Pistole dabei.
+- Schusswaffen lassen sich an der Werkbank ausbessern.
+
 ### Meilenstein 49 – Nahkampf-Ausbau (Teil 4: Zerstückelung)
 
 - **Klingen trennen ab:** Macheten, Säbel, Messer, Äxte und die Feuerwehraxt schneiden Arme, Beine und Köpfe ab.

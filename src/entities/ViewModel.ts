@@ -18,6 +18,10 @@ interface HoldPose {
   hand?: HandPose;
   /** Eigene Richtung von der Hand zum Ellbogen (ohne Angabe: schräg nach hinten unten). */
   forearm?: THREE.Vector3;
+  /** Achse, um die sich die Faust schließt (Modellraum; ohne Angabe: die Längsachse +Y). */
+  handAxis?: THREE.Vector3;
+  /** Schusswaffen: Lage beim Zielen über Kimme und Korn. */
+  ads?: THREE.Vector3;
 }
 
 /** Offene Hand unter der Schale: Unterarm steiler nach unten. */
@@ -80,7 +84,77 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   battery: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.3, 0.4, 0.5), grip: new THREE.Vector3(0, 0, 0), scale: 1.4 },
   rawFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
   cookedFish: { position: new THREE.Vector3(0.24, -0.27, -0.44), rotation: new THREE.Euler(0.2, 0.3, 1.3), grip: new THREE.Vector3(0, -0.05, 0), scale: 1 },
+  // Schusswaffen: Lauf nach vorne (Modell +Y → Blickrichtung), die Faust um den Griff.
+  pistol: {
+    position: new THREE.Vector3(0.17, -0.26, -0.42),
+    rotation: new THREE.Euler(-Math.PI / 2 + 0.04, 0.06, 0),
+    grip: new THREE.Vector3(0, -0.055, -0.05),
+    scale: 1,
+    handAxis: new THREE.Vector3(0, 0.25, 1),
+    ads: new THREE.Vector3(0.025, -0.225, -0.4),
+  },
+  revolver: {
+    position: new THREE.Vector3(0.17, -0.26, -0.42),
+    rotation: new THREE.Euler(-Math.PI / 2 + 0.04, 0.06, 0),
+    grip: new THREE.Vector3(0, -0.075, -0.04),
+    scale: 1,
+    handAxis: new THREE.Vector3(0, 0.35, 1),
+    ads: new THREE.Vector3(0.025, -0.24, -0.4),
+  },
+  shotgun: {
+    position: new THREE.Vector3(0.16, -0.27, -0.36),
+    rotation: new THREE.Euler(-Math.PI / 2 + 0.05, 0.05, 0),
+    grip: new THREE.Vector3(0, -0.14, -0.035),
+    scale: 1,
+    handAxis: new THREE.Vector3(0, 0.4, 1),
+    ads: new THREE.Vector3(0.025, -0.23, -0.3),
+  },
+  huntingRifle: {
+    position: new THREE.Vector3(0.16, -0.27, -0.36),
+    rotation: new THREE.Euler(-Math.PI / 2 + 0.05, 0.05, 0),
+    grip: new THREE.Vector3(0, -0.16, -0.03),
+    scale: 1,
+    handAxis: new THREE.Vector3(0, 0.4, 1),
+    ads: new THREE.Vector3(0.025, -0.255, -0.26),
+  },
 };
+
+/** Nachladen: Waffe absenken und zur Seite kippen, dann wieder hoch. */
+const RELOAD_KEYS: { t: number; pos: [number, number, number]; rot: [number, number, number] }[] = [
+  { t: 0, pos: [0, 0, 0], rot: [0, 0, 0] },
+  { t: 0.2, pos: [-0.04, -0.1, 0.06], rot: [0.45, 0.1, 0.7] },
+  { t: 0.8, pos: [-0.04, -0.1, 0.06], rot: [0.45, 0.1, 0.7] },
+  { t: 1, pos: [0, 0, 0], rot: [0, 0, 0] },
+];
+
+/** Mündungsfeuer: Stern mit weichem Kern (einmal gezeichnet). */
+function createFlashTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,250,220,1)');
+  grad.addColorStop(0.25, 'rgba(255,190,90,0.9)');
+  grad.addColorStop(1, 'rgba(255,120,30,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  g.globalCompositeOperation = 'lighter';
+  g.fillStyle = 'rgba(255,200,120,0.8)';
+  for (let i = 0; i < 6; i++) {
+    g.save();
+    g.translate(64, 64);
+    g.rotate((i / 6) * Math.PI * 2 + 0.3);
+    g.beginPath();
+    g.moveTo(0, -5);
+    g.lineTo(58, 0);
+    g.lineTo(0, 5);
+    g.fill();
+    g.restore();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 /** Bein für Tritte (Kamera-Raum): Hüfte unter und hinter der Kamera, Stiefelsohle zeigt in Beinrichtung. */
 function createLeg(): THREE.Group {
@@ -228,6 +302,14 @@ export class ViewModel {
   private readonly leg = createLeg();
   private kick: { time: number; duration: number; angle: number } | null = null;
   private dodgeDip = 0;
+  /** Schusswaffen: Zielen (0..1) und Mündungsfeuer. */
+  private ads = 0;
+  private adsTarget = false;
+  private readonly flash = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: typeof document === 'undefined' ? null : createFlashTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: new THREE.Color(3, 2.4, 1.6) }),
+  );
+  private flashTime = 0;
   private block = 0;
   private blocking = false;
   private aim = 0;
@@ -298,7 +380,7 @@ export class ViewModel {
     const id = this.currentId;
     const pose = id ? POSES[id] : undefined;
     if (!pose || !this.fpArm) return;
-    const axis = new THREE.Vector3(0, 1, 0).applyEuler(pose.rotation);
+    const axis = (pose.handAxis?.clone().normalize() ?? new THREE.Vector3(0, 1, 0)).applyEuler(pose.rotation);
     if (id === 'bow' && this.leftArm) {
       // Links: Faust um den Griff. Der Arm hängt in einem gespiegelten Knoten (x → −x): die Griffachse
       // wird dorthin umgerechnet, der Unterarm ist schon im Spiegelraum angegeben.
@@ -350,6 +432,32 @@ export class ViewModel {
   /** Tritt, Sprungtritt oder Bodenstampfer: das Bein schnellt von unten ins Bild. */
   playKick(duration: number, move: keyof typeof KICK_KEYS): void {
     this.kick = { time: 0, duration, angle: KICK_KEYS[move] };
+  }
+
+  /** Schusswaffe: über Kimme und Korn zielen. */
+  setAds(on: boolean): void {
+    this.adsTarget = on;
+  }
+
+  /** Zielt gerade (fast) ganz über die Waffe (für das Zielfernrohr). */
+  get adsLevel(): number {
+    return this.ads;
+  }
+
+  /** Schuss: Rückstoß und Mündungsfeuer. */
+  playShot(kick: number): void {
+    this.recoil = Math.min(1.6, kick);
+    this.flashTime = 0.05;
+    this.flash.rotation.z = Math.random() * Math.PI;
+  }
+
+  /** Nachladen über `duration` Sekunden (0 bricht ab). */
+  playReload(duration: number): void {
+    if (duration <= 0) {
+      if (this.action?.keys === RELOAD_KEYS) this.action = null;
+      return;
+    }
+    this.action = { keys: RELOAD_KEYS, time: 0, duration, wrist: 0.4 };
   }
 
   /** Ausweichschritt: Waffe kurz abgesenkt. */
@@ -545,7 +653,11 @@ export class ViewModel {
     // damit der Arm (ebenfalls am Pose-Knoten) immer natürlich nach hinten unten zeigt.
     const pose = this.currentId ? POSES[this.currentId] : undefined;
     if (pose) {
-      this.pose.position.copy(pose.position).add(this.animPos);
+      this.pose.position.copy(pose.position);
+      // Zielen: die Waffe wandert vor das Auge, Kimme und Korn auf das Fadenkreuz.
+      this.ads = damp(this.ads, this.adsTarget && pose.ads ? 1 : 0, 14, dt);
+      if (pose.ads && this.ads > 0.001) this.pose.position.lerp(pose.ads, smoothstep(0, 1, this.ads));
+      this.pose.position.add(this.animPos);
       const wrist = this.action?.wrist ?? (this.charge > 0.001 ? 0.5 : 0);
       this.pose.rotation.set(this.animRot.x * (1 - wrist), this.animRot.y * (1 - wrist), this.animRot.z * (1 - wrist));
       if (this.model) {
@@ -568,11 +680,17 @@ export class ViewModel {
     // Fackel: Flamme animieren und Hand/Item beleuchten.
     const torchLit = this.flame.object.parent !== null;
     if (torchLit) this.flame.update(dt);
+    // Mündungsfeuer: ein, zwei Bilder lang, dazu ein Lichtblitz auf Hand und Waffe.
+    this.flashTime -= dt;
+    this.flash.visible = this.flashTime > 0 && !!this.flash.parent;
+    if (this.flash.visible) this.flash.scale.setScalar(0.16 + Math.random() * 0.08);
     this.aura.update(dt);
     // Ein Mod wirft sein farbiges Licht auf Hand und Waffe.
     const modLight = torchLit ? null : this.aura.lightColor;
     this.handLight.color.set(modLight ?? 0xffa04a);
-    const glow = torchLit ? 0.45 * this.flame.flicker : modLight ? 0.22 * this.aura.flicker : 0;
+    const shot = this.flashTime > 0;
+    if (shot) this.handLight.color.set(0xffb060);
+    const glow = shot ? 2.2 : torchLit ? 0.45 * this.flame.flicker : modLight ? 0.22 * this.aura.flicker : 0;
     this.handLight.intensity = glow * smoothstep(0, 1, this.raise);
   }
 
@@ -633,6 +751,15 @@ export class ViewModel {
     this.model = grip;
     this.pose.add(grip);
     this.aura.attach(this.model.children[0], this.element);
+    // Schusswaffen: Mündungsfeuer an die Mündung, senkrecht zum Lauf (zeigt zur Kamera).
+    const muzzle = this.model.getObjectByName('muzzle');
+    this.flash.removeFromParent();
+    if (muzzle) {
+      this.flash.rotation.set(-Math.PI / 2, 0, 0);
+      this.flash.position.set(0, 0.03, 0);
+      this.flash.visible = false;
+      muzzle.add(this.flash);
+    }
     // Den Bogen hält die linke Hand; die rechte zieht die Sehne an die Wange – außerhalb des Blickfelds.
     this.arm.visible = this.currentId !== 'log' && !(this.currentId === 'bow' && this.leftArm);
     // Bogen: gerade Sehne durch zwei Hälften ersetzen, die zur Zughand hin ausgezogen werden;

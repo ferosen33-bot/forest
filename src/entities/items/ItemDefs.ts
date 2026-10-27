@@ -59,7 +59,14 @@ export type ItemId =
   | 'modFire'
   | 'modShock'
   | 'modCaustic'
-  | 'modBleed';
+  | 'modBleed'
+  | 'pistol'
+  | 'revolver'
+  | 'shotgun'
+  | 'huntingRifle'
+  | 'pistolAmmo'
+  | 'shells'
+  | 'rifleAmmo';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -122,6 +129,32 @@ export interface RangedStats {
   maxDamage: number;
 }
 
+/** Schusswaffe: Linksklick schießt, Rechtsklick zielt über Kimme und Korn, R lädt nach. */
+export interface GunStats {
+  ammo: ItemId;
+  magazine: number;
+  /** Schaden je Kugel bzw. Schrotkorn. */
+  damage: number;
+  /** Schrotkörner je Schuss (1 = Kugel). */
+  pellets: number;
+  /** Streuung aus der Hüfte (rad); beim Zielen deutlich weniger. */
+  spread: number;
+  /** Zeit zwischen zwei Schüssen (s). */
+  fireTime: number;
+  /** Nachladen: ganzes Magazin bzw. – `perShell` – je Patrone. */
+  reloadTime: number;
+  perShell?: boolean;
+  range: number;
+  /** Rückstoß: Kamera springt so weit nach oben (rad). */
+  recoil: number;
+  /** So weit hört man den Schuss (m). */
+  noise: number;
+  /** Zielen: so stark wird herangezoomt (0..1). */
+  zoom: number;
+  /** Rückstoß, den Getroffene aus nächster Nähe abbekommen. */
+  knockback: number;
+}
+
 export interface ItemDef {
   id: ItemId;
   name: string;
@@ -146,6 +179,7 @@ export interface ItemDef {
   light?: HeldLight;
   /** Waffenmod: lädt Treffer mit diesem Element auf (an der Werkbank anbringen). */
   mod?: ElementId;
+  gun?: GunStats;
 }
 
 export const ITEMS: Record<ItemId, ItemDef> = {
@@ -727,6 +761,63 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'resource',
     maxStack: 3,
     mod: 'bleed',
+  },
+  pistol: {
+    id: 'pistol',
+    name: 'Pistole',
+    description: 'Eine 9-mm-Dienstpistole, zwölf Schuss im Magazin. Präzise und schnell – aber jeder Schuss hallt weit über die Insel.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 500,
+    gun: { ammo: 'pistolAmmo', magazine: 12, damage: 30, pellets: 1, spread: 0.035, fireTime: 0.22, reloadTime: 1.4, range: 70, recoil: 0.035, noise: 70, zoom: 0.3, knockback: 1 },
+  },
+  revolver: {
+    id: 'revolver',
+    name: 'Revolver',
+    description: 'Ein schwerer .357er mit Holzgriff. Sechs Schuss, langsam nachzuladen – aber jeder Treffer sitzt.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 450,
+    gun: { ammo: 'pistolAmmo', magazine: 6, damage: 62, pellets: 1, spread: 0.03, fireTime: 0.48, reloadTime: 2.3, range: 80, recoil: 0.075, noise: 85, zoom: 0.3, knockback: 2.5 },
+  },
+  shotgun: {
+    id: 'shotgun',
+    name: 'Schrotflinte',
+    description: 'Eine Vorderschaftrepetierflinte. Aus der Nähe reißt sie Gegner von den Füßen, auf Entfernung verpufft das Schrot.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 300,
+    gun: { ammo: 'shells', magazine: 6, damage: 13, pellets: 9, spread: 0.085, fireTime: 0.85, reloadTime: 0.5, perShell: true, range: 30, recoil: 0.11, noise: 95, zoom: 0.2, knockback: 7 },
+  },
+  huntingRifle: {
+    id: 'huntingRifle',
+    name: 'Jagdgewehr',
+    description: 'Ein Repetierer mit Zielfernrohr aus einer Jagdhütte. Fünf Schuss, wuchtig und weit – zum Zielen Rechtsklick halten.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 350,
+    gun: { ammo: 'rifleAmmo', magazine: 5, damage: 115, pellets: 1, spread: 0.06, fireTime: 1.15, reloadTime: 2.6, range: 160, recoil: 0.09, noise: 120, zoom: 0.75, knockback: 4 },
+  },
+  pistolAmmo: {
+    id: 'pistolAmmo',
+    name: 'Pistolenmunition',
+    description: 'Eine Schachtel 9-mm-Patronen. Passt in Pistole und Revolver.',
+    category: 'resource',
+    maxStack: 60,
+  },
+  shells: {
+    id: 'shells',
+    name: 'Schrotpatronen',
+    description: 'Rote Schrotpatronen, Kaliber 12, für die Schrotflinte.',
+    category: 'resource',
+    maxStack: 30,
+  },
+  rifleAmmo: {
+    id: 'rifleAmmo',
+    name: 'Gewehrpatronen',
+    description: 'Lange Jagdpatronen für das Jagdgewehr.',
+    category: 'resource',
+    maxStack: 30,
   },
   torch: {
     id: 'torch',

@@ -130,6 +130,39 @@ html, body {
 #hud.is-inventory-open .hotbar,
 #hud.is-inventory-open .hotbar-name { display: none; }
 
+/* Munition: Magazin groß, Vorrat klein (rechts neben der Schnellzugriffsleiste). */
+.ammo {
+  position: absolute;
+  right: 28px;
+  bottom: 26px;
+  display: none;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px #000;
+}
+.ammo.is-visible { display: flex; }
+.ammo__loaded { font-size: 30px; font-weight: 700; color: #f2ece0; }
+.ammo__reserve { font-size: 15px; color: var(--ui-muted); }
+.ammo__reserve::before { content: '/ '; }
+.ammo.is-empty .ammo__loaded { color: #e05a4a; }
+.ammo.is-reloading .ammo__loaded { opacity: 0.4; }
+
+/* Zielfernrohr: schwarzer Rand, feines Fadenkreuz. */
+.scope {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    linear-gradient(#000, #000) center / 1px 100% no-repeat,
+    linear-gradient(#000, #000) center / 100% 1px no-repeat,
+    radial-gradient(circle at center, transparent 0, transparent 38vmin, rgba(0, 0, 0, 0.6) 39vmin, #000 41vmin);
+}
+.scope.is-visible { opacity: 1; }
+#hud.is-inventory-open .ammo,
+#hud.is-inventory-open .scope { display: none; }
+
 /* Schnellzugriffsleiste */
 .hotbar {
   position: absolute;

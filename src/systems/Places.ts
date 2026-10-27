@@ -28,16 +28,16 @@ const LOOT: Record<PlaceLootKind, LootTable> = {
   suitcase: { rolls: [1, 2], table: [['jacket', 2, 1, 1], ['painkillers', 2, 1, 1], ['waterBottle', 2, 1, 1], ['watch', 1, 1, 1], ['battery', 1, 1, 1], [null, 2, 0, 0]] },
   cockpit: { rolls: [2, 2], table: [['flashlight', 3, 1, 1], ['battery', 3, 1, 2], ['waterBottle', 1, 1, 1]] },
   medbox: { rolls: [1, 2], table: [['medkit', 3, 1, 1], ['painkillers', 2, 1, 2]] },
-  locker: { rolls: [1, 2], table: [['fireAxe', 1, 1, 1], ['crowbar', 1, 1, 1], ['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['battery', 2, 1, 2], ['cannedFood', 2, 1, 1], [null, 1, 0, 0]] },
+  locker: { rolls: [1, 2], table: [['fireAxe', 1, 1, 1], ['crowbar', 1, 1, 1], ['shotgun', 1, 1, 1], ['shells', 2, 3, 6], ['pistolAmmo', 1, 4, 8], ['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['battery', 2, 1, 2], ['cannedFood', 2, 1, 1], [null, 1, 0, 0]] },
   toolbox: { rolls: [1, 2], table: [['axe', 1, 1, 1], ['sledgehammer', 1, 1, 1], ['pipeWrench', 1, 1, 1], ['lampOil', 3, 1, 2], ['torch', 2, 1, 1], ['battery', 1, 1, 1], ['modFire', 1, 1, 1]] },
-  crate: { rolls: [1, 2], table: [['cannedFood', 3, 1, 2], ['waterBottle', 2, 1, 2], ['lampOil', 2, 1, 1], ['arrow', 1, 4, 8], [null, 1, 0, 0]] },
-  chest: { rolls: [1, 2], table: [['hide', 2, 1, 2], ['arrow', 2, 3, 6], ['berries', 2, 2, 4], ['mushroom', 1, 1, 3], ['furCoat', 1, 1, 1]] },
+  crate: { rolls: [1, 2], table: [['cannedFood', 3, 1, 2], ['waterBottle', 2, 1, 2], ['lampOil', 2, 1, 1], ['arrow', 1, 4, 8], ['pistolAmmo', 1, 5, 10], ['shells', 1, 3, 6], [null, 1, 0, 0]] },
+  chest: { rolls: [1, 2], table: [['hide', 2, 1, 2], ['arrow', 2, 3, 6], ['berries', 2, 2, 4], ['mushroom', 1, 1, 3], ['furCoat', 1, 1, 1], ['rifleAmmo', 1, 3, 6]] },
   shelf: { rolls: [1, 2], table: [['cannedFood', 2, 1, 1], ['bottle', 2, 1, 1], ['lampOil', 2, 1, 1], ['mushroom', 1, 1, 2], [null, 1, 0, 0]] },
-  desk: { rolls: [1, 2], table: [['battery', 3, 1, 2], ['flashlight', 1, 1, 1], ['painkillers', 1, 1, 1], ['cannedFood', 1, 1, 1]] },
+  desk: { rolls: [1, 2], table: [['battery', 3, 1, 2], ['flashlight', 1, 1, 1], ['painkillers', 1, 1, 1], ['cannedFood', 1, 1, 1], ['pistol', 1, 1, 1], ['pistolAmmo', 2, 6, 12]] },
   spares: { rolls: [1, 1], table: [['lampOil', 3, 1, 2], ['battery', 1, 1, 1]] },
   safe: { rolls: [1, 1], table: [['battery', 2, 2, 3], ['medkit', 1, 1, 1]] },
   sacristy: { rolls: [1, 2], table: [['sabre', 1, 1, 1], ['lampOil', 2, 1, 1], ['painkillers', 1, 1, 1], ['bottle', 2, 1, 1], ['cannedFood', 1, 1, 1]] },
-  stash: { rolls: [2, 3], table: [['sabre', 1, 1, 1], ['fireAxe', 1, 1, 1], ['medkit', 2, 1, 1], ['fireArrow', 2, 3, 6], ['cannedFood', 2, 2, 3], ['battery', 1, 1, 2], ['painkillers', 1, 1, 2], ['modCaustic', 1, 1, 1], ['modBleed', 1, 1, 1]] },
+  stash: { rolls: [2, 3], table: [['sabre', 1, 1, 1], ['fireAxe', 1, 1, 1], ['medkit', 2, 1, 1], ['fireArrow', 2, 3, 6], ['cannedFood', 2, 2, 3], ['battery', 1, 1, 2], ['painkillers', 1, 1, 2], ['modCaustic', 1, 1, 1], ['modBleed', 1, 1, 1], ['huntingRifle', 1, 1, 1], ['rifleAmmo', 2, 4, 8], ['revolver', 1, 1, 1]] },
   oilstore: { rolls: [1, 1], table: [['lampOil', 3, 2, 3], ['bottle', 1, 1, 2]] },
 };
 
@@ -48,9 +48,11 @@ const GUARANTEED: Partial<Record<PlaceLootKind, [ItemId, number][]>> = {
   toolbox: [['axe', 1]],
   // Was die Geschichte braucht, liegt sicher dort.
   spares: [['enginePart', 1]],
-  safe: [['documents', 1]],
+  safe: [['documents', 1], ['revolver', 1], ['pistolAmmo', 12]],
+  // Der Jäger in der Moorhütte hatte ein Gewehr.
+  chest: [['huntingRifle', 1], ['rifleAmmo', 8]],
   // Wer übers Meer kommt, wird belohnt.
-  stash: [['molotov', 2]],
+  stash: [['molotov', 2], ['shotgun', 1], ['shells', 8]],
   oilstore: [['lampOil', 3]],
 };
 

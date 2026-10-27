@@ -59,6 +59,14 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   modShock: new THREE.Euler(0.3, 0.4, 0),
   modCaustic: new THREE.Euler(0.2, 0.3, 0.15),
   modBleed: new THREE.Euler(0.3, 0.3, -0.5),
+  // Schusswaffen von der Seite, Mündung nach rechts oben.
+  pistol: new THREE.Euler(0, Math.PI / 2, -1.2),
+  revolver: new THREE.Euler(0, Math.PI / 2, -1.2),
+  shotgun: new THREE.Euler(0, Math.PI / 2, -1.0),
+  huntingRifle: new THREE.Euler(0, Math.PI / 2, -1.0),
+  pistolAmmo: new THREE.Euler(0.4, 0.5, 0),
+  shells: new THREE.Euler(0.4, 0.3, 0),
+  rifleAmmo: new THREE.Euler(0.4, 0.5, 0),
 };
 
 export interface IconSets {

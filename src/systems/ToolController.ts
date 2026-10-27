@@ -4,7 +4,9 @@ import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
 import type { ViewModel } from '../entities/ViewModel';
 import { cutsLimbs, getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
-import { CRIT_MULTIPLIER, isWeapon, weaponStats } from '../entities/items/Weapons';
+import { CRIT_MULTIPLIER, gunStats, isWeapon, loadedRounds, weaponStats } from '../entities/items/Weapons';
+import type { Enemy } from '../entities/enemies/Enemy';
+import type { HitZone } from './ai/EnemyDirector';
 import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
@@ -19,6 +21,7 @@ import type { Skills } from './Skills';
 import type { ElementEffects } from './ElementEffects';
 import { COUNTER_MULTIPLIER, type CombatMoves } from './CombatMoves';
 import type { Gore } from './Gore';
+import type { Particles } from './Particles';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -86,7 +89,7 @@ export class ToolController {
   /** Werte des gehaltenen Werkzeugs bzw. der Waffe (mit Seltenheit und Perks). */
   get equippedTool(): ToolStats | undefined {
     const stack = this.equipped;
-    if (!stack) return undefined;
+    if (!stack || !getItem(stack.id).tool) return undefined;
     return stack.weapon ? weaponStats(stack.id, stack.weapon).tool : getItem(stack.id).tool;
   }
 
@@ -96,6 +99,9 @@ export class ToolController {
     this.swing = null;
     this.eating = null;
     this.cancelCharge();
+    this.cancelReload();
+    // Jede Waffe hat ihre eigene Feuerpause; nach dem Wechsel zählt nur das Hervorholen.
+    this.gunCooldown = 0;
     this.cancelDraw();
   }
 
@@ -153,6 +159,11 @@ export class ToolController {
       this.updateBow(dt, active, def);
       return;
     }
+    if (def?.gun && stack) {
+      this.updateGun(dt, active, stack);
+      return;
+    }
+    if (this.reload) this.cancelReload();
     if (this.drawing || this.player.zoom > 0) this.cancelDraw();
     const rmb = active && !this.player.stats.isDead && !!def?.tool && this.input.isMouseDown(2) && !this.swing && !this.eating;
     this.aiming = rmb && !!def?.throwable && !this.viewModel.busy;
@@ -416,6 +427,206 @@ export class ToolController {
     this.viewModel.playHit();
     this.wearEquipped(1);
   }
+
+  // ---------------------------------------------------------------------------
+  // Schusswaffen
+  // ---------------------------------------------------------------------------
+
+  /** Pause bis zum nächsten Schuss (s) und laufendes Nachladen. */
+  private gunCooldown = 0;
+  private reload: { time: number; perShell: boolean } | null = null;
+
+  /** Munitionsanzeige: Patronen im Magazin und im Rucksack (null = keine Schusswaffe in der Hand). */
+  get ammoInfo(): { loaded: number; reserve: number; reloading: boolean } | null {
+    const stack = this.equipped;
+    const gun = stack ? getItem(stack.id).gun : undefined;
+    if (!stack || !gun) return null;
+    return { loaded: loadedRounds(stack.id, stack.weapon), reserve: this.inventory.count(gun.ammo), reloading: !!this.reload };
+  }
+
+  private cancelReload(): void {
+    if (!this.reload) return;
+    this.reload = null;
+    this.viewModel.playReload(0);
+  }
+
+  /** Linksklick schießt, Rechtsklick zielt, R lädt nach (leeres Magazin: automatisch). */
+  private updateGun(dt: number, active: boolean, stack: ItemStack): void {
+    const { gun } = gunStats(stack.id, stack.weapon);
+    const usable = active && !this.player.stats.isDead && !this.viewModel.busy;
+    this.player.blocking = false;
+    this.viewModel.setBlocking(false);
+    this.viewModel.setAiming(false);
+    const ads = usable && this.input.isMouseDown(2) && !this.reload;
+    this.player.zoom = ads ? gun.zoom : 0;
+    this.viewModel.setAds(ads);
+    this.gunCooldown -= dt;
+    if (!usable) return;
+
+    if (this.reload) {
+      this.reload.time -= dt;
+      if (this.reload.time <= 0) this.finishReload(stack);
+    }
+    // R gehört dem Reparieren, solange ein beschädigtes Bauwerk anvisiert ist.
+    if (this.input.wasPressed('reload') && this.interaction.prompt?.key !== 'R') this.startReload(stack);
+    if (!this.input.wasMousePressed(0) || this.gunCooldown > 0) return;
+    const loaded = loadedRounds(stack.id, stack.weapon);
+    // Schrot lädt man Patrone für Patrone – ein Schuss bricht das Nachladen ab.
+    if (this.reload && this.reload.perShell && loaded > 0) this.cancelReload();
+    if (this.reload) return;
+    if (loaded <= 0) {
+      if (!this.startReload(stack)) {
+        this.audio.play('dryFire');
+        this.gunCooldown = 0.3;
+      }
+      return;
+    }
+    this.fire(stack);
+  }
+
+  /** @returns true, wenn nachgeladen wird. */
+  private startReload(stack: ItemStack): boolean {
+    const gun = getItem(stack.id).gun!;
+    if (this.reload || loadedRounds(stack.id, stack.weapon) >= gun.magazine) return false;
+    if (!this.inventory.has(gun.ammo)) {
+      if (this.exhaustedHintCooldown <= 0) {
+        this.events.emit('hud:message', { text: `Keine ${getItem(gun.ammo).name} mehr.` });
+        this.exhaustedHintCooldown = 2;
+      }
+      return false;
+    }
+    this.reload = { time: gun.reloadTime, perShell: !!gun.perShell };
+    this.viewModel.playReload(gun.reloadTime);
+    this.audio.play(gun.perShell ? 'shellIn' : 'reload');
+    return true;
+  }
+
+  private finishReload(stack: ItemStack): void {
+    const gun = getItem(stack.id).gun!;
+    const weapon = stack.weapon!;
+    const loaded = loadedRounds(stack.id, weapon);
+    const n = Math.min(gun.perShell ? 1 : gun.magazine - loaded, this.inventory.count(gun.ammo));
+    this.inventory.remove(gun.ammo, n);
+    weapon.loaded = loaded + n;
+    // Schrotflinte: weiter Patrone für Patrone, bis sie voll ist.
+    if (gun.perShell && weapon.loaded < gun.magazine && this.inventory.has(gun.ammo)) {
+      this.reload = { time: gun.reloadTime, perShell: true };
+      this.viewModel.playReload(gun.reloadTime);
+      this.audio.play('shellIn');
+      return;
+    }
+    this.reload = null;
+    if (gun.perShell) this.audio.play('pump');
+  }
+
+  private fire(stack: ItemStack): void {
+    const { gun, crit: critChance, heal } = gunStats(stack.id, stack.weapon);
+    const weapon = stack.weapon!;
+    weapon.loaded = loadedRounds(stack.id, weapon) - 1;
+    this.gunCooldown = gun.fireTime;
+    const p = this.player;
+    const ads = p.zoom > 0;
+    const moving = Math.hypot(p.velocity.x, p.velocity.z) > 1.2;
+    const spread = gun.spread * (ads ? 0.25 : 1) * (moving ? 1.6 : 1) * (p.crouching ? 0.8 : 1);
+    const eye = this.camera.getWorldPosition(new THREE.Vector3());
+    const look = this.camera.getWorldDirection(new THREE.Vector3());
+    const right = new THREE.Vector3().crossVectors(look, this.camera.up).normalize();
+    const up = new THREE.Vector3().crossVectors(right, look);
+    // Schrotkörner und Kugeln: Treffer je Gegner sammeln (Kopf und Körper getrennt).
+    const hits = new Map<Enemy, { body: number; head: number; point: THREE.Vector3; normal: THREE.Vector3 }>();
+    for (let i = 0; i < gun.pellets; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = spread * Math.sqrt(Math.random());
+      const dir = look.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
+      const target = this.interaction.raycast(gun.range, dir);
+      if (!target || target.type === 'water') {
+        if (target?.type === 'water') this.splash(eye, dir);
+        continue;
+      }
+      const h = target.hit;
+      const point = new THREE.Vector3(h.point.x, h.point.y, h.point.z);
+      const normal = new THREE.Vector3(h.normal.x, h.normal.y, h.normal.z);
+      // Schrot verliert auf Entfernung an Wucht.
+      const falloff = gun.pellets > 1 ? THREE.MathUtils.clamp(1.25 - h.distance / gun.range, 0.15, 1) : 1;
+      if (target.type === 'enemy') {
+        let e = hits.get(target.enemy);
+        if (!e) hits.set(target.enemy, (e = { body: 0, head: 0, point, normal }));
+        if (target.zone === 'head') e.head += gun.damage * falloff;
+        else e.body += gun.damage * falloff;
+      } else if (target.type === 'animal') {
+        if (!target.animal.isDead) this.animals.damage(target.animal, gun.damage * falloff * this.skills.rangedDamage, p.position, point, normal);
+      } else {
+        this.impact(target.type, point, normal);
+        if (target.type === 'structure') this.building.damage(target.structure, 2, point, normal);
+      }
+    }
+    for (const [enemy, h] of hits) this.shootEnemy(stack, enemy, h, gun.knockback, critChance, heal);
+
+    // Rückstoß, Knall, Mündungsfeuer – und alle in der Nähe haben es gehört.
+    p.pitch += gun.recoil * (ads ? 0.6 : 1) * (0.8 + Math.random() * 0.4);
+    p.yaw += (Math.random() - 0.5) * gun.recoil * 0.4;
+    p.addShake(gun.recoil * 2.5);
+    this.viewModel.playShot(gun.recoil * 10);
+    this.audio.play(gun.pellets > 1 ? 'shotShotgun' : gun.damage >= 100 ? 'shotRifle' : gun.damage >= 50 ? 'shotRevolver' : 'shotPistol');
+    this.events.emit('gun:fired', { position: eye });
+    this.events.emit('noise', { position: p.position.clone(), radius: gun.noise });
+    if (gun.perShell) setTimeout(() => this.audio.play('pump', 0.8), 380);
+    this.wearEquipped(1);
+  }
+
+  /** Treffer an einem Gegner (alle Körner eines Schusses zusammen). */
+  private shootEnemy(
+    stack: ItemStack,
+    enemy: Enemy,
+    h: { body: number; head: number; point: THREE.Vector3; normal: THREE.Vector3 },
+    knockback: number,
+    critChance: number,
+    heal: number,
+  ): void {
+    if (enemy.isDead) return;
+    const from = this.player.position;
+    const crit = Math.random() < critChance;
+    const mult = this.skills.rangedDamage * (crit ? CRIT_MULTIPLIER : 1);
+    const kind = crit ? 'crit' : 'normal';
+    const zones: [number, HitZone][] = [[h.head, 'head'], [h.body, 'body']];
+    for (const [dmg, zone] of zones) if (dmg > 0 && !enemy.isDead) this.enemies.damage(enemy, dmg * mult, zone, from, h.point, h.normal, kind);
+    if (crit) this.events.emit('weapon:crit', { position: h.point.clone() });
+    const total = (h.head + h.body) * mult;
+    const dist = enemy.feet.distanceTo(from);
+    // Wucht aus nächster Nähe: Schrot wirft um, Kugeln schleudern zurück.
+    const close = Math.max(0, 1 - dist / 8);
+    if (!enemy.isDead && knockback * close > 0.5) {
+      if (knockback >= 6 && dist < 3.5) enemy.knockdown(1.6, from, knockback);
+      else enemy.shove(from, knockback * close, 0.3 + 0.3 * close);
+    }
+    const mod = stack.weapon?.mod;
+    if (mod) this.elements?.strike(enemy, mod, undefined, h.point, crit);
+    // Großkaliber und Schrot aus der Nähe zerreißen: Köpfe platzen, Glieder fliegen.
+    const blast = knockback >= 6 && dist < 4;
+    this.gore?.onHit(enemy, h.point, from, { cut: blast, heavy: blast || total >= 60 ? 1 : 0, damage: enemy.lastDamage, headshot: h.head > h.body });
+    if (heal) this.player.stats.health = Math.min(this.player.stats.max, this.player.stats.health + heal);
+    this.combat?.impact(enemy.isDead ? 0.35 : 0.08);
+    this.skills.gain('archery', enemy.isDead ? 6 : 2);
+  }
+
+  /** Einschlag in Holz, Stein oder Erde: Splitter und Staub. */
+  private impact(type: string, point: THREE.Vector3, normal: THREE.Vector3): void {
+    const color = type === 'tree' || type === 'structure' ? 0x6b4a2a : type === 'rock' || type === 'cave' ? 0x8a8a84 : 0x4a3a28;
+    this.particles?.burst(point, { count: 6, color, direction: normal, speed: 2.5, size: 0.02, life: 0.5 });
+    this.particles?.burst(point, { count: 3, color: 0xb8b0a0, direction: normal, speed: 0.6, size: 0.05, gravity: -0.5, life: 0.8 });
+  }
+
+  private splash(eye: THREE.Vector3, dir: THREE.Vector3): void {
+    if (dir.y >= -0.01) return;
+    const t = (this.waterLevel - eye.y) / dir.y;
+    if (t <= 0) return;
+    const at = eye.clone().addScaledVector(dir, t);
+    this.particles?.burst(at, { count: 8, color: 0xaacbd8, speed: 2.5, size: 0.03, life: 0.6 });
+  }
+
+  /** Für Einschläge (setzt das Spiel). */
+  particles: Particles | null = null;
+  waterLevel = 0;
 
   /** Abwurf-/Abschusspunkt seitlich der Kamera, ausgerichtet auf den Punkt unter dem Fadenkreuz. */
   private aimRay(side: number, up: number): { origin: THREE.Vector3; dir: THREE.Vector3 } {

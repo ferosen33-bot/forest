@@ -161,10 +161,14 @@ export class InteractionSystem {
     } = deps);
   }
 
-  /** Strahl aus der Kameramitte; liefert das erste getroffene, zuordenbare Ziel. */
-  raycast(maxDist: number): InteractionTarget | null {
+  /**
+   * Strahl aus der Kameramitte; liefert das erste getroffene, zuordenbare Ziel.
+   * @param dir eigene Richtung (Streuung der Schusswaffen), sonst die Blickrichtung.
+   */
+  raycast(maxDist: number, dir?: THREE.Vector3): InteractionTarget | null {
     this.camera.getWorldPosition(this.origin);
-    this.camera.getWorldDirection(this.dir);
+    if (dir) this.dir.copy(dir);
+    else this.camera.getWorldDirection(this.dir);
     const hit = this.physics.raycast(this.origin, this.dir, maxDist, this.player.collisionShape);
 
     if (hit) {

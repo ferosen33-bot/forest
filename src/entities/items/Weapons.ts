@@ -1,4 +1,4 @@
-import { getItem, type ItemId, type ToolStats } from './ItemDefs';
+import { getItem, type GunStats, type ItemId, type ToolStats } from './ItemDefs';
 import { isElementId, type ElementId } from './Elements';
 
 /**
@@ -59,12 +59,37 @@ export interface WeaponMeta {
   perks: WeaponPerkId[];
   /** Angebrachter Mod: Treffer tragen dieses Element. */
   mod?: ElementId;
+  /** Schusswaffen: Patronen im Magazin (fehlt = voll). */
+  loaded?: number;
 }
 
-/** Ist das Item eine Nahkampfwaffe mit Seltenheit? */
+/** Ist das Item eine Waffe mit Seltenheit (Nahkampf oder Schusswaffe)? */
 export function isWeapon(id: ItemId): boolean {
-  return getItem(id).tool?.weaponClass !== undefined;
+  const def = getItem(id);
+  return def.tool?.weaponClass !== undefined || def.gun !== undefined;
 }
+
+/** Werte einer Schusswaffe samt Seltenheit und Perks. */
+export function gunStats(id: ItemId, meta?: WeaponMeta): { gun: GunStats; crit: number; heal: number } {
+  const base = getItem(id).gun!;
+  const rarity = getRarity(meta?.rarity ?? 'common');
+  const has = (p: WeaponPerkId) => meta?.perks.includes(p) ?? false;
+  return {
+    gun: {
+      ...base,
+      damage: base.damage * rarity.damage * (has('brutal') ? 1.15 : 1),
+      fireTime: base.fireTime / (has('swift') ? 1.15 : 1),
+      // Ausgewogen: weniger Rückstoß; Niederschmetternd: wirft stärker zurück.
+      recoil: base.recoil * (has('balanced') ? 0.7 : 1),
+      knockback: base.knockback * (has('crushing') ? 1.5 : 1),
+    },
+    crit: BASE_CRIT + (has('precise') ? 0.12 : 0) + (rarity.id === 'legendary' ? 0.05 : 0),
+    heal: has('bloodthirst') ? 3 : 0,
+  };
+}
+
+/** Patronen im Magazin. */
+export const loadedRounds = (id: ItemId, meta?: WeaponMeta): number => meta?.loaded ?? getItem(id).gun?.magazine ?? 0;
 
 /** Grundchance auf einen kritischen Treffer. */
 export const BASE_CRIT = 0.08;
@@ -158,7 +183,8 @@ export function sanitizeWeapon(data: unknown): WeaponMeta | undefined {
   const d = data as Partial<WeaponMeta>;
   if (!isRarityId(d.rarity)) return undefined;
   const perks = Array.isArray(d.perks) ? d.perks.filter(isWeaponPerkId).slice(0, 3) : [];
-  return { rarity: d.rarity, perks, ...(isElementId(d.mod) ? { mod: d.mod } : {}) };
+  const loaded = typeof d.loaded === 'number' && Number.isFinite(d.loaded) ? Math.max(0, Math.floor(d.loaded)) : undefined;
+  return { rarity: d.rarity, perks, ...(isElementId(d.mod) ? { mod: d.mod } : {}), ...(loaded !== undefined ? { loaded } : {}) };
 }
 
 /** Mods passen erst ab „Ungewöhnlich“. */

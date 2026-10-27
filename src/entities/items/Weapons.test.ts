@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Inventory } from '../../systems/Inventory';
 import { getItem, isItemId } from './ItemDefs';
-import { isWeapon, maxDurability, rollWeapon, sanitizeWeapon, weaponOf, weaponStats, RARITIES, type WeaponMeta } from './Weapons';
+import { gunStats, isWeapon, loadedRounds, maxDurability, rollWeapon, sanitizeWeapon, weaponOf, weaponStats, RARITIES, type WeaponMeta } from './Weapons';
 import { mulberry32 } from '../../utils/random';
 
 describe('Waffen mit Seltenheit', () => {
@@ -63,5 +63,21 @@ describe('Waffen mit Seltenheit', () => {
     expect(loaded.get(0)?.weapon?.rarity).toBeDefined();
     expect(sanitizeWeapon({ rarity: 'mythisch', perks: [] })).toBeUndefined();
     expect(sanitizeWeapon({ rarity: 'rare', perks: ['brutal', 'quatsch'] })).toEqual({ rarity: 'rare', perks: ['brutal'] });
+  });
+});
+
+describe('Schusswaffen', () => {
+  it('haben Seltenheit, ein volles Magazin und Werte nach Perks', () => {
+    expect(isWeapon('pistol')).toBe(true);
+    expect(isWeapon('pistolAmmo')).toBe(false);
+    expect(loadedRounds('shotgun')).toBe(getItem('shotgun').gun!.magazine);
+    expect(loadedRounds('shotgun', { rarity: 'common', perks: [], loaded: 2 })).toBe(2);
+    const plain = gunStats('revolver', { rarity: 'common', perks: [] });
+    const tuned = gunStats('revolver', { rarity: 'rare', perks: ['brutal', 'balanced', 'swift'] });
+    expect(tuned.gun.damage).toBeGreaterThan(plain.gun.damage);
+    expect(tuned.gun.recoil).toBeLessThan(plain.gun.recoil);
+    expect(tuned.gun.fireTime).toBeLessThan(plain.gun.fireTime);
+    expect(sanitizeWeapon({ rarity: 'rare', perks: [], loaded: 3 })?.loaded).toBe(3);
+    expect(sanitizeWeapon({ rarity: 'rare', perks: [], loaded: 'x' })?.loaded).toBeUndefined();
   });
 });

@@ -36,6 +36,8 @@ export type GameEvents = {
   /** Ein Werkzeugschlag hat etwas getroffen (für Fadenkreuz-Feedback). */
   'tool:hit': { target: 'tree' | 'rock' | 'creature' | 'other' };
   'weapon:crit': { position: Vector3 };
+  /** Ein Schuss ist gefallen (Mündungsfeuer in der Welt). */
+  'gun:fired': { position: Vector3 };
   /** Ein Waffenmod hat sein Element ausgelöst (`combo`: Kurzschluss, Verpuffung). */
   'weapon:element': { element: ElementId; combo?: string; weak: boolean; resist: boolean };
   'enemy:killed': { position: Vector3; boss: boolean };
