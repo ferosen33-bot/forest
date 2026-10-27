@@ -61,6 +61,29 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 49 – Nahkampf-Ausbau (Teil 1: Seltenheit & neue Waffen)
+
+- **Jede Waffe ist ein Einzelstück:** Nahkampfwaffen haben eine Seltenheit, und zwar *Gewöhnlich* (grau),
+  *Ungewöhnlich* (grün), *Selten* (blau), *Überragend* (violett) oder *Legendär* (orange). Höhere Stufen bringen
+  bis +60 % Schaden, bis +80 % Haltbarkeit und Platz für bis zu drei Perks. Legendäre Waffen tragen einen
+  Beinamen („Witwenmacher“, „Totenglocke“ …).
+- **Perks:** Wucht (+15 % Schaden), Ausgewogen (−25 % Ausdauer), Flink (+15 % Tempo), Robust (+40 %
+  Haltbarkeit), Präzise (+12 % Krit), Niederschmetternd (Getroffene taumeln länger), Blutdurst (jeder Treffer
+  heilt 3).
+- **Kritische Treffer:** Grundchance 8 % (legendär +5 %) für 1,8-fachen Schaden, mit eigener Trefferanzeige.
+- **Sieben neue Waffen:** Baseballschläger, Rohrzange, Brecheisen, Vorschlaghammer, Küchenmesser, Feuerwehraxt
+  und Säbel. Jede hat eigene Werte (Reichweite, Tempo, Betäubung) und eine Klasse: Klinge, Stumpf oder Schwer.
+  Alle sind an der Werkbank reparierbar.
+- **Beute:** Die Waffen liegen in Häusern, Werkzeugkisten, Spinden, Autos, Verstecken und bei Ereignissen. Gegner
+  lassen gelegentlich eine Waffe fallen (10 %), Bosse immer eine überragende oder legendäre. Auf den
+  Nachbarinseln ist die Beute seltener. An der Werkbank hergestellte Waffen werden manchmal besser (40 %
+  ungewöhnlich, 8 % selten).
+- **Anzeige:** Slots haben einen Rahmen in der Farbe der Seltenheit. Der Name in der Schnellleiste ist eingefärbt
+  und nennt die Perks. Im Inventar stehen Schaden, Schläge/s, Krit, Ausdauer, Haltbarkeit und Perks.
+- Seltenheit und Perks bleiben beim Ablegen, Werfen, Einlagern und im Spielstand erhalten. Alte Spielstände
+  würfeln für vorhandene Waffen einmal nach.
+- `entities/items/Weapons.ts` enthält Seltenheiten, Perks, Werte und das Würfeln.
+
 ### Meilenstein 48 – Grafik wie aus einem Guss (Teil 3: Kino-Look)
 
 - **Bloom wie in Unreal:** Statt eines kleinen Weichzeichners eine Mip-Kette über sechs Stufen bis 1/64

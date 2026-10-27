@@ -28,6 +28,11 @@ const MATERIALS = {
   steel: mat(0x8e959c, { roughness: 0.45, metalness: 0.35 }),
   steelEdge: mat(0xd2d7dc, { roughness: 0.3, metalness: 0.4 }),
   tape: mat(0x2a2a2a, { roughness: 0.9 }),
+  batWood: new THREE.MeshStandardMaterial({ color: 0xc49a62, roughness: 0.55 }),
+  redPaint: mat(0xa8221c, { roughness: 0.5, metalness: 0.1 }),
+  hammerHead: mat(0x3d4044, { roughness: 0.5, metalness: 0.4 }),
+  leather: mat(0x3a2418, { roughness: 0.85 }),
+  brass: mat(0xb08a3a, { roughness: 0.35, metalness: 0.5 }),
   lightWood: mat(0x8a6a45),
   binding: mat(0x6b5a3a, { roughness: 1 }),
   cloth: mat(0x3a2f26, { roughness: 1 }),
@@ -431,6 +436,125 @@ function build(id: ItemId): THREE.Object3D {
       g.add(stripe);
       break;
     }
+    case 'baseballBat': {
+      const profile = [
+        [0.0, -0.42], [0.022, -0.42], [0.024, -0.4], [0.016, -0.38], [0.016, -0.2], [0.022, -0.05], [0.032, 0.12], [0.036, 0.36], [0.03, 0.42], [0.0, 0.43],
+      ].map(([r, y]) => new THREE.Vector2(r, y));
+      g.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 12), MATERIALS.batWood));
+      const tape = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.16, 10), MATERIALS.tape);
+      tape.position.y = -0.3;
+      g.add(tape);
+      break;
+    }
+    case 'pipeWrench': {
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.32, 0.018), MATERIALS.redPaint);
+      handle.position.y = -0.08;
+      g.add(handle);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.03), MATERIALS.steel);
+      head.position.set(0.01, 0.12, 0);
+      g.add(head);
+      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.02, 0.026), MATERIALS.steelEdge);
+      jaw.position.set(0.03, 0.17, 0);
+      g.add(jaw);
+      const jaw2 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.018, 0.026), MATERIALS.steelEdge);
+      jaw2.position.set(0.035, 0.125, 0);
+      g.add(jaw2);
+      const nut = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 8), MATERIALS.steel);
+      nut.rotation.x = Math.PI / 2;
+      nut.position.set(0.0, 0.08, 0);
+      g.add(nut);
+      break;
+    }
+    case 'crowbar': {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.66, 6), MATERIALS.redPaint);
+      g.add(bar);
+      const hook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 5, 10, Math.PI), MATERIALS.redPaint);
+      hook.position.set(0.045, 0.33, 0);
+      g.add(hook);
+      const claw = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.008), MATERIALS.steelEdge);
+      claw.position.set(0.09, 0.31, 0);
+      g.add(claw);
+      const flat = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.05, 0.006), MATERIALS.steelEdge);
+      flat.position.set(0.012, -0.345, 0);
+      flat.rotation.z = 0.35;
+      g.add(flat);
+      break;
+    }
+    case 'sledgehammer': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.86, 8), MATERIALS.lightWood);
+      handle.position.y = -0.06;
+      g.add(handle);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.09, 0.09), MATERIALS.hammerHead);
+      head.position.y = 0.39;
+      g.add(head);
+      for (const s of [-1, 1]) {
+        const face = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.08, 0.08), MATERIALS.steelEdge);
+        face.position.set(s * 0.115, 0.39, 0);
+        g.add(face);
+      }
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.18, 8), MATERIALS.tape);
+      grip.position.y = -0.4;
+      g.add(grip);
+      break;
+    }
+    case 'kitchenKnife': {
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.11, 0.016), MATERIALS.grip);
+      handle.position.y = -0.09;
+      g.add(handle);
+      for (const y of [-0.12, -0.06]) {
+        const rivet = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.018, 6), MATERIALS.steelEdge);
+        rivet.rotation.x = Math.PI / 2;
+        rivet.position.y = y;
+        g.add(rivet);
+      }
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.012, 0);
+      shape.lineTo(0.022, 0);
+      shape.lineTo(0.02, 0.15);
+      shape.quadraticCurveTo(0.012, 0.2, -0.012, 0.215);
+      shape.lineTo(-0.012, 0);
+      const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.003, bevelEnabled: false }), MATERIALS.blade);
+      blade.position.set(0, -0.035, -0.0015);
+      g.add(blade);
+      break;
+    }
+    case 'fireAxe': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.021, 0.84, 8), MATERIALS.lightWood);
+      handle.position.y = -0.05;
+      g.add(handle);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.03), MATERIALS.redPaint);
+      head.position.set(0.04, 0.33, 0);
+      g.add(head);
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.024), MATERIALS.steelEdge);
+      edge.position.set(0.13, 0.33, 0);
+      g.add(edge);
+      const pick = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.13, 6), MATERIALS.redPaint);
+      pick.rotation.z = Math.PI / 2;
+      pick.position.set(-0.1, 0.33, 0);
+      g.add(pick);
+      break;
+    }
+    case 'sabre': {
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.017, 0.13, 8), MATERIALS.leather);
+      grip.position.y = -0.34;
+      g.add(grip);
+      const guard = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 5, 12, Math.PI * 1.2), MATERIALS.brass);
+      guard.position.set(-0.01, -0.31, 0);
+      guard.rotation.z = Math.PI * 0.9;
+      g.add(guard);
+      const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), MATERIALS.brass);
+      pommel.position.y = -0.41;
+      g.add(pommel);
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.01, 0);
+      shape.lineTo(0.016, 0);
+      shape.quadraticCurveTo(0.05, 0.36, 0.0, 0.66);
+      shape.quadraticCurveTo(0.02, 0.36, -0.01, 0);
+      const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.003, bevelEnabled: false }), MATERIALS.blade);
+      blade.position.set(0, -0.28, -0.0015);
+      g.add(blade);
+      break;
+    }
     case 'machete': {
       const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.14, 6), MATERIALS.grip);
       handle.position.y = -0.18;
@@ -704,6 +828,20 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cylinder(0.11, 0.038).setDensity(900);
     case 'lampOil':
       return RAPIER.ColliderDesc.cuboid(0.06, 0.085, 0.035).setDensity(850);
+    case 'baseballBat':
+      return RAPIER.ColliderDesc.cylinder(0.43, 0.035).setDensity(700);
+    case 'pipeWrench':
+      return RAPIER.ColliderDesc.cuboid(0.045, 0.2, 0.016).setDensity(3000);
+    case 'crowbar':
+      return RAPIER.ColliderDesc.cylinder(0.36, 0.03).setDensity(3000);
+    case 'sledgehammer':
+      return RAPIER.ColliderDesc.cuboid(0.11, 0.48, 0.045).setDensity(1500);
+    case 'kitchenKnife':
+      return RAPIER.ColliderDesc.cuboid(0.02, 0.15, 0.01).setDensity(2000);
+    case 'fireAxe':
+      return RAPIER.ColliderDesc.cuboid(0.12, 0.45, 0.02).setDensity(1200);
+    case 'sabre':
+      return RAPIER.ColliderDesc.cuboid(0.035, 0.45, 0.01).setDensity(2000);
     case 'machete':
       return RAPIER.ColliderDesc.cuboid(0.03, 0.26, 0.01).setDensity(2000);
     case 'flashlight':

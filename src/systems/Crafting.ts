@@ -1,4 +1,5 @@
 import { getItem, type ItemCost, type ItemId } from '../entities/items/ItemDefs';
+import { maxDurability, type WeaponMeta } from '../entities/items/Weapons';
 import { getStructure, type StructureId } from './building/StructureDefs';
 import type { Inventory } from './Inventory';
 
@@ -137,9 +138,9 @@ export class Crafting {
    * damit freigewordene Slots genutzt werden können.
    * @returns Anzahl, die nicht mehr ins Inventar passte (fällt dann in die Welt), oder null bei Fehlschlag.
    */
-  craftItem(recipe: Extract<Recipe, { kind: 'item' }>, durabilityFactor = 1): number | null {
+  craftItem(recipe: Extract<Recipe, { kind: 'item' }>, durabilityFactor = 1, weapon?: WeaponMeta): number | null {
     if (!this.consume(recipe.cost)) return null;
-    const base = getItem(recipe.result).durability;
-    return this.inventory.add(recipe.result, recipe.count, base !== undefined ? Math.round(base * durabilityFactor) : undefined);
+    const base = maxDurability(recipe.result, weapon) ?? getItem(recipe.result).durability;
+    return this.inventory.add(recipe.result, recipe.count, base !== undefined ? Math.round(base * durabilityFactor) : undefined, weapon);
   }
 }

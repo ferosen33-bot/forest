@@ -711,7 +711,7 @@ export class BuildingSystem {
     // Inhalt einer Lagerkiste fällt heraus.
     for (const stack of s.storage?.takeAll() ?? []) {
       const pos = s.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.5, (Math.random() - 0.5) * 0.8));
-      this.worldItems.spawn(stack.id, stack.count, pos, { durability: stack.durability });
+      this.worldItems.spawn(stack.id, stack.count, pos, { durability: stack.durability, weapon: stack.weapon });
     }
     this.particles.burst(s.position.clone().add(new THREE.Vector3(0, 0.8, 0)), { count: 24, color: 0x6b5a45, speed: 3.5, spread: 1.4, size: 0.06 });
     this.audio.play('treeCrack');

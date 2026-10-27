@@ -1,5 +1,6 @@
 import type { Inventory } from '../systems/Inventory';
-import { getItem } from '../entities/items/ItemDefs';
+import { getRarity, getWeaponPerk, weaponName, weaponStats, type WeaponMeta } from '../entities/items/Weapons';
+import { getItem, type ItemId } from '../entities/items/ItemDefs';
 import { RECIPES, needsWorkbench, recipeDescription, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
 import { collectRefs } from './dom';
 import { renderSlot } from './slots';
@@ -66,6 +67,8 @@ export class InventoryUI {
       'hotbarGrid',
       'detailIcon',
       'detailName',
+      'detailRarity',
+      'detailStats',
       'detailDesc',
       'recipes',
       'chestPanel',
@@ -249,6 +252,9 @@ export class InventoryUI {
       return;
     }
     const stack = this.hovered ? this.hovered.inv.get(this.hovered.index) : null;
+    this.el.detailRarity.textContent = '';
+    this.el.detailStats.replaceChildren();
+    this.el.detailName.style.color = '';
     if (!stack) {
       icon.hidden = true;
       this.el.detailName.textContent = '–';
@@ -262,6 +268,41 @@ export class InventoryUI {
     let desc = def.description;
     if (def.food) desc += ` (+${def.food.hunger} Sättigung)`;
     this.el.detailDesc.textContent = desc;
+    if (stack.weapon) this.renderWeapon(stack.id, stack.weapon, stack.durability);
+  }
+
+  /** Waffen: Seltenheit, Werte und Perks. */
+  private renderWeapon(id: ItemId, w: WeaponMeta, durability: number | undefined): void {
+    const rarity = getRarity(w.rarity);
+    const stats = weaponStats(id, w);
+    this.el.detailName.textContent = weaponName(id, w);
+    this.el.detailName.style.color = rarity.color;
+    const cls = { blade: 'Klinge', blunt: 'Stumpf', heavy: 'Schwer' }[stats.tool.weaponClass ?? 'blunt'];
+    this.el.detailRarity.textContent = `${rarity.name} · ${cls}`;
+    this.el.detailRarity.style.color = rarity.color;
+    const row = (label: string, value: string, perk = false) => {
+      const li = document.createElement('li');
+      if (perk) {
+        li.className = 'is-perk';
+        li.textContent = label;
+      } else {
+        const a = document.createElement('span');
+        a.textContent = label;
+        const b = document.createElement('span');
+        b.textContent = value;
+        li.append(a, b);
+      }
+      return li;
+    };
+    const t = stats.tool;
+    this.el.detailStats.append(
+      row('Schaden', String(Math.round(t.damage))),
+      row('Schläge pro Sekunde', (1 / t.swingTime).toFixed(1)),
+      row('Kritisch', `${Math.round(stats.crit * 100)} %`),
+      row('Ausdauer je Schlag', String(Math.round(t.staminaCost))),
+      row('Haltbarkeit', `${Math.round(durability ?? 0)} / ${stats.maxDurability ?? 0}`),
+      ...w.perks.map((p) => row(`◆ ${getWeaponPerk(p).name}: ${getWeaponPerk(p).text}`, '', true)),
+    );
   }
 
   private slotAt(target: EventTarget | null): SlotRef | null {

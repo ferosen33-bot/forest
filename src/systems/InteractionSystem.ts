@@ -429,7 +429,7 @@ export class InteractionSystem {
         const point = new THREE.Vector3(item.mesh.position.x, item.mesh.position.y, item.mesh.position.z);
         // Erst entfernen, dann geben: ein voller Rucksack lässt den Rest wieder an derselben Stelle fallen.
         this.worldItems.remove(item);
-        this.items.give(item.itemId, item.count, point, item.durability);
+        this.items.give(item.itemId, item.count, point, item.durability, item.weapon);
         break;
       }
       case 'structure': {

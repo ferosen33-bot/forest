@@ -1,4 +1,5 @@
 import type { EventBus } from '../core/EventBus';
+import { getRarity, getWeaponPerk, weaponName } from '../entities/items/Weapons';
 import { ScreenBlood } from './ScreenBlood';
 import { MUD_TIME, type Player } from '../entities/Player';
 import type { Prompt } from '../systems/InteractionSystem';
@@ -90,7 +91,7 @@ export class HUD {
   private damageFlash = 0;
   readonly screenBlood: ScreenBlood;
   private hitTimer = 0;
-  private hitKind: 'normal' | 'creature' | 'kill' = 'normal';
+  private hitKind: 'normal' | 'creature' | 'kill' | 'crit' = 'normal';
   private damageFrom: { x: number; z: number } | null = null;
   private damageDirTimer = 0;
   private enemyHealthTimer = 0;
@@ -144,8 +145,12 @@ export class HUD {
       this.damageFlash = 0;
       this.screenBlood.clear();
     });
+    events.on('weapon:crit', () => {
+      this.hitKind = 'crit';
+      this.hitTimer = 0.35;
+    });
     events.on('tool:hit', ({ target }) => {
-      if (this.hitKind === 'kill' && this.hitTimer > 0) return;
+      if ((this.hitKind === 'kill' || this.hitKind === 'crit') && this.hitTimer > 0) return;
       this.hitKind = target === 'creature' ? 'creature' : 'normal';
       this.hitTimer = 0.16;
     });
@@ -211,6 +216,7 @@ export class HUD {
     this.hitTimer -= dt;
     this.toggle('hitmarker', 'is-visible', this.hitTimer > 0);
     this.toggle('hitmarker', 'is-creature', this.hitKind === 'creature');
+    this.toggle('hitmarker', 'is-crit', this.hitKind === 'crit');
     this.toggle('hitmarker', 'is-kill', this.hitKind === 'kill');
 
     // Treffer-Richtung: Bogen um das Fadenkreuz, der zum Angreifer zeigt.
@@ -293,13 +299,18 @@ export class HUD {
     });
 
     // Beim Wechsel kurz den Namen des Items einblenden.
-    const item = this.inventory.get(selected)?.id ?? null;
+    const stack = this.inventory.get(selected);
+    const item = stack?.id ?? null;
     if (selected !== this.lastSelected || item !== this.lastSelectedItem) {
       this.lastSelected = selected;
       this.lastSelectedItem = item;
       if (item) {
-        this.text('hotbarName', getItem(item).name);
-        this.nameTimer = 1.6;
+        // Waffen: Name in der Farbe ihrer Seltenheit, darunter die Perks.
+        const w = stack?.weapon;
+        const perks = w?.perks.length ? ` · ${w.perks.map((p) => getWeaponPerk(p).name).join(' · ')}` : '';
+        this.text('hotbarName', w ? `${weaponName(item, w)}${perks}` : getItem(item).name);
+        this.el.hotbarName.style.color = w ? getRarity(w.rarity).color : '';
+        this.nameTimer = w ? 2.4 : 1.6;
       } else {
         this.nameTimer = 0;
       }

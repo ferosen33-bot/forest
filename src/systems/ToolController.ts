@@ -4,6 +4,7 @@ import type { EventBus } from '../core/EventBus';
 import type { Player } from '../entities/Player';
 import type { ViewModel } from '../entities/ViewModel';
 import { getItem, type ItemId, type ItemDef, type ToolStats } from '../entities/items/ItemDefs';
+import { CRIT_MULTIPLIER, weaponStats } from '../entities/items/Weapons';
 import type { Inventory, ItemStack } from './Inventory';
 import type { InteractionSystem } from './InteractionSystem';
 import type { HarvestSystem } from './HarvestSystem';
@@ -72,9 +73,11 @@ export class ToolController {
     return this.inventory.get(this.selected);
   }
 
+  /** Werte des gehaltenen Werkzeugs bzw. der Waffe (mit Seltenheit und Perks). */
   get equippedTool(): ToolStats | undefined {
     const stack = this.equipped;
-    return stack ? getItem(stack.id).tool : undefined;
+    if (!stack) return undefined;
+    return stack.weapon ? weaponStats(stack.id, stack.weapon).tool : getItem(stack.id).tool;
   }
 
   select(index: number): void {
@@ -153,7 +156,7 @@ export class ToolController {
       if (this.input.wasMousePressed(0) && this.throwCooldown <= 0) this.throwStone();
       return;
     }
-    if (def?.tool && this.input.isMouseDown(0)) this.startSwing(def.tool);
+    if (def?.tool && this.input.isMouseDown(0)) this.startSwing(this.equippedTool!);
     else if (def?.food && this.input.wasMousePressed(0)) this.startEating(def);
   }
 
@@ -209,13 +212,24 @@ export class ToolController {
       case 'structure':
         this.building.damage(target.structure, tool.treeDamage, this.point, this.normal);
         break;
-      case 'enemy':
-        this.enemies.damage(target.enemy, tool.damage * sk.meleeDamage, target.zone, this.player.position, this.point, this.normal);
+      case 'enemy': {
+        const stack = this.equipped;
+        const stats = stack?.weapon ? weaponStats(stack.id, stack.weapon) : null;
+        // Kritischer Treffer: deutlich mehr Schaden, eigener Trefferanzeiger.
+        const crit = Math.random() < (stats?.crit ?? 0);
+        const damage = tool.damage * sk.meleeDamage * (crit ? CRIT_MULTIPLIER : 1);
+        this.enemies.damage(target.enemy, damage, target.zone, this.player.position, this.point, this.normal);
+        if (crit) this.events.emit('weapon:crit', { position: this.point.clone() });
         // Wuchtwaffen lassen den Getroffenen taumeln.
-        const stun = tool.stun ?? (this.staggerAll ? 0.5 : 0);
+        const stun = (tool.stun ?? (this.staggerAll ? 0.5 : 0)) + (stats?.stagger ?? 0) + (crit ? 0.4 : 0);
         if (stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(stun);
+        if (stats?.heal) {
+          const st = this.player.stats;
+          st.health = Math.min(st.max, st.health + stats.heal);
+        }
         sk.gain('melee', target.enemy.isDead ? 8 : 2);
         break;
+      }
       case 'animal':
         if (target.animal.isDead) {
           this.audio.play('swing');
@@ -337,7 +351,8 @@ export class ToolController {
     // Leicht angehoben: auf ~12 m fällt der Speer genau auf die Zielhöhe.
     const velocity = throwDir.multiplyScalar(t.speed).add(this.player.velocity);
     velocity.y += 1.2;
-    this.projectiles.launch(stack.id, stack.durability, tool.damage * t.damageMultiplier * this.skills.rangedDamage, origin, velocity);
+    const dmg = weaponStats(stack.id, stack.weapon).tool.damage;
+    this.projectiles.launch(stack.id, stack.durability, dmg * t.damageMultiplier * this.skills.rangedDamage, origin, velocity, false, stack.weapon);
     // Der Wurf selbst ist lautlos – erst der Einschlag macht Lärm (sonst flieht das Ziel vorher).
     this.viewModel.playThrow();
     this.throwCooldown = 0.4;

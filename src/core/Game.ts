@@ -10,6 +10,7 @@ import type { BiomeWeights } from '../world/Biomes';
 import { ViewModel } from '../entities/ViewModel';
 import { WorldItems } from '../entities/items/WorldItems';
 import { getItem } from '../entities/items/ItemDefs';
+import { isWeapon, maxDurability, rollWeapon, weaponOf } from '../entities/items/Weapons';
 import { Inventory } from '../systems/Inventory';
 import { ItemService } from '../systems/ItemService';
 import { HarvestSystem } from '../systems/HarvestSystem';
@@ -102,7 +103,14 @@ const AUTOSAVE_INTERVAL = 90;
 /** Abstand zur Werkbank, in dem ihre Baupläne gelten (m). */
 const WORKBENCH_RADIUS = 6;
 /** Werkzeuge, die sich an der Werkbank ausbessern lassen (Fackel und Taschenlampe nicht). */
-const REPAIRABLE = new Set<ItemId>(['axe', 'stoneAxe', 'flintAxe', 'machete', 'spear', 'bow', 'fishingRod', 'boneClub']);
+const REPAIRABLE = new Set<ItemId>([
+  'axe', 'stoneAxe', 'flintAxe', 'machete', 'spear', 'bow', 'fishingRod', 'boneClub',
+  'baseballBat', 'pipeWrench', 'crowbar', 'sledgehammer', 'kitchenKnife', 'fireAxe', 'sabre',
+]);
+/** Was Schrate fallen lassen können (gewichtet). */
+const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre'];
+/** Chance, dass ein erlegter Schrat eine Waffe fallen lässt. */
+const ENEMY_WEAPON_CHANCE = 0.1;
 const TOOL_REPAIR_COST: ItemCost[] = [
   { item: 'stick', count: 1 },
   { item: 'stone', count: 1 },
@@ -787,6 +795,13 @@ export class Game {
     this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.horror.group);
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
+    // Erlegte Schrate lassen ab und zu eine Waffe fallen; Bosse immer eine gute.
+    this.events.on('enemy:killed', ({ position, boss }) => {
+      if (!boss && Math.random() > ENEMY_WEAPON_CHANCE) return;
+      const id = ENEMY_WEAPON_DROPS[Math.floor(Math.random() * ENEMY_WEAPON_DROPS.length)];
+      const weapon = boss ? weaponOf(Math.random() < 0.5 ? 'legendary' : 'superior') : rollWeapon(Math.random, this.items.luck);
+      this.items.drop(id, 1, position.clone().setY(position.y + 1), weapon);
+    });
     this.events.on('enemy:hit', ({ killed, name }) => {
       if (!killed) return;
       this.story.kills++;
@@ -1166,7 +1181,11 @@ export class Game {
       return;
     }
     // An der Werkbank hergestellte Werkzeuge halten ein Viertel länger.
-    const rest = this.crafting.craftItem(recipe, this.skills.craftedDurability * (this.nearWorkbench() ? 1.25 : 1));
+    // An der Werkbank gefertigte Waffen geraten manchmal besser (ungewöhnlich, selten selten).
+    const bench = this.nearWorkbench();
+    const roll = Math.random();
+    const weapon = isWeapon(recipe.result) && bench && roll < 0.4 ? weaponOf(roll < 0.08 ? 'rare' : 'uncommon') : undefined;
+    const rest = this.crafting.craftItem(recipe, this.skills.craftedDurability * (bench ? 1.25 : 1), weapon);
     if (rest === null) return;
     if (rest > 0) this.worldItems.spawn(recipe.result, rest, this.player.position.clone().add(new THREE.Vector3(0, 1, 0)));
     this.audio.play('craft');
@@ -1184,7 +1203,7 @@ export class Game {
   private repairableHeld(): boolean {
     const stack = this.inventory.get(this.tools.selected);
     if (!stack || !REPAIRABLE.has(stack.id)) return false;
-    const max = getItem(stack.id).durability ?? 0;
+    const max = maxDurability(stack.id, stack.weapon) ?? 0;
     return stack.durability !== undefined && stack.durability < max * 0.95;
   }
 
@@ -1268,6 +1287,9 @@ export class Game {
   private applyPerks(): void {
     const has = (id: PerkId) => this.skills.has(id);
     const p = this.player;
+    // Auf den Nachbarinseln liegt bessere Beute (dorthin kommt man nur mit dem Floß).
+    const onIslet = this.world.heightMap.islets.some((i) => Math.hypot(p.position.x - i.x, p.position.z - i.z) < i.radius * 1.2);
+    this.items.luck = onIslet ? 1.2 : 0;
     this.harvest.extraLogs = has('lumberjack') ? 1 : 0;
     this.harvest.noiseFactor = has('quietAxe') ? 0.5 : 1;
     this.interaction.pickupCount = has('pebbles') ? 2 : 1;

@@ -23,6 +23,8 @@ export type GameEvents = {
   'item:inventoryFull': { item: ItemId; dropped: number };
   /** Ein Werkzeugschlag hat etwas getroffen (für Fadenkreuz-Feedback). */
   'tool:hit': { target: 'tree' | 'rock' | 'creature' | 'other' };
+  'weapon:crit': { position: Vector3 };
+  'enemy:killed': { position: Vector3; boss: boolean };
   'tree:felled': { kind: 'pine' | 'broadleaf'; position: Vector3 };
   /** Ein gefällter Baum schlägt auf dem Boden auf (für Kamerawackeln/Effekte). */
   'tree:landed': { position: Vector3 };

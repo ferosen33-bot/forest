@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CollisionGroup, interactionGroups, RAPIER, type Physics } from '../../core/Physics';
 import type { ItemId } from './ItemDefs';
+import { cloneWeapon, sanitizeWeapon, type WeaponMeta } from './Weapons';
 import { createItemCollider, createItemMesh } from './ItemMeshes';
 
 /** Ein physikalisches Item, das in der Welt liegt (fallengelassen oder gedroppt). */
@@ -10,6 +11,8 @@ export interface WorldItem {
   count: number;
   /** Zustand bei Items mit Haltbarkeit (bleibt beim Fallenlassen/Werfen erhalten). */
   durability?: number;
+  /** Eigenschaften einer Waffe (Seltenheit, Perks, Mod). */
+  weapon?: WeaponMeta;
   readonly mesh: THREE.Object3D;
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
@@ -19,6 +22,7 @@ export interface WorldItemSave {
   id: ItemId;
   count: number;
   durability?: number;
+  weapon?: WeaponMeta;
   p: [number, number, number];
   q: [number, number, number, number];
   fixed?: boolean;
@@ -26,6 +30,7 @@ export interface WorldItemSave {
 
 export interface SpawnOptions {
   durability?: number;
+  weapon?: WeaponMeta;
   rotation?: THREE.Quaternion;
   velocity?: THREE.Vector3;
   angularVelocity?: THREE.Vector3;
@@ -83,7 +88,7 @@ export class WorldItems {
     mesh.quaternion.copy(rot);
     this.group.add(mesh);
 
-    const item: WorldItem = { id: this.nextId++, itemId, count, durability: opts.durability, mesh, body, collider };
+    const item: WorldItem = { id: this.nextId++, itemId, count, durability: opts.durability, weapon: cloneWeapon(opts.weapon), mesh, body, collider };
     this.items.set(item.id, item);
     this.byCollider.set(collider.handle, item);
 
@@ -105,6 +110,7 @@ export class WorldItems {
       const r = item.body.rotation();
       const save: WorldItemSave = { id: item.itemId, count: item.count, p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] };
       if (item.durability !== undefined) save.durability = item.durability;
+      if (item.weapon) save.weapon = cloneWeapon(item.weapon);
       if (item.body.isFixed()) save.fixed = true;
       return save;
     });
@@ -115,6 +121,7 @@ export class WorldItems {
       if (!isKnown(d.id) || d.count <= 0) continue;
       this.spawn(d.id, d.count, new THREE.Vector3(...d.p), {
         durability: d.durability,
+        weapon: sanitizeWeapon(d.weapon),
         rotation: new THREE.Quaternion(...d.q),
         fixed: d.fixed,
       });

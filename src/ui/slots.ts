@@ -1,5 +1,6 @@
 import type { Slot } from '../systems/Inventory';
-import { getItem, type ItemId } from '../entities/items/ItemDefs';
+import type { ItemId } from '../entities/items/ItemDefs';
+import { getRarity, maxDurability } from '../entities/items/Weapons';
 
 export type IconSet = Record<ItemId, string>;
 
@@ -9,12 +10,17 @@ export type IconSet = Record<ItemId, string>;
  */
 export function renderSlot(el: HTMLElement, slot: Slot, icons: IconSet): void {
   // Haltbarkeit in 2-%-Schritten in den Cache-Schlüssel – die Fackel brennt sichtbar herunter.
-  const max = slot ? getItem(slot.id).durability : undefined;
-  const condition = slot && max !== undefined && slot.durability !== undefined ? Math.round((slot.durability / max) * 50) / 50 : null;
-  const key = slot ? `${slot.id}:${slot.count}:${condition ?? ''}` : '';
+  const max = slot ? maxDurability(slot.id, slot.weapon) : undefined;
+  const condition = slot && max !== undefined && slot.durability !== undefined ? Math.min(1, Math.round((slot.durability / max) * 50) / 50) : null;
+  const rarity = slot?.weapon?.rarity ?? '';
+  const key = slot ? `${slot.id}:${slot.count}:${condition ?? ''}:${rarity}` : '';
   if (el.dataset.content === key) return;
   el.dataset.content = key;
   el.classList.toggle('is-empty', !slot);
+  // Waffen: Rahmen und Schimmer in der Farbe ihrer Seltenheit.
+  if (rarity && rarity !== 'common') el.style.setProperty('--rarity', getRarity(rarity).color);
+  else el.style.removeProperty('--rarity');
+  el.classList.toggle('has-rarity', !!rarity && rarity !== 'common');
 
   let img = el.querySelector<HTMLImageElement>('.slot__icon');
   let count = el.querySelector<HTMLElement>('.slot__count');

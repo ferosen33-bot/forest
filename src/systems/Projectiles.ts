@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { WeaponMeta } from '../entities/items/Weapons';
 import type { Physics, RAPIER } from '../core/Physics';
 import type { EventBus } from '../core/EventBus';
 import type { ItemId } from '../entities/items/ItemDefs';
@@ -14,6 +15,7 @@ import { PROJECTILE_GRAVITY } from '../utils/ballistics';
 interface Projectile {
   itemId: ItemId;
   durability: number | undefined;
+  weapon?: WeaponMeta;
   damage: number;
   readonly position: THREE.Vector3;
   readonly velocity: THREE.Vector3;
@@ -91,6 +93,7 @@ export class Projectiles {
     origin: THREE.Vector3,
     velocity: THREE.Vector3,
     hostile = false,
+    weapon?: WeaponMeta,
   ): void {
     const mesh = createItemMesh(itemId);
     mesh.position.copy(origin);
@@ -98,6 +101,7 @@ export class Projectiles {
     this.active.push({
       itemId,
       durability,
+      weapon,
       damage,
       position: origin.clone(),
       prev: origin.clone(),
@@ -254,6 +258,7 @@ export class Projectiles {
     this.quat.setFromUnitVectors(UP, this.dir);
     this.d.worldItems.spawn(p.itemId, 1, p.position, {
       durability: p.durability,
+      weapon: p.weapon,
       rotation: this.quat,
       velocity: stuck ? undefined : p.velocity,
       fixed: stuck,

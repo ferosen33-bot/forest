@@ -1,10 +1,13 @@
 import { getItem, type ItemId } from '../entities/items/ItemDefs';
+import { cloneWeapon, isWeapon, maxDurability, rollWeapon, sanitizeWeapon, type WeaponMeta } from '../entities/items/Weapons';
 
 export interface ItemStack {
   id: ItemId;
   count: number;
   /** Verbleibende Haltbarkeit (nur Items mit `durability`; solche Stapel haben immer count = 1). */
   durability?: number;
+  /** Nur Waffen: Seltenheit, Perks, Mod. */
+  weapon?: WeaponMeta;
 }
 
 export type Slot = ItemStack | null;
@@ -80,9 +83,10 @@ export class Inventory {
    * Fügt Items hinzu: zuerst auf bestehende Stapel, dann in freie Slots
    * (Werkzeuge bevorzugt in die Schnellzugriffsleiste, Rohstoffe in den Rucksack).
    * @param durability Zustand für Items mit Haltbarkeit (Standard: neu).
+   * @param weapon Eigenschaften einer Waffe (Standard: gewöhnlich, ohne Perks).
    * @returns Anzahl, die nicht mehr hineinpasste.
    */
-  add(id: ItemId, amount: number, durability?: number): number {
+  add(id: ItemId, amount: number, durability?: number, weapon?: WeaponMeta): number {
     const def = getItem(id);
     let rest = amount;
 
@@ -100,7 +104,8 @@ export class Inventory {
     for (const index of this.freeSlotOrder(def.category === 'tool' ? 'hotbar' : def.category === 'food' ? 'hotbar' : 'backpack')) {
       if (rest <= 0) break;
       if (def.durability !== undefined) {
-        this.slots[index] = { id, count: 1, durability: durability ?? def.durability };
+        const w = isWeapon(id) ? (cloneWeapon(weapon) ?? { rarity: 'common' as const, perks: [] }) : undefined;
+        this.slots[index] = { id, count: 1, durability: durability ?? maxDurability(id, w) ?? def.durability, ...(w ? { weapon: w } : {}) };
         rest -= 1;
       } else {
         const n = Math.min(def.maxStack, rest);
@@ -140,7 +145,8 @@ export class Inventory {
     s.count -= n;
     if (s.count === 0) this.slots[index] = null;
     this.changed();
-    return s.durability !== undefined ? { id: s.id, count: n, durability: s.durability } : { id: s.id, count: n };
+    if (s.durability === undefined) return { id: s.id, count: n };
+    return { id: s.id, count: n, durability: s.durability, ...(s.weapon ? { weapon: cloneWeapon(s.weapon) } : {}) };
   }
 
   /**
@@ -168,7 +174,7 @@ export class Inventory {
   /** Setzt die Haltbarkeit eines Exemplars wieder auf den Neuwert (z. B. neue Batterie). */
   restore(index: number): boolean {
     const s = this.slots[index];
-    const max = s ? getItem(s.id).durability : undefined;
+    const max = s ? maxDurability(s.id, s.weapon) : undefined;
     if (!s || max === undefined) return false;
     s.durability = max;
     this.changed();
@@ -191,7 +197,7 @@ export class Inventory {
   /** Haltbarkeit in [0, 1] (1 = neu), oder null, wenn das Item keine hat. */
   condition(index: number): number | null {
     const s = this.slots[index];
-    const max = s ? getItem(s.id).durability : undefined;
+    const max = s ? maxDurability(s.id, s.weapon) : undefined;
     // Handwerklich gute Werkzeuge können über dem Neuwert liegen – die Anzeige endet bei 100 %.
     return s && max !== undefined && s.durability !== undefined ? Math.min(1, s.durability / max) : null;
   }
@@ -228,7 +234,7 @@ export class Inventory {
     if (!a) return;
     if (to < 0) {
       // Erst auffüllen, dann der Rest in freie Plätze – so wie beim Aufheben.
-      const rest = other.add(a.id, a.count, a.durability);
+      const rest = other.add(a.id, a.count, a.durability, a.weapon);
       if (rest === a.count) return;
       if (rest === 0) this.slots[from] = null;
       else a.count = rest;
@@ -291,14 +297,21 @@ export class Inventory {
 
   /** Für Spielstände: tiefe Kopie aller Slots. */
   serialize(): InventoryData {
-    return this.slots.map((s) => (s ? { ...s } : null));
+    return this.slots.map((s) => (s ? { ...s, ...(s.weapon ? { weapon: cloneWeapon(s.weapon) } : {}) } : null));
   }
 
   /** Lädt einen Spielstand; unbekannte Items werden verworfen. */
   load(data: InventoryData, isKnown: (id: string) => boolean): void {
     for (let i = 0; i < this.size; i++) {
       const s = data[i];
-      this.slots[i] = s && isKnown(s.id) && s.count > 0 ? { ...s } : null;
+      if (!s || !isKnown(s.id) || s.count <= 0) {
+        this.slots[i] = null;
+        continue;
+      }
+      // Waffen aus alten Spielständen bekommen eine (zufällige) Seltenheit.
+      const weapon = isWeapon(s.id) ? (sanitizeWeapon(s.weapon) ?? rollWeapon()) : undefined;
+      const { weapon: _drop, ...rest } = s;
+      this.slots[i] = weapon ? { ...rest, weapon } : rest;
     }
     this.changed();
   }

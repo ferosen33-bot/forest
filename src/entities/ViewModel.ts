@@ -58,6 +58,13 @@ const POSES: Partial<Record<ItemId, HoldPose>> = {
   molotov: { position: new THREE.Vector3(0.24, -0.3, -0.45), rotation: new THREE.Euler(0.15, 0, -0.1), grip: new THREE.Vector3(0, -0.08, 0), scale: 1 },
   painkillers: { position: new THREE.Vector3(0.22, -0.26, -0.42), rotation: new THREE.Euler(0.4, 0.5, 0), grip: new THREE.Vector3(0, -0.03, 0), scale: 1.3 },
   machete: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.24, 0), scale: 1 },
+  baseballBat: { position: new THREE.Vector3(0.32, -0.4, -0.52), rotation: new THREE.Euler(-0.85, 0.15, -0.3), grip: new THREE.Vector3(0, -0.3, 0), scale: 0.9 },
+  pipeWrench: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.2, -0.25), grip: new THREE.Vector3(0, -0.17, 0), scale: 1 },
+  crowbar: { position: new THREE.Vector3(0.3, -0.37, -0.5), rotation: new THREE.Euler(-0.8, 0.15, -0.25), grip: new THREE.Vector3(0, -0.26, 0), scale: 1 },
+  sledgehammer: { position: new THREE.Vector3(0.33, -0.42, -0.56), rotation: new THREE.Euler(-0.9, 0.25, -0.3), grip: new THREE.Vector3(0, -0.36, 0), scale: 0.85 },
+  kitchenKnife: { position: new THREE.Vector3(0.28, -0.32, -0.46), rotation: new THREE.Euler(-0.9, 0.1, -0.2), grip: new THREE.Vector3(0, -0.09, 0), scale: 1 },
+  fireAxe: { position: new THREE.Vector3(0.33, -0.42, -0.55), rotation: new THREE.Euler(-0.9, 2.3, 0.25, 'XYZ'), grip: new THREE.Vector3(0, -0.33, 0), scale: 0.85 },
+  sabre: { position: new THREE.Vector3(0.3, -0.36, -0.5), rotation: new THREE.Euler(-0.75, 0.1, -0.25), grip: new THREE.Vector3(0, -0.34, 0), scale: 0.95 },
   boneClub: { position: new THREE.Vector3(0.32, -0.38, -0.52), rotation: new THREE.Euler(-0.8, 0.2, -0.25), grip: new THREE.Vector3(0, -0.2, 0), scale: 0.95 },
   // Lampe zeigt nach vorne (Längsachse +Y → Blickrichtung); die Faust umschließt den Bügel unter dem Gehäuse.
   // Der Bügel läuft nach vorne – die Faust umschließt ihn von unten, der Unterarm hängt darunter.

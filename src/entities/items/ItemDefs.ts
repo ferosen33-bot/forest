@@ -46,7 +46,14 @@ export type ItemId =
   | 'fireArrow'
   | 'boneArmor'
   | 'jerky'
-  | 'stew';
+  | 'stew'
+  | 'baseballBat'
+  | 'pipeWrench'
+  | 'crowbar'
+  | 'sledgehammer'
+  | 'kitchenKnife'
+  | 'fireAxe'
+  | 'sabre';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -73,6 +80,8 @@ export interface ToolStats {
   animation: 'swing' | 'thrust';
   /** Wuchtwaffen: betäubt getroffene Gegner so viele Sekunden. */
   stun?: number;
+  /** Waffenklasse (Nahkampfwaffen mit Seltenheit): Klinge schneidet, Stumpf zerschmettert, Schwer wirft um. */
+  weaponClass?: 'blade' | 'blunt' | 'heavy';
 }
 
 /** Lichtquelle, solange das Item in der Hand gehalten wird. */
@@ -203,6 +212,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 7,
       reach: 2.8,
       animation: 'swing',
+      weaponClass: 'blade',
     },
   },
   mushroom: {
@@ -269,6 +279,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 6,
       reach: 2.6,
       animation: 'swing',
+      weaponClass: 'blade',
     },
   },
   flashlight: {
@@ -368,6 +379,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 6,
       reach: 2.7,
       animation: 'swing',
+      weaponClass: 'blade',
     },
   },
   stoneAxe: {
@@ -386,6 +398,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 8,
       reach: 2.7,
       animation: 'swing',
+      weaponClass: 'blunt',
     },
   },
   spear: {
@@ -405,6 +418,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 7,
       reach: 3.4,
       animation: 'thrust',
+      weaponClass: 'blade',
     },
   },
   hide: {
@@ -462,6 +476,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       staminaCost: 10,
       reach: 2.4,
       animation: 'swing',
+      weaponClass: 'blunt',
       stun: 1.1,
     },
   },
@@ -471,6 +486,144 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     description: 'Ein Pfeil mit ölgetränktem Lappen an der Spitze. Fängt beim Abschuss Feuer und setzt alles in Brand, was er trifft. V wechselt die Munition.',
     category: 'resource',
     maxStack: 15,
+  },
+  baseballBat: {
+    id: 'baseballBat',
+    name: 'Baseballschläger',
+    description: 'Ein Holzschläger aus einem Kinderzimmer. Handlich und solide – zertrümmert, was ihm in den Weg kommt.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 160,
+    tool: {
+      treeDamage: 3,
+      rockYield: 0,
+      damage: 40,
+      swingTime: 0.6,
+      impactAt: 0.45,
+      staminaCost: 8,
+      reach: 2.6,
+      animation: 'swing',
+      stun: 0.45,
+      weaponClass: 'blunt',
+    },
+  },
+  pipeWrench: {
+    id: 'pipeWrench',
+    name: 'Rohrzange',
+    description: 'Schwere Rohrzange aus dem Werkzeugkasten. Kurz, schnell und unverwüstlich.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 230,
+    tool: {
+      treeDamage: 2,
+      rockYield: 0,
+      damage: 34,
+      swingTime: 0.5,
+      impactAt: 0.42,
+      staminaCost: 6,
+      reach: 2.3,
+      animation: 'swing',
+      stun: 0.35,
+      weaponClass: 'blunt',
+    },
+  },
+  crowbar: {
+    id: 'crowbar',
+    name: 'Brechstange',
+    description: 'Eine rot lackierte Brechstange. Bricht Kisten auf – und Schädel.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 260,
+    tool: {
+      treeDamage: 4,
+      rockYield: 0.5,
+      damage: 38,
+      swingTime: 0.55,
+      impactAt: 0.44,
+      staminaCost: 7,
+      reach: 2.5,
+      animation: 'swing',
+      stun: 0.3,
+      weaponClass: 'blunt',
+    },
+  },
+  sledgehammer: {
+    id: 'sledgehammer',
+    name: 'Vorschlaghammer',
+    description: 'Fünf Kilo Stahl am langen Stiel. Langsam und kraftraubend, aber ein Treffer wirft fast alles um. Spaltet auch Felsen.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 200,
+    tool: {
+      treeDamage: 6,
+      rockYield: 2,
+      damage: 85,
+      swingTime: 1.15,
+      impactAt: 0.56,
+      staminaCost: 18,
+      reach: 2.7,
+      animation: 'swing',
+      stun: 1.4,
+      weaponClass: 'heavy',
+    },
+  },
+  kitchenKnife: {
+    id: 'kitchenKnife',
+    name: 'Küchenmesser',
+    description: 'Ein langes Fleischmesser. Sehr schnell, aber man muss nah heran.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 110,
+    tool: {
+      treeDamage: 1,
+      rockYield: 0,
+      damage: 26,
+      swingTime: 0.34,
+      impactAt: 0.38,
+      staminaCost: 4,
+      reach: 1.9,
+      animation: 'swing',
+      weaponClass: 'blade',
+    },
+  },
+  fireAxe: {
+    id: 'fireAxe',
+    name: 'Feuerwehraxt',
+    description: 'Rote Axt mit Spitzhacke aus einem Feuerwehrkasten. Schwer, verheerend – und fällt Bäume im Handumdrehen.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 240,
+    tool: {
+      treeDamage: 34,
+      rockYield: 0,
+      damage: 62,
+      swingTime: 0.85,
+      impactAt: 0.5,
+      staminaCost: 13,
+      reach: 2.8,
+      animation: 'swing',
+      stun: 0.6,
+      weaponClass: 'heavy',
+    },
+  },
+  sabre: {
+    id: 'sabre',
+    name: 'Säbel',
+    description: 'Ein alter Kavalleriesäbel mit Messingkorb. Lang, schnell und rasiermesserscharf.',
+    category: 'tool',
+    maxStack: 1,
+    durability: 200,
+    tool: {
+      treeDamage: 6,
+      rockYield: 0,
+      damage: 55,
+      swingTime: 0.46,
+      impactAt: 0.4,
+      staminaCost: 7,
+      reach: 2.9,
+      animation: 'swing',
+      weaponClass: 'blade',
+    },
   },
   jerky: {
     id: 'jerky',

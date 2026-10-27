@@ -15,13 +15,13 @@ interface LootTable {
 }
 
 const LOOT: Record<LootKind, LootTable> = {
-  fridge: { rolls: [1, 2], table: [['waterBottle', 4, 1, 2], ['cannedFood', 2, 1, 1], ['bottle', 2, 1, 1], [null, 2, 0, 0]] },
+  fridge: { rolls: [1, 2], table: [['kitchenKnife', 1, 1, 1], ['waterBottle', 4, 1, 2], ['cannedFood', 2, 1, 1], ['bottle', 2, 1, 1], [null, 2, 0, 0]] },
   cabinet: { rolls: [1, 2], table: [['cannedFood', 5, 1, 2], ['bottle', 2, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['lampOil', 1, 1, 1], [null, 2, 0, 0]] },
-  wardrobe: { rolls: [1, 1], table: [['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], [null, 3, 0, 0]] },
+  wardrobe: { rolls: [1, 1], table: [['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['baseballBat', 1, 1, 1], [null, 3, 0, 0]] },
   shelf: { rolls: [1, 3], table: [['cannedFood', 4, 1, 2], ['waterBottle', 3, 1, 1], ['battery', 2, 1, 1], ['painkillers', 1, 1, 1], ['bottle', 1, 1, 1], [null, 2, 0, 0]] },
   register: { rolls: [1, 1], table: [['battery', 3, 1, 2], ['painkillers', 1, 1, 1], ['flashlight', 1, 1, 1]] },
-  toolbox: { rolls: [1, 2], table: [['machete', 1, 1, 1], ['flashlight', 2, 1, 1], ['battery', 2, 1, 2], ['torch', 1, 1, 1], ['arrow', 1, 3, 6], ['lampOil', 2, 1, 1]] },
-  car: { rolls: [1, 1], table: [['waterBottle', 2, 1, 2], ['medkit', 2, 1, 1], ['flashlight', 1, 1, 1], ['cannedFood', 2, 1, 1], ['battery', 1, 1, 2], ['lampOil', 2, 1, 1], [null, 2, 0, 0]] },
+  toolbox: { rolls: [1, 2], table: [['machete', 1, 1, 1], ['pipeWrench', 2, 1, 1], ['crowbar', 2, 1, 1], ['sledgehammer', 1, 1, 1], ['flashlight', 2, 1, 1], ['battery', 2, 1, 2], ['torch', 1, 1, 1], ['arrow', 1, 3, 6], ['lampOil', 2, 1, 1]] },
+  car: { rolls: [1, 1], table: [['crowbar', 1, 1, 1], ['baseballBat', 1, 1, 1], ['waterBottle', 2, 1, 2], ['medkit', 2, 1, 1], ['flashlight', 1, 1, 1], ['cannedFood', 2, 1, 1], ['battery', 1, 1, 2], ['lampOil', 2, 1, 1], [null, 2, 0, 0]] },
   desk: { rolls: [1, 1], table: [['battery', 2, 1, 1], ['painkillers', 2, 1, 1], ['flashlight', 1, 1, 1], [null, 1, 0, 0]] },
 };
 

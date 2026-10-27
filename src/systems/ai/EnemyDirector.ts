@@ -656,6 +656,7 @@ export class EnemyDirector {
     this.byCollider.delete(enemy.headCollider.handle);
     this.playAt('enemyDeath', enemy.feet);
     this.d.blood?.pool(enemy.feet, enemy.kind.boss ? 2.4 : 1.7);
+    this.d.events.emit('enemy:killed', { position: enemy.feet.clone(), boss: !!enemy.kind.boss });
     if (this.horde.has(enemy)) this.onHordeKill?.(enemy.feet.clone());
     const slot = this.cave?.slots.get(enemy);
     if (slot !== undefined) this.onCaveDwellerKilled?.(this.cave!.index, slot);
