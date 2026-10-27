@@ -55,6 +55,8 @@ export const KEY_BINDINGS = {
   weather: ['KeyY'],
   /** Debug: die nächste Fiebernacht beginnt gleich (nur mit sichtbarer Debug-Anzeige). */
   feverDebug: ['KeyN'],
+  /** Debug: Waffenkammer – alle Schusswaffen, Munition und ein paar Nahkampfwaffen (nur mit Debug-Anzeige). */
+  armory: ['KeyG'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof KEY_BINDINGS;

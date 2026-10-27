@@ -119,6 +119,9 @@ const REPAIRABLE = new Set<ItemId>([
 const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre', 'pistol', 'cleaver', 'golfClub', 'baton', 'pitchfork'];
 /** Chance, dass ein erlegter Schrat eine Waffe fallen lässt. */
 const ENEMY_WEAPON_CHANCE = 0.1;
+/** Debug-Waffenkammer (F3, dann G). */
+const ARMORY_WEAPONS: ItemId[] = ['pistol', 'revolver', 'shotgun', 'huntingRifle', 'katana', 'nailBat', 'shockBar'];
+const ARMORY_SUPPLIES: [ItemId, number][] = [['pistolAmmo', 60], ['shells', 30], ['rifleAmmo', 20], ['pipeBomb', 3]];
 /** Munition, die erlegte Schrate fallen lassen können, und wie oft. */
 const ENEMY_AMMO_DROPS: ItemId[] = ['pistolAmmo', 'pistolAmmo', 'shells', 'rifleAmmo'];
 const ENEMY_AMMO_CHANCE = 0.12;
@@ -2176,10 +2179,19 @@ export class Game {
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
   }
 
+  /** Debug-Waffenkammer: alles zum Ausprobieren (was nicht passt, fällt vor die Füße). */
+  private giveArmory(): void {
+    const at = this.player.position;
+    for (const id of ARMORY_WEAPONS) this.items.give(id, 1, at, undefined, weaponOf('rare'));
+    for (const [id, count] of ARMORY_SUPPLIES) this.items.give(id, count, at);
+    this.events.emit('hud:message', { text: 'Waffenkammer: Schusswaffen, Munition, Nahkampfwaffen und Rohrbomben.' });
+  }
+
   /** Wetter, Nässe, Regenwasser in der Schale, Fackel im Regen. */
   private updateClimate(dt: number): void {
     const held = this.tools.equipped?.id;
     const climate = this.climate;
+    if (this.hud.debugVisible && this.input.wasPressed('armory')) this.giveArmory();
     if (this.hud.debugVisible && this.input.wasPressed('weather')) {
       climate.weather.advance();
       this.events.emit('hud:message', { text: `Wetter: ${climate.weatherName}` });
@@ -2426,6 +2438,7 @@ export class Game {
       `Zeit       ${this.dayNight.clockText}  (T halten = Zeitraffer)`,
       `Ereignisse ${this.worldEvents.active} aktiv`,
       `Fieber     ${feverLabel(this.dayNight.day, this.dayNight.hour) || '–'} · Horde ${this.enemies.hordeCount} (N: Fiebernacht)`,
+      `Waffen     G: Waffenkammer (alle Schusswaffen, Munition, Rohrbomben)`,
       `Furcht     ${(this.fear.value * 100).toFixed(0)} %${this.fear.hallucinating ? ' · Halluzinationen' : ''} · ${this.horror.activeWatchers} Gestalten`,
     ];
   }

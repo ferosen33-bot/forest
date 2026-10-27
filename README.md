@@ -127,6 +127,8 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
   - Munition liegt in Kisten, Spinden und Schreibtischen. Erlegte Schrate haben manchmal Patronen oder eine
     Pistole dabei.
 - Schusswaffen lassen sich an der Werkbank ausbessern.
+- **Zum Ausprobieren:** Debug-Anzeige öffnen (`F3`), dann `G` drücken („Waffenkammer“): Das gibt alle vier
+  Schusswaffen, Munition, Katana, Nagel- und Elektrokeule sowie drei Rohrbomben.
 
 ### Meilenstein 49 – Nahkampf-Ausbau (Teil 4: Zerstückelung)
 
