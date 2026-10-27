@@ -84,7 +84,13 @@ export type SoundId =
   | 'knock'
   | 'twig'
   | 'plane'
-  | 'drum';
+  | 'drum'
+  | 'crow'
+  | 'flap'
+  | 'chime'
+  | 'creak'
+  | 'buzz'
+  | 'bell';
 
 export interface PlayOptions {
   volume?: number;
@@ -237,7 +243,7 @@ export class Audio {
           out.disconnect();
           destination!.disconnect();
         },
-        id === 'wolfHowl' || id === 'shriek' ? 5500 : 2500,
+        id === 'wolfHowl' || id === 'shriek' || id === 'bell' ? 5500 : 2500,
       );
     }
 
@@ -605,6 +611,53 @@ export class Audio {
       case 'drum':
         this.tone(t, 'sine', 95 * pitch, 48, 0.42, 0.9);
         this.noise(t, 0.12, 'lowpass', 900, 0.8, 0.4);
+        break;
+      // Krähe: zwei, drei heisere „Kraah“ (Sägezahn durch Formant, mit Rauschen).
+      case 'crow': {
+        const n = 1 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          const at = t + i * (0.32 + Math.random() * 0.1);
+          this.tone(at, 'sawtooth', 620 * pitch, 470 * pitch, 0.22, 0.22, 1600);
+          this.noise(at, 0.2, 'bandpass', 1300 * pitch, 3, 0.25);
+        }
+        break;
+      }
+      // Flügelschlag: kurze, dumpfe Luftstöße.
+      case 'flap':
+        for (let i = 0; i < 5; i++) this.noise(t + i * 0.09, 0.07, 'lowpass', 700, 0.7, 0.35);
+        break;
+      // Windspiel: drei, vier metallische Töne mit Obertönen.
+      case 'chime': {
+        const notes = [1318, 1568, 1760, 2093, 2349];
+        for (let i = 0; i < 3 + Math.floor(Math.random() * 2); i++) {
+          const f = notes[Math.floor(Math.random() * notes.length)];
+          const at = t + i * (0.18 + Math.random() * 0.2);
+          this.tone(at, 'sine', f, f * 0.998, 1.4, 0.12);
+          this.tone(at, 'sine', f * 2.76, f * 2.75, 0.6, 0.04);
+        }
+        break;
+      }
+      // Knarren: langsamer, rauer Sweep (Tor im Wind, Schaukel).
+      case 'creak':
+        this.tone(t, 'sawtooth', 110 * pitch, 160 * pitch, 0.7, 0.1, 900);
+        this.tone(t + 0.05, 'square', 230 * pitch, 300 * pitch, 0.6, 0.03, 1200);
+        break;
+      // Brummen einer kaputten Lampe.
+      case 'buzz':
+        this.tone(t, 'square', 100, 100, 0.25, 0.06, 900);
+        this.tone(t, 'sawtooth', 200, 198, 0.25, 0.03, 1500);
+        break;
+      // Kirchenglocke: tiefe, lang ausschwingende Teiltöne.
+      case 'bell':
+        for (const [f, g, d] of [
+          [196, 0.5, 4.5],
+          [392, 0.25, 3.2],
+          [466, 0.12, 2.6],
+          [587, 0.1, 2.2],
+          [784, 0.06, 1.6],
+        ] as [number, number, number][]) {
+          this.tone(t, 'sine', f, f * 0.995, d, g);
+        }
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':

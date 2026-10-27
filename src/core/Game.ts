@@ -92,6 +92,7 @@ import { Gore } from '../systems/Gore';
 import { Explosives } from '../systems/Explosives';
 import { HouseBases } from '../systems/HouseBases';
 import { Companion, COMPANION_ID } from '../systems/Companion';
+import { Atmosphere } from '../systems/Atmosphere';
 import { DamageNumbers } from '../ui/DamageNumbers';
 
 export interface GameOptions {
@@ -244,6 +245,8 @@ export class Game {
   houseBases: HouseBases | null = null;
   /** Ben, der Begleiter aus der Funkstation (null ohne Funkstation). */
   companion: Companion | null = null;
+  /** Flackernde Lichter, Krähen, Windspiele, die Glocke um Mitternacht. */
+  atmosphere!: Atmosphere;
   private damageNumbers!: DamageNumbers;
   inventoryUI!: InventoryUI;
 
@@ -673,7 +676,7 @@ export class Game {
       await nextFrame();
       this.settlement = new Settlement({
         physics: this.physics,
-        towns: [this.world.town, ...this.world.hamlets, this.world.roadside],
+        towns: [this.world.town, ...this.world.hamlets, this.world.roadside, this.world.wild],
         seed: cfg.seed,
         items: this.items,
         audio: this.audio,
@@ -869,6 +872,15 @@ export class Game {
     this.gore.enabled = this.settings.gore;
     this.scene.add(this.gore.group);
     this.createCompanion();
+    this.atmosphere = new Atmosphere({
+      layouts: [...(this.world.town ? [this.world.town] : []), ...this.world.hamlets, this.world.roadside, this.world.wild],
+      places: this.world.places,
+      lights: this.lights,
+      audio: this.audio,
+      events: this.events,
+      seed: cfg.seed,
+    });
+    this.scene.add(this.atmosphere.group);
     this.tools.gore = this.gore;
     this.explosives = new Explosives({
       enemies: this.enemies,
@@ -2199,6 +2211,13 @@ export class Game {
       rain: this.climate.weather.rain,
       wind: this.climate.weather.wind,
       sheltered: this.climate.sheltered,
+      cave: !!this.caves.current,
+    });
+    this.atmosphere.update(dt, {
+      listener: this.camera.position,
+      daylight: this.dayNight.daylight,
+      hour: this.dayNight.hour,
+      wind: this.climate.weather.wind,
       cave: !!this.caves.current,
     });
     this.footsteps.updatePlayer(dt, player);

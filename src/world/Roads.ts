@@ -375,6 +375,7 @@ export function createNetwork(roads: Road[]): RoadNetwork {
     roads,
     junctions: [],
     distance(x: number, z: number, max = 20): number {
+      max = Math.min(max, 400);
       let best = max;
       const r0 = Math.ceil(max / BIN);
       const cx = Math.floor(x / BIN);

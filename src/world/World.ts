@@ -13,6 +13,7 @@ import type { GameConfig } from '../config';
 import { urbanAt, type TownLayout } from './Town';
 import type { RoadNetwork } from './Roads';
 import { planIsland } from './IslandPlan';
+import type { Landmark } from './Landmarks';
 import { buildRoadMeshes } from './RoadMeshes';
 import { harborGrass, type HarborLayout } from './Harbor';
 
@@ -41,6 +42,9 @@ export class World {
   readonly roads: RoadNetwork;
   /** Masten, Pfosten, Autos, Wegweiser und Ortsschilder an den Wegen. */
   readonly roadside: TownLayout;
+  /** Fundorte im Wald (Hochsitze, Zeltlager, Wegkreuze …) und ihre Requisiten. */
+  readonly landmarks: Landmark[];
+  readonly wild: TownLayout;
   /** Fahrbahnen (Bänder über dem Gelände). */
   readonly roadGroup: THREE.Group;
 
@@ -56,7 +60,9 @@ export class World {
       waterLevel: world.waterLevel,
     });
     const plan = planIsland(this.heightMap, seed);
-    ({ town: this.town, harbor: this.harbor, places: this.places, hamlets: this.hamlets, roads: this.roads, roadside: this.roadside } = plan);
+    ({ town: this.town, harbor: this.harbor, places: this.places, hamlets: this.hamlets, roads: this.roads, roadside: this.roadside, landmarks: this.landmarks, wild: this.wild } =
+      plan);
+    const landmarks = this.landmarks;
     const { town, harbor, places, hamlets, roads, spawn } = plan;
     /** Fahrbahn plus Bankett (für Bodenfarbe und freie Flächen). */
     const roadEdge = (x: number, z: number, extra: number) => roads.distance(x, z, 8) < 3.2 + extra;
@@ -95,6 +101,7 @@ export class World {
         ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 4 }] : []),
         ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 24 }] : []),
         ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 4 })),
+        ...landmarks.map((l) => ({ x: l.x, z: l.z, radius: l.radius })),
         ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.kind === 'mine' ? 10 : p.radius * 0.6 })),
         // Zechenhof vor dem Mundloch
         ...places
@@ -126,6 +133,7 @@ export class World {
       ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 6 }] : []),
       ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 30 }] : []),
       ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 8 })),
+      ...landmarks.map((l) => ({ x: l.x, z: l.z, radius: l.radius + 1 })),
       ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius })),
     ], (x, z) => roadEdge(x, z, 2.5));
     scene.add(this.decor.group);

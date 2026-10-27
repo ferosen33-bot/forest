@@ -131,7 +131,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 33 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 38 },
     ],
   },
   {

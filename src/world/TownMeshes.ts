@@ -13,7 +13,7 @@ import { ruralBuilding, ruralProp } from './RuralMeshes';
  * (Durchgänge für die Wegfindung). Alles in Weltkoordinaten.
  */
 
-export type LootKind = 'fridge' | 'cabinet' | 'wardrobe' | 'shelf' | 'register' | 'toolbox' | 'car' | 'desk' | 'caravan' | 'crate';
+export type LootKind = 'fridge' | 'cabinet' | 'wardrobe' | 'shelf' | 'register' | 'toolbox' | 'car' | 'desk' | 'caravan' | 'crate' | 'pack' | 'ammo';
 
 export const LOOT_LABELS: Record<LootKind, string> = {
   fridge: 'Kühlschrank',
@@ -26,6 +26,8 @@ export const LOOT_LABELS: Record<LootKind, string> = {
   desk: 'Schreibtisch',
   caravan: 'Wohnwagen',
   crate: 'Holzkiste',
+  pack: 'Rucksack',
+  ammo: 'Munitionskiste',
 };
 
 export interface ContainerSpec {
@@ -129,8 +131,9 @@ export class Builder {
   constructor(private readonly town: THREE.Matrix4) {}
 
   /** Bezugssystem für ein Objekt im Ortssystem setzen (Position x/z, Drehung). */
-  at(x: number, z: number, rotation: number, building = -1, y = 0): void {
+  at(x: number, z: number, rotation: number, building = -1, y = 0, pitch = 0): void {
     this.base.copy(this.town).multiply(new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeRotationY(rotation)));
+    if (pitch) this.base.multiply(new THREE.Matrix4().makeRotationX(pitch));
     this.building = building;
   }
 
@@ -663,7 +666,8 @@ export function buildTown(t: TownLayout, seed: number): TownModel {
   }
   const propRng = buildingRng(seed, { index: 1000 + salt } as TownBuilding);
   for (const p of t.props) {
-    b.at(p.x, p.z, p.rotation, -1, p.y ?? 0);
+    // Autos können schräg stehen (im Graben); andere Requisiten nutzen `tilt` selbst.
+    b.at(p.x, p.z, p.rotation, -1, p.y ?? 0, p.kind === 'car' ? (p.tilt ?? 0) : 0);
     if (!ruralProp(b, p, propRng, signs, place)) prop(b, p, propRng);
   }
 

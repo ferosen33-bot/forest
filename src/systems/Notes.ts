@@ -330,6 +330,54 @@ export const NOTES: NoteDef[] = [
       'Die Tannen am Nordhang haben einen weißen Belag unter der Rinde. Wie Watte. Die Säge verklebt davon. Kowalski hat sich daran geschnitten und hustet seitdem.\n\n' +
       'Kowalski seit Dienstag nicht zur Schicht. Sein Spind steht offen.',
   },
+  // --- Fundorte im Wald (Meilenstein 52, Teil B) ---
+  {
+    id: 'wald1',
+    title: 'Wandertagebuch (Zeltlager)',
+    style: 'paper',
+    text:
+      'Tag 3 auf dem Inselrundweg. Kein Empfang, keine Menschenseele. Herrlich.\n\n' +
+      'Nachts Schritte ums Zelt. Ein Reh, sagt Lena. Rehe gehen nicht auf zwei Beinen, sage ich.\n\n' +
+      'Tag 4. Lena ist früh Wasser holen gegangen. Gerade eben hat sie vom Bach her gerufen, ich solle nachkommen. ' +
+      'Ich habe geantwortet. Sie hat genau dasselbe noch mal gerufen. Wort für Wort. Mit genau derselben Betonung.\n\nIch gehe jetzt nachsehen.',
+  },
+  {
+    id: 'wald2',
+    title: 'Zettel unter einem Stein (Zeltlager)',
+    style: 'paper',
+    text:
+      'An wen auch immer:\n\nWir sind Richtung Funkstation. Wenn du Licht brauchst: im Rucksack sind Batterien. ' +
+      'Mach nachts KEIN Feuer im Wald, das Licht holt sie her. Aber ganz ohne Licht kommen sie auch.\n\n' +
+      'Und wenn du jemanden deinen Namen rufen hörst – das sind wir nicht. Das waren wir nie.',
+  },
+  {
+    id: 'wald3',
+    title: 'Sprachmemo, abgetippt (Rucksack)',
+    style: 'radio',
+    text:
+      '[Datei 14, 02:47 Uhr]\n„… die Lampe nicht ausmachen. Wenn ich sie ausmache, sind sie da. Sie stehen zwischen den Stämmen ' +
+      'und machen nichts. Sie atmen nur. Synchron.“\n\n[Datei 15, 03:12 Uhr]\n„Batterie bei zehn Prozent. Ich lege das Handy auf den Rucksack. Falls jemand das findet: ' +
+      'Ich bin nicht weggelaufen. Ich bin gegangen, als sie gerufen haben. Es war Papas Stimme.“\n\n[Ende der Aufnahmen]',
+  },
+  {
+    id: 'wald4',
+    title: 'Schussbuch des Jagdpächters (Hochsitz)',
+    style: 'paper',
+    text:
+      '12.10. – 1 Reh (Ricke), Lichtung Nordhang.\n14.10. – nichts. Kein Wild seit zwei Tagen, der Wald ist totenstill.\n' +
+      '16.10. – 1 ??? Auf 80 m angesprochen als Wildschwein. Ging auf zwei Beinen weiter. Getroffen, blutete nicht.\n' +
+      '17.10. – Hochsitz nachts nicht mehr besetzen. Sie kommen die Leiter nicht hoch – glaube ich. Aber sie warten unten. ' +
+      'Die ganze Nacht. Und morgens ist von den Sprossen die Rinde abgekratzt.',
+  },
+  {
+    id: 'wald5',
+    title: 'Vergilbter Brief, 1923 (Steinruine)',
+    style: 'paper',
+    text:
+      'Lieber Bruder,\n\nder Pfarrer sagt, der weiße Schimmel im Keller sei Gottes Strafe für den neuen Schacht. Vater sagt, er sei nur Feuchtigkeit. ' +
+      'Seit er im Keller schläft, redet Vater nachts mit Stimmen, die nicht seine sind.\n\n' +
+      'Wir verlassen den Hof, sobald das Wetter es zulässt. Die Leute aus dem Dorf wollen die Grube zuschütten. Die Herren von der Gesellschaft lassen es nicht zu.\n\nDeine Schwester Hedwig',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -349,6 +397,9 @@ export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehr
 
 /** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */
 export const HAMLET_NOTES = ['hollmann', 'brinkmann', 'gasthof', 'moorwinkel1', 'moorwinkel2', 'rezeption', 'camping1', 'camping2', 'saegewerk'] as const;
+
+/** Notizen an den Fundorten im Wald (Zeltlager, Rucksack, Hochsitz, Steinruine). */
+export const WILD_NOTES = ['wald1', 'wald2', 'wald3', 'wald4', 'wald5'] as const;
 
 /** Notizen, die keine Fundstelle haben, sondern entstehen (Funkspruch an der Funkstation). */
 export const STORY_NOTES = ['funkspruch'] as const;

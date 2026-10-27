@@ -61,6 +61,37 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 52 – Welt & Atmosphäre (Teil B: Fundorte und Stimmung)
+
+- **Rund 45 Fundorte im Wald**, jeder mit einer kleinen Geschichte und oft mit Beute:
+  - **Hochsitze**: Man kann die steile Treppe hinaufsteigen. Oben stehen eine Munitionskiste
+    (Gewehrmunition, Schrot, Pfeile, selten ein Jagdgewehr) und der Blick über die Lichtung.
+  - **Verlassene Zeltlager**: Zelt (manchmal eingestürzt), kalte Feuerstelle, Wäscheleine, ein
+    Rucksack zum Durchsuchen. Ein solches Lager liegt immer gleich in der Nähe des Aufwachens.
+  - **Unfallwagen** abseits der Wege, schräg im Graben, Kofferraum durchsuchbar, Knochen daneben.
+  - **Wegkreuze** am Wegrand mit Kerzen und verwelkten Blumen. Nachts brennen die Kerzen. Wer zündet
+    sie an?
+  - **Schrat-Zeichen**: Dreibeine aus Ästen mit Geweih und Schädel, Lumpen, Steinkreise, Knochen.
+  - **Steinruinen** alter Gehöfte mit Kamin, verkohltem Balken und einer Holzkiste.
+  - **Holzfällerplätze**: Stümpfe (in einem steckt noch die Axt), Stammholz, Werkzeugkiste.
+  - **Warnschilder**, handgemalt mit roter Farbe und Läufern: „UMKEHREN“, „NICHT NACHTS“,
+    „SIE RUFEN MIT UNSEREN STIMMEN“ …
+  - **Verschwunden**: nur ein Rucksack und eine Taschenlampe, die nachts noch leuchtet, mit sterbender
+    Batterie.
+- **Fünf neue Notizen** liegen an den Fundorten, etwa ein Wandertagebuch, ein abgetipptes Sprachmemo,
+  das Schussbuch des Jagdpächters und ein Brief von 1923.
+- **Stimmung:**
+  - In Altwasser und jedem Dorf flackert nachts eine kaputte Straßenlampe und brummt.
+  - Bei Wind klingen Windspiele an den Ferienhütten, und Scheunentor und Gasthofschild knarren.
+  - Nachts flüstert und klopft es an den Schrat-Totems.
+  - Um Mitternacht schlägt die Kapellenglocke zwölfmal, über die halbe Insel zu hören.
+- **Krähen** sitzen bei Tag auf Vogelscheuchen, Zäunen, Strommasten, Totems, Kaminen und Scheunenfirsten
+  und krächzen. Kommt man näher als etwa 12 m oder fällt ein Schuss, fliegen sie mit Geflatter auf.
+- Neue Klänge (alle synthetisch): Krähe, Flügelschlag, Windspiel, Knarren, Lampenbrummen, Glocke.
+- **Technik:** `world/Landmarks.ts` (Fundorte, getestet), `systems/Atmosphere.ts` (Lichter,
+  Geräuschquellen, Glocke) und `systems/Crows.ts` (Krähenschwärme mit drei Instanz-Meshes, getestet).
+  Neue Behälter: *Rucksack* und *Munitionskiste*.
+
 ### Meilenstein 52 – Welt & Atmosphäre (Teil A: Wege und Dörfer)
 
 - **Wegenetz:** Eine asphaltierte Landstraße verbindet Altwasser mit Moorwinkel. Von ihr zweigen

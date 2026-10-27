@@ -3,6 +3,7 @@ import { HeightMap } from './HeightMap';
 import { planIsland } from './IslandPlan';
 import { townWorld, type TownBuilding } from './Town';
 import { CONFIG } from '../config';
+import { WILD_NOTES } from '../systems/Notes';
 
 const w = CONFIG.world;
 const hm = new HeightMap({ size: w.size, cellSize: w.cellSize, seed: CONFIG.seed, waterLevel: w.waterLevel });
@@ -75,5 +76,21 @@ describe('Inselplan: Dörfer und Wege', () => {
     for (const k of ['pole', 'signpost', 'townsign'] as const) expect(kinds.has(k), k).toBe(true);
     // Masten stehen neben, nicht auf der Fahrbahn.
     for (const p of plan.roadside.props.filter((q) => q.kind === 'pole')) expect(plan.roads.distance(p.x, p.z)).toBeGreaterThan(2);
+  });
+
+  it('verteilt Fundorte im Wald: viele Arten, abseits der Wege, jede Notiz genau einmal', () => {
+    const kinds = new Set(plan.landmarks.map((l) => l.kind));
+    expect(plan.landmarks.length).toBeGreaterThan(25);
+    for (const k of ['stand', 'camp', 'totems', 'ruin', 'woodcut', 'warning', 'lost'] as const) expect(kinds.has(k), k).toBe(true);
+    for (const l of plan.landmarks) {
+      if (l.kind === 'warning' || l.kind === 'wreck' || l.kind === 'shrine') continue;
+      expect(plan.roads.distance(l.x, l.z, 20), l.kind).toBeGreaterThan(15);
+    }
+    // Ein Lager liegt nah beim Erwachen.
+    expect(plan.landmarks.some((l) => l.kind === 'camp' && Math.hypot(l.x - plan.spawn.x, l.z - plan.spawn.z) < 95)).toBe(true);
+    const notes = plan.wild.props.filter((p) => p.kind === 'note').map((p) => p.text![0]);
+    expect(notes.sort()).toEqual([...WILD_NOTES].sort());
+    // Beute: Rucksäcke, Kisten und Munitionskisten (Hochsitze) sind durchsuchbar.
+    expect(plan.wild.props.filter((p) => p.loot).length).toBeGreaterThan(15);
   });
 });

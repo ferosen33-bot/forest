@@ -356,6 +356,63 @@ function townSign(name: string): THREE.Mesh {
   return mesh;
 }
 
+/** Handgemaltes Warnschild: rote Farbe auf grauem Brett, mit Läufern. */
+function warnTexture(text: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#6a604f';
+  ctx.fillRect(0, 0, 512, 256);
+  // Bretterfugen und Maserung
+  ctx.fillStyle = 'rgba(30,24,16,0.5)';
+  for (const y of [84, 170]) ctx.fillRect(0, y, 512, 4);
+  ctx.strokeStyle = 'rgba(40,32,20,0.25)';
+  for (let i = 0; i < 40; i++) {
+    ctx.beginPath();
+    const y = Math.random() * 256;
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(170, y + Math.random() * 10 - 5, 340, y + Math.random() * 10 - 5, 512, y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#8f1d14';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const words = text.split(' ');
+  const lines: string[] = [];
+  for (const w of words) {
+    const last = lines[lines.length - 1];
+    if (last && (last + ' ' + w).length <= 14) lines[lines.length - 1] = last + ' ' + w;
+    else lines.push(w);
+  }
+  // So groß, wie es aufs Brett passt (eine Zeile groß, mehrere kleiner).
+  let size = lines.length > 2 ? 66 : lines.length > 1 ? 92 : 130;
+  ctx.font = `bold ${size}px Impact, "Arial Black", sans-serif`;
+  const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  if (widest > 470) size = Math.floor((size * 470) / widest);
+  ctx.font = `bold ${size}px Impact, "Arial Black", sans-serif`;
+  lines.forEach((l, i) => {
+    const y = 128 + (i - (lines.length - 1) / 2) * size * 1.05;
+    // Buchstaben einzeln, leicht verwackelt – mit dem Pinsel gemalt.
+    const width = ctx.measureText(l).width;
+    let x = 256 - width / 2;
+    for (const ch of l) {
+      const cw = ctx.measureText(ch).width;
+      ctx.save();
+      ctx.translate(x + cw / 2, y + (Math.random() - 0.5) * 8);
+      ctx.rotate((Math.random() - 0.5) * 0.12);
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      // Läufer: Farbe rinnt nach unten.
+      if (Math.random() < 0.3) ctx.fillRect(x + cw * (0.2 + Math.random() * 0.6), y + size * 0.3, 3, 10 + Math.random() * 30);
+      x += cw;
+    }
+  });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 /** @returns false, wenn die Requisite nicht hierher gehört. */
 export function ruralProp(b: Builder, p: TownProp, rng: RandomFn, signs: THREE.Group, place: Place): boolean {
   switch (p.kind) {
@@ -460,7 +517,7 @@ export function ruralProp(b: Builder, p: TownProp, rng: RandomFn, signs: THREE.G
     case 'firepit':
       for (let i = 0; i < 9; i++) {
         const a = (i / 9) * Math.PI * 2;
-        b.box(0.25, 0.2, 0.22, Math.cos(a) * 0.6, 0.1, Math.sin(a) * 0.6, { color: R.stone, ry: a, surface: 'mossyRock' });
+        b.box(0.2, 0.12, 0.16, Math.cos(a) * 0.55, 0.05, Math.sin(a) * 0.55, { color: 0x4a4844, ry: a + rng(), rx: rng() * 0.3, surface: 'mossyRock' });
       }
       for (let i = 0; i < 3; i++) b.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 6), 0, 0.12, 0, C.char, 'out', Math.PI / 2, i * 1.1, 0.2);
       b.box(0.8, 0.02, 0.8, 0, 0.02, 0, { color: 0x2a2622 });
@@ -566,6 +623,160 @@ export function ruralProp(b: Builder, p: TownProp, rng: RandomFn, signs: THREE.G
       signs.add(m);
       return true;
     }
+    // --- Fundorte im Wald ---
+    case 'hunterstand': {
+      // Vier schräge Beine, Kanzel auf 3,6 m, Treppe (Stufen als Kollision), Dach.
+      const top = 3.6;
+      for (const [x, z] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]])
+        b.box(0.14, top + 0.2, 0.14, x * 1.08, (top + 0.2) / 2, z * 1.08, { color: R.bark, rx: z * 0.05, rz: -x * 0.05, collide: true, surface: 'planks' });
+      for (const y of [1.2, 2.4]) {
+        b.box(1.9, 0.08, 0.08, 0, y, -0.9, { color: R.bark, rz: 0.5 });
+        b.box(0.08, 0.08, 1.9, 0.9, y, 0, { color: R.bark, rx: -0.5 });
+      }
+      b.box(1.8, 0.1, 1.8, 0, top, 0, { color: R.plank, collide: true });
+      for (const [x, z, w, d] of [[0, -0.88, 1.8, 0.06], [-0.88, 0, 0.06, 1.8], [0.88, 0, 0.06, 1.8]] as [number, number, number, number][])
+        b.box(w, 1.0, d, x, top + 0.55, z, { color: R.plankDark, collide: true, surface: 'planks' });
+      // Vorn nur eine Brüstung (Einstieg von der Treppe in der Mitte frei)
+      for (const s of [-1, 1]) b.box(0.6, 1.0, 0.06, s * 0.6, top + 0.55, 0.88, { color: R.plankDark, collide: true, surface: 'planks' });
+      for (const [x, z] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]]) b.box(0.08, 1.1, 0.08, x, top + 1.6, z, { color: R.bark });
+      b.box(2.2, 0.08, 2.3, 0, top + 2.2, -0.05, { color: C.roofGrey, rx: 0.18, bucket: 'out', collide: true });
+      // Steile Treppe nach vorn (+Z): Stufen zum Ansehen, darunter eine Rampe als Kollision (≈ 41°).
+      const steps = 14;
+      const run = 4.2;
+      const z0 = 0.95;
+      const slope = Math.atan2(top, run);
+      for (let i = 0; i < steps; i++) {
+        const u = (i + 1) / steps;
+        b.box(0.62, 0.05, 0.24, 0, top * u - 0.03, z0 + run * (1 - u) + 0.1, { color: R.plank });
+      }
+      const len = Math.hypot(run, top);
+      for (const s of [-1, 1]) b.box(0.07, 0.12, len + 0.2, s * 0.34, top / 2 - 0.05, z0 + run / 2, { color: R.bark, rx: slope });
+      // Die Rampe reicht 1,2 m in den Boden (am Hang setzt die Treppe tiefer auf).
+      const below = 1.2;
+      const ext = below / Math.tan(slope);
+      b.box(0.64, 0.1, Math.hypot(run + ext, top + below), 0, (top - below) / 2 - 0.06, z0 + (run + ext) / 2, { color: R.plank, rx: slope, invisible: true, collide: true });
+      if (p.loot) b.box(0.7, 0.45, 0.45, -0.4, top + 0.28, -0.5, { color: 0x3d4a2e, container: 'ammo' });
+      return true;
+    }
+    case 'shrine': {
+      b.box(0.5, 0.25, 0.5, 0, 0.12, 0, { color: R.stone, collide: true, surface: 'mossyRock' });
+      b.box(0.14, 1.9, 0.14, 0, 1.15, 0, { color: R.plankDark, collide: true });
+      b.box(0.7, 0.1, 0.12, 0, 1.75, 0, { color: R.plankDark });
+      // Kästchen mit Dach (Marterl), darin ein Bild
+      b.box(0.42, 0.45, 0.25, 0, 1.35, 0.12, { color: R.plank });
+      b.box(0.3, 0.32, 0.02, 0, 1.36, 0.25, { color: 0x6a5a8a });
+      for (const s of [-1, 1]) b.box(0.32, 0.04, 0.36, s * 0.14, 1.65, 0.12, { color: C.roofTile, rz: s * -0.55, bucket: 'out' });
+      // Kerzen und verwelkte Blumen am Sockel
+      for (let i = 0; i < 4; i++) b.mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.08 + rng() * 0.08, 6), -0.15 + i * 0.1, 0.3, 0.18, 0xe8e0c8, 'out');
+      for (let i = 0; i < 5; i++) b.box(0.03, 0.25, 0.03, -0.18 + i * 0.09, 0.36, -0.12, { color: [0x6a2a3a, 0x8a7a3a, 0x5a3a5a][i % 3], rz: (rng() - 0.5) * 0.6 });
+      return true;
+    }
+    case 'totem': {
+      // Dreibein aus Ästen, oben ein Geweih, Lumpen und Knochen hängen daran.
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        b.box(0.08, 2.8, 0.08, Math.cos(a) * 0.35, 1.35, Math.sin(a) * 0.35, { color: R.bark, rx: Math.sin(a) * 0.25, rz: -Math.cos(a) * 0.25 });
+      }
+      b.box(0.5, 0.5, 0.5, 0, 1.2, 0, { color: R.bark, invisible: true, collide: true });
+      for (const s of [-1, 1]) {
+        b.box(0.04, 0.55, 0.04, s * 0.2, 2.95, 0, { color: 0xc8bea4, rz: s * -0.6 });
+        b.box(0.03, 0.25, 0.03, s * 0.34, 3.05, 0.05, { color: 0xc8bea4, rz: s * -0.2 });
+      }
+      b.mesh(new THREE.SphereGeometry(0.14, 6, 5), 0, 2.72, 0.02, 0xd8d0bc, 'out');
+      for (let i = 0; i < 4; i++) b.box(0.12, 0.45 + rng() * 0.3, 0.01, (rng() - 0.5) * 0.5, 1.9 - rng() * 0.4, 0.3, { color: [0x5a3028, 0x3a3a30, 0x6a5a48][i % 3], ry: rng() * 3 });
+      for (let i = 0; i < 6; i++) {
+        const a = rng() * Math.PI * 2;
+        b.box(0.3, 0.16, 0.25, Math.cos(a) * 0.9, 0.08, Math.sin(a) * 0.9, { color: R.stone, ry: a, surface: 'mossyRock' });
+      }
+      return true;
+    }
+    case 'stonewall': {
+      // Grundmauern eines alten Hauses: Ecken höher, Mitte eingestürzt.
+      const L = p.length ?? 7;
+      const D = p.depth ?? 6;
+      const segs: [number, number, number, number][] = [
+        [0, -D / 2, L, 0],
+        [-L / 2, 0, D, 1],
+        [L / 2, 0, D, 1],
+        [0, D / 2, L, 0],
+      ];
+      segs.forEach(([x, z, len, alongZ], si) => {
+        const n = Math.round(len / 1.1);
+        for (let i = 0; i < n; i++) {
+          const t = (i + 0.5) / n - 0.5;
+          // Vorderwand mit Türlücke, Höhe fällt zur Mitte ab.
+          if (si === 3 && Math.abs(t) < 0.14) continue;
+          const h = Math.max(0.2, (0.6 + Math.abs(t) * 3.2) * (0.6 + rng() * 0.6) - (rng() < 0.15 ? 1 : 0));
+          const px = alongZ ? x : x + t * len;
+          const pz = alongZ ? z + t * len : z;
+          b.box(alongZ ? 0.5 : len / n + 0.02, h, alongZ ? len / n + 0.02 : 0.5, px, h / 2, pz, { color: [R.stone, 0x6a6860, 0x5f5d55][i % 3], collide: true, nav: true, surface: 'mossyRock' });
+        }
+      });
+      for (let i = 0; i < 9; i++) b.box(0.3 + rng() * 0.4, 0.2 + rng() * 0.2, 0.3 + rng() * 0.3, (rng() - 0.5) * L * 0.8, 0.1, (rng() - 0.5) * D * 0.8, { color: R.stone, ry: rng() * 3, surface: 'mossyRock' });
+      // Ein verkohlter Balken quer über den Resten
+      b.box(L * 0.7, 0.18, 0.2, 0.3, 0.5, 0.4, { color: C.char, ry: 0.4, rz: 0.12 });
+      return true;
+    }
+    case 'chimney':
+      b.box(0.9, 4.2, 0.9, 0, 2.1, 0, { color: 0x6e5a4a, collide: true, nav: true, surface: 'mossyRock' });
+      b.box(1.0, 0.2, 1.0, 0, 4.25, 0, { color: 0x5a4a3c });
+      b.box(0.6, 0.6, 0.1, 0, 0.5, 0.46, { color: 0x141210 });
+      return true;
+    case 'clothesline': {
+      for (const s of [-1, 1]) b.box(0.08, 1.9, 0.08, s * 2, 0.95, 0, { color: R.plankDark, rz: s === 1 ? 0.12 : 0 });
+      b.box(4.0, 0.015, 0.015, 0, 1.82, 0, { color: 0xcfc8b8, rz: 0.02 });
+      for (let i = 0; i < 4; i++) {
+        if (rng() < 0.25) continue;
+        b.box(0.45 + rng() * 0.3, 0.5 + rng() * 0.3, 0.01, -1.4 + i * 0.9, 1.45, 0, { color: [0x7a2a2a, 0x3a4a6a, 0xc8c2b0, 0x4a5a3a][i], rz: (rng() - 0.5) * 0.2 });
+      }
+      return true;
+    }
+    case 'stump': {
+      b.mesh(new THREE.CylinderGeometry(0.32, 0.4, 0.5, 9), 0, 0.25, 0, R.bark, 'out', 0, 0, 0, 'bark');
+      b.mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.02, 9), 0, 0.5, 0, R.logEnd, 'out');
+      b.box(0.6, 0.5, 0.6, 0, 0.25, 0, { color: R.bark, invisible: true, collide: true });
+      // Eine Axt steckt im Stumpf.
+      if ((p.tilt ?? 0) > 0) {
+        b.box(0.04, 0.6, 0.04, 0.1, 0.78, 0, { color: C.wood, rz: 0.5 });
+        b.box(0.16, 0.12, 0.03, 0, 0.52, 0, { color: 0x8d9296, rz: 0.5 });
+      }
+      return true;
+    }
+    case 'warnsign': {
+      const tilt = p.tilt ?? 0;
+      b.box(0.1, 2.0, 0.1, 0, 1.0, -0.05, { color: R.plankDark, rz: tilt * 0.4, collide: true });
+      b.box(1.25, 0.65, 0.04, 0, 1.55, 0, { color: 0x5a5244, rz: tilt });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.22, 0.6), new THREE.MeshStandardMaterial({ map: warnTexture((p.text ?? ['UMKEHREN'])[0]), roughness: 0.95 }));
+      mesh.castShadow = true;
+      mesh.rotation.z = tilt;
+      const holder = new THREE.Group();
+      holder.add(mesh);
+      place(holder, 0, 1.55, 0.025);
+      signs.add(holder);
+      return true;
+    }
+    case 'backpack':
+      b.box(0.36, 0.48, 0.24, 0, 0.2, 0, { color: [0x3a4a2a, 0x2a3a5a, 0x7a3a22][Math.floor(rng() * 3)], rx: 1.25, container: p.loot ? 'pack' : undefined });
+      b.box(0.3, 0.16, 0.12, 0, 0.12, 0.25, { color: 0x2a2a24, rx: 1.25 });
+      return true;
+    case 'droplight':
+      b.mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.22, 8), 0, 0.04, 0, 0x2a2a2a, 'out', Math.PI / 2, 0, 0);
+      b.mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.06, 8), 0, 0.05, 0.13, 0x9a9a9a, 'out', Math.PI / 2, 0, 0);
+      return true;
+    case 'bones':
+      for (let i = 0; i < 5; i++) b.box(0.04, 0.04, 0.25 + rng() * 0.25, (rng() - 0.5) * 0.8, 0.03, (rng() - 0.5) * 0.8, { color: 0xd0c8b2, ry: rng() * 3 });
+      b.box(0.3, 0.06, 0.18, 0.1, 0.04, 0.1, { color: 0xc8bea6, ry: rng() * 3 });
+      return true;
+    case 'crate':
+      b.box(0.9, 0.6, 0.6, 0, 0.3, 0, { color: R.plankDark, container: p.loot ? 'crate' : undefined, collide: true, nav: true });
+      b.box(0.92, 0.06, 0.62, 0, 0.55, 0, { color: R.plank });
+      return true;
+    case 'toolchest':
+      b.box(0.7, 0.4, 0.4, 0, 0.2, 0, { color: 0xa13a2a, container: p.loot ? 'toolbox' : undefined, collide: true });
+      return true;
+    case 'note':
+      b.note((p.text ?? [''])[0], 0, 0.01, 0, 0);
+      return true;
     default:
       return false;
   }
