@@ -16,6 +16,7 @@ import type { Projectiles } from './Projectiles';
 import type { ItemService } from './ItemService';
 import type { Caves } from './Caves';
 import type { Skills } from './Skills';
+import type { ElementEffects } from './ElementEffects';
 
 const HOTBAR_KEYS: Action[] = ['hotbar1', 'hotbar2', 'hotbar3', 'hotbar4', 'hotbar5', 'hotbar6'];
 const EAT_DURATION = 0.9;
@@ -114,6 +115,7 @@ export class ToolController {
     // Das ViewModel zeigt immer, was im gewählten Slot liegt (auch nach Inventar-Änderungen).
     const stack = this.equipped;
     this.viewModel.equip(stack?.id ?? null);
+    this.viewModel.setElement(stack?.weapon?.mod ?? null);
     // Fackeln brennen ab, solange man sie in der Hand hält; die Taschenlampe leert ihre Batterie
     // (sie geht dabei nicht kaputt – eine leere Lampe bleibt für neue Batterien im Rucksack).
     if (stack?.id === 'torch' && !this.player.stats.isDead) this.wearEquipped(dt * this.torchBurnRate);
@@ -220,6 +222,9 @@ export class ToolController {
         const damage = tool.damage * sk.meleeDamage * (crit ? CRIT_MULTIPLIER : 1);
         this.enemies.damage(target.enemy, damage, target.zone, this.player.position, this.point, this.normal);
         if (crit) this.events.emit('weapon:crit', { position: this.point.clone() });
+        // Waffenmod: Der Treffer kann sein Element auslösen.
+        const mod = stack?.weapon?.mod;
+        if (mod) this.elements?.strike(target.enemy, mod, tool.weaponClass, this.point, crit);
         // Wuchtwaffen lassen den Getroffenen taumeln.
         const stun = (tool.stun ?? (this.staggerAll ? 0.5 : 0)) + (stats?.stagger ?? 0) + (crit ? 0.4 : 0);
         if (stun && !target.enemy.isDead && !target.enemy.kind.boss) target.enemy.stun(stun);
@@ -250,6 +255,9 @@ export class ToolController {
     this.viewModel.playHit();
     this.wearEquipped(1);
   }
+
+  /** Elemente der Waffenmods (setzt das Spiel). */
+  elements: ElementEffects | null = null;
 
   /** Talente: jeder Nahkampftreffer betäubt kurz; Gekochtes macht satter. */
   staggerAll = false;

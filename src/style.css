@@ -125,6 +125,7 @@ html, body {
 
 #hud.is-inventory-open .crosshair,
 #hud.is-inventory-open .hitmarker,
+#hud.is-inventory-open .element-tag,
 #hud.is-inventory-open .prompt,
 #hud.is-inventory-open .hotbar,
 #hud.is-inventory-open .hotbar-name { display: none; }
@@ -258,6 +259,19 @@ html, body {
 .inventory__stats li { display: flex; justify-content: space-between; gap: 8px; }
 .inventory__stats li span:last-child { color: var(--ui-text, #e8e0cc); font-variant-numeric: tabular-nums; }
 .inventory__stats li.is-perk { display: block; color: #e8cf8a; }
+.inventory__stats li.is-mod { display: block; color: var(--element); font-weight: 600; }
+.inventory__stats li.is-mod small { display: block; font-weight: 400; color: var(--ui-muted); }
+/* Mod an der Waffe: leuchtender Punkt in der Elementfarbe. */
+.slot__mod {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--element);
+  box-shadow: 0 0 6px var(--element);
+}
 .inventory__desc { margin: 0; min-height: 3.6em; font-size: 13px; line-height: 1.4; color: var(--ui-muted); }
 .inventory__hints {
   margin: auto 0 0;
@@ -795,6 +809,29 @@ kbd {
   height: 36px;
   margin: -18px 0 0 -18px;
   filter: drop-shadow(0 0 3px #000) sepia(1) saturate(12) hue-rotate(-15deg) brightness(1.3);
+}
+/* Element eines Waffenmods: Schriftzug unter dem Fadenkreuz. */
+.element-tag {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 26px);
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  text-shadow: 0 0 6px currentColor, 0 1px 2px #000;
+}
+.element-tag.is-visible { animation: element-tag 0.9s ease-out forwards; }
+.element-tag.is-combo { font-size: 17px; }
+.element-tag.is-combo.is-visible { animation-duration: 1.4s; }
+@keyframes element-tag {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(1.35); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -8px); }
 }
 .hitmarker.is-creature { filter: drop-shadow(0 0 1px #000) sepia(1) saturate(6) hue-rotate(-30deg); }
 .hitmarker.is-kill {

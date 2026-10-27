@@ -15,7 +15,8 @@ import type { BuildingSystem, Structure } from './building/BuildingSystem';
  * - **Klapperleine:** Quert ein Schrat oder Wolf die Schnur, rasselt sie – der Spieler bekommt eine
  *   Warnung, auch wenn er gerade woanders ist.
  * - **Brandherd:** Eine zerschellte Brandflasche setzt den Boden für einige Sekunden in Flammen. Wer
- *   darin steht, verbrennt; Schrate und Wölfe meiden das Feuer (außer rasende Horden).
+ *   darin steht, verbrennt – Schrate fangen dabei selbst Feuer und brennen weiter. Schrate und Wölfe meiden
+ *   das Feuer (außer rasende Horden).
  *
  * Die Bewohner (Schrate, Tiere) werden über schmale Schnittstellen angebunden, damit sich die Logik
  * ohne Spielwelt testen lässt.
@@ -29,6 +30,8 @@ export interface Intruder {
   hurt(amount: number, from: THREE.Vector3): void;
   /** Fallgrube: festhängen (nur Schrate). */
   stun?(seconds: number): void;
+  /** Fängt im brennenden Öl selbst Feuer und brennt weiter (nur Schrate). */
+  ignite?(seconds: number): void;
   /** Für die Klapperleine: Schrat oder Wolf? */
   readonly kind: 'schrat' | 'wolf';
 }
@@ -206,7 +209,10 @@ export class Defenses {
       if (z.tick <= 0) {
         z.tick = 0.5;
         for (const who of this.d.intruders()) {
-          if (!who.isDead && this.inFire(z, who.feet)) who.hurt(FIRE_DPS * 0.5 * strength, z.center);
+          if (!who.isDead && this.inFire(z, who.feet)) {
+            who.hurt(FIRE_DPS * 0.5 * strength, z.center);
+            who.ignite?.(3);
+          }
         }
         if (this.inFire(z, player.position)) player.hurt(PLAYER_FIRE_DPS * 0.5 * strength, z.center);
       }

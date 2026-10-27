@@ -6,6 +6,7 @@ import type { GameConfig } from '../../config';
 import { EnemyRig } from './EnemyRig';
 import { ENEMY_KINDS, type EnemyKind, type EnemyKindDef } from './EnemyKinds';
 import { aimBallistic } from '../../utils/ballistics';
+import { createStatus, statusSlow, vulnerability } from '../items/Elements';
 import { clamp, damp } from '../../utils/math';
 
 export type EnemyState =
@@ -104,6 +105,8 @@ export class Enemy {
   active = true;
   /** Zeit seit dem Tod (Leiche verschwindet danach). */
   deadFor = 0;
+  /** Zustände durch Waffenmods (Brand, Schock, Säure, Blutung, Nässe). */
+  readonly status = createStatus();
 
   /** Wachsamkeit 0–1: ab 0,4 nachsehen, bei 1 Jagd. */
   suspicion = 0;
@@ -252,10 +255,13 @@ export class Enemy {
 
   /**
    * Schaden durch den Spieler.
+   * @param flinch false bei Schaden über Zeit (Brand, Blutung): kein Taumeln, kein Rückstoß.
    * @returns true, wenn der Gegner dadurch gestorben ist.
    */
-  takeDamage(amount: number, from: THREE.Vector3, ctx: EnemyContext): boolean {
+  takeDamage(amount: number, from: THREE.Vector3, ctx: EnemyContext, flinch = true): boolean {
     if (this.isDead) return false;
+    // Verätzte nehmen mehr Schaden.
+    amount *= vulnerability(this.status);
     this.health -= amount;
     this.rig.anim.hit = 1;
     if (this.health <= 0) {
@@ -279,6 +285,10 @@ export class Enemy {
     this.suspicion = 1;
     this.lastSeen.copy(ctx.player.position);
     this.lastSeenTime = ctx.time;
+    if (!flinch) {
+      if (!this.isAggressive && this.state !== 'stagger') this.setState('chase');
+      return false;
+    }
     // Leichte Treffer bringen schwere Gegner nicht aus dem Tritt – sie greifen einfach weiter an.
     if (amount < this.kind.staggerThreshold) {
       if (!this.isAggressive) this.setState('chase');
@@ -723,7 +733,8 @@ export class Enemy {
 
     // Erst ausrichten, dann loslaufen – verhindert seitliches "Gleiten".
     const facing = this.desiredSpeed > 0 ? Math.max(0, this.forward.dot(this.desired)) : 0;
-    const targetSpeed = this.desiredSpeed * (0.3 + 0.7 * facing);
+    // Blutende Wunden verlangsamen.
+    const targetSpeed = this.desiredSpeed * (0.3 + 0.7 * facing) * (1 - statusSlow(this.status));
     const tvx = this.desired.x * targetSpeed;
     const tvz = this.desired.z * targetSpeed;
 

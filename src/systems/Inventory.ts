@@ -1,4 +1,5 @@
 import { getItem, type ItemId } from '../entities/items/ItemDefs';
+import type { ElementId } from '../entities/items/Elements';
 import { cloneWeapon, isWeapon, maxDurability, rollWeapon, sanitizeWeapon, type WeaponMeta } from '../entities/items/Weapons';
 
 export interface ItemStack {
@@ -177,6 +178,15 @@ export class Inventory {
     const max = s ? maxDurability(s.id, s.weapon) : undefined;
     if (!s || max === undefined) return false;
     s.durability = max;
+    this.changed();
+    return true;
+  }
+
+  /** Bringt einen Mod an der Waffe im Slot an (ersetzt einen vorhandenen). */
+  setMod(index: number, mod: ElementId): boolean {
+    const s = this.slots[index];
+    if (!s?.weapon) return false;
+    s.weapon = { ...s.weapon, perks: [...s.weapon.perks], mod };
     this.changed();
     return true;
   }

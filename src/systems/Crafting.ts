@@ -8,10 +8,12 @@ import type { Inventory } from './Inventory';
  * (Material wird erst beim Platzieren verbraucht).
  */
 export type Recipe =
-  | { id: string; kind: 'item'; result: ItemId; count: number; cost: ItemCost[] }
+  | { id: string; kind: 'item'; result: ItemId; count: number; cost: ItemCost[]; bench?: boolean }
   | { id: string; kind: 'structure'; result: StructureId; cost: ItemCost[] };
 
 const item = (result: ItemId, cost: ItemCost[], count = 1): Recipe => ({ id: result, kind: 'item', result, count, cost });
+/** Waffenmods entstehen nur an der Werkbank. */
+const mod = (result: ItemId, cost: ItemCost[]): Recipe => ({ id: result, kind: 'item', result, count: 1, cost, bench: true });
 const structure = (result: StructureId): Recipe => ({
   id: result,
   kind: 'structure',
@@ -76,6 +78,23 @@ export const RECIPES: Recipe[] = [
     { item: 'bottle', count: 1 },
     { item: 'lampOil', count: 1 },
   ]),
+  mod('modFire', [
+    { item: 'lampOil', count: 1 },
+    { item: 'flint', count: 1 },
+    { item: 'stick', count: 1 },
+  ]),
+  mod('modShock', [
+    { item: 'battery', count: 2 },
+    { item: 'hide', count: 1 },
+  ]),
+  mod('modCaustic', [
+    { item: 'mushroom', count: 4 },
+    { item: 'bottle', count: 1 },
+  ]),
+  mod('modBleed', [
+    { item: 'bone', count: 2 },
+    { item: 'flint', count: 2 },
+  ]),
   structure('campfire'),
   structure('floor'),
   structure('wall'),
@@ -102,7 +121,12 @@ export const RECIPES: Recipe[] = [
 ];
 
 /** Braucht das Rezept eine Werkbank in der Nähe? */
-export const needsWorkbench = (r: Recipe): boolean => r.kind === 'structure' && getStructure(r.result).needsWorkbench === true;
+export const needsWorkbench = (r: Recipe): boolean =>
+  r.kind === 'structure' ? getStructure(r.result).needsWorkbench === true : r.bench === true;
+
+/** Abschnitt im Herstellen-Menü. */
+export const recipeGroup = (r: Recipe): string =>
+  r.kind === 'structure' ? 'Baupläne' : getItem(r.result).mod ? 'Waffenmods' : 'Werkzeuge';
 
 export const recipeName = (r: Recipe): string =>
   r.kind === 'item' ? getItem(r.result).name : getStructure(r.result).name;

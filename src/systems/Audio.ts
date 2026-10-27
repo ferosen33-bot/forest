@@ -50,6 +50,9 @@ export type SoundId =
   | 'pitFall'
   | 'throw'
   | 'sizzle'
+  | 'zap'
+  | 'acidHiss'
+  | 'vaporBlast'
   | 'thunder'
   | 'thunderNear'
   | 'door'
@@ -399,6 +402,23 @@ export class Audio {
         break;
       case 'sizzle':
         this.noise(t, 0.9, 'highpass', 4200 * pitch, 0.4, 0.18);
+        break;
+      // Stromschlag: brummender Lichtbogen mit trockenem Knistern.
+      case 'zap':
+        this.tone(t, 'square', 95 * pitch, 70, 0.35, 0.18, 2400);
+        this.tone(t, 'sawtooth', 2400 * pitch, 900, 0.12, 0.08, 6000);
+        for (let i = 0; i < 7; i++) this.noise(t + Math.random() * 0.3, 0.015 + Math.random() * 0.02, 'highpass', 3000 + Math.random() * 3000, 0.7, 0.55);
+        break;
+      // Säure frisst sich in Haut: blubberndes Zischen.
+      case 'acidHiss':
+        this.noise(t, 0.7, 'bandpass', 2600 * pitch, 0.6, 0.3);
+        for (let i = 0; i < 4; i++) this.tone(t + Math.random() * 0.5, 'sine', 500 + Math.random() * 400, 900, 0.05, 0.1);
+        break;
+      // Säure verpufft im Feuer: dumpfer Schlag und fauchende Stichflamme.
+      case 'vaporBlast':
+        this.noise(t, 0.12, 'lowpass', 900, 0.6, 1.0);
+        this.tone(t, 'sine', 80, 30, 0.45, 1.0);
+        this.noise(t + 0.03, 0.9, 'lowpass', 500, 0.7, 0.8, 2400);
         break;
       // Donner: langes, tiefes Grollen; nah zusätzlich ein trockener Knall.
       case 'thunderNear':

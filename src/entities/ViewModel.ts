@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { ItemId } from './items/ItemDefs';
 import { createItemMesh } from './items/ItemMeshes';
 import { FireEffect } from './FireEffect';
+import { WeaponAura } from './WeaponAura';
+import type { ElementId } from './items/Elements';
 import { FOREARM, type FirstPersonArm, type HandPose } from './characters/FirstPersonArm';
 import { damp, smoothstep } from '../utils/math';
 
@@ -193,6 +195,9 @@ export class ViewModel {
   private time = 0;
 
   private readonly flame = new FireEffect(0.16, { smoke: false, sparks: false, heat: false });
+  /** Sichtbarer Waffenmod (Leuchten und Partikel am Item). */
+  private readonly aura = new WeaponAura();
+  private element: ElementId | null = null;
   /** Licht der Fackel für Hand und Item (eigene Szene → eigenes Licht, Anzahl bleibt fix). */
   private readonly handLight = new THREE.PointLight(0xffa04a, 0, 3, 2);
   private readonly hemi = new THREE.HemisphereLight();
@@ -264,6 +269,14 @@ export class ViewModel {
     this.pendingId = id;
     this.hasPending = true;
     this.action = null;
+  }
+
+  /** Element des Mods an der Waffe in der Hand (null = keiner). */
+  setElement(element: ElementId | null): void {
+    if (element === this.element) return;
+    this.element = element;
+    // Gleiches Item, neuer Mod (an der Werkbank angebracht): sofort umstellen.
+    if (!this.hasPending) this.aura.attach(this.model?.children[0] ?? null, element);
   }
 
   /** Startet eine Schlag- bzw. Stoßanimation über `duration` Sekunden. */
@@ -465,7 +478,12 @@ export class ViewModel {
     // Fackel: Flamme animieren und Hand/Item beleuchten.
     const torchLit = this.flame.object.parent !== null;
     if (torchLit) this.flame.update(dt);
-    this.handLight.intensity = torchLit ? 0.45 * this.flame.flicker * smoothstep(0, 1, this.raise) : 0;
+    this.aura.update(dt);
+    // Ein Mod wirft sein farbiges Licht auf Hand und Waffe.
+    const modLight = torchLit ? null : this.aura.lightColor;
+    this.handLight.color.set(modLight ?? 0xffa04a);
+    const glow = torchLit ? 0.45 * this.flame.flicker : modLight ? 0.22 * this.aura.flicker : 0;
+    this.handLight.intensity = glow * smoothstep(0, 1, this.raise);
   }
 
   get visible(): boolean {
@@ -475,6 +493,7 @@ export class ViewModel {
   private swapModel(): void {
     if (this.model) this.pose.remove(this.model);
     this.flame.object.removeFromParent();
+    this.aura.attach(null, null);
     this.model = null;
     this.currentId = this.pendingId;
     this.hasPending = false;
@@ -501,6 +520,7 @@ export class ViewModel {
     grip.add(this.model);
     this.model = grip;
     this.pose.add(grip);
+    this.aura.attach(this.model.children[0], this.element);
     // Den Bogen hält die linke Hand; die rechte zieht die Sehne an die Wange – außerhalb des Blickfelds.
     this.arm.visible = this.currentId !== 'log' && !(this.currentId === 'bow' && this.leftArm);
     // Bogen: gerade Sehne durch zwei Hälften ersetzen, die zur Zughand hin ausgezogen werden;

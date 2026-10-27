@@ -4,6 +4,7 @@
  */
 import type { Vector3 } from 'three';
 import type { ItemId } from '../entities/items/ItemDefs';
+import type { ElementId } from '../entities/items/Elements';
 import type { StructureId } from '../systems/building/StructureDefs';
 import type { PerkId, SkillId } from '../systems/Skills';
 
@@ -24,6 +25,8 @@ export type GameEvents = {
   /** Ein Werkzeugschlag hat etwas getroffen (für Fadenkreuz-Feedback). */
   'tool:hit': { target: 'tree' | 'rock' | 'creature' | 'other' };
   'weapon:crit': { position: Vector3 };
+  /** Ein Waffenmod hat sein Element ausgelöst (`combo`: Kurzschluss, Verpuffung). */
+  'weapon:element': { element: ElementId; combo?: string; weak: boolean; resist: boolean };
   'enemy:killed': { position: Vector3; boss: boolean };
   'tree:felled': { kind: 'pine' | 'broadleaf'; position: Vector3 };
   /** Ein gefällter Baum schlägt auf dem Boden auf (für Kamerawackeln/Effekte). */

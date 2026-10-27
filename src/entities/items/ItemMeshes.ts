@@ -75,6 +75,10 @@ const MATERIALS = {
   oil: mat(0x8a6a2a, { roughness: 0.2, transparent: true, opacity: 0.85, flatShading: false }),
   rag: mat(0xb5a68a, { roughness: 1 }),
   can: mat(0x7a2a22, { roughness: 0.55, metalness: 0.4 }),
+  copper: mat(0xc0703a, { roughness: 0.35, metalness: 0.55 }),
+  acid: mat(0x8af04a, { roughness: 0.1, emissive: 0x4ab018, emissiveIntensity: 1.4, transparent: true, opacity: 0.85, flatShading: false }),
+  cork: mat(0x9a7448, { roughness: 1 }),
+  ember: mat(0xff7a2a, { roughness: 1, emissive: 0xff5a10, emissiveIntensity: 1.6 }),
 };
 
 // Holz, Rinde und Stein bekommen Foto-Oberflächen (dreiachsig projiziert, ohne UVs).
@@ -744,6 +748,86 @@ function build(id: ItemId): THREE.Object3D {
       }
       break;
     }
+    case 'modFire': {
+      // Blechdose mit ölgetränktem Docht, seitlich ein Feuerstein-Zünder.
+      const can = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.08, 10), MATERIALS.can);
+      g.add(can);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.008, 10), MATERIALS.tin);
+      lid.position.y = 0.042;
+      g.add(lid);
+      const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.05, 5), MATERIALS.rag);
+      wick.position.set(0.012, 0.068, 0);
+      wick.rotation.z = -0.3;
+      g.add(wick);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 4), MATERIALS.ember);
+      glow.position.set(0.02, 0.092, 0);
+      g.add(glow);
+      const chip = new THREE.Mesh(FLINT_GEOMETRY, MATERIALS.flint);
+      chip.scale.set(0.016, 0.024, 0.01);
+      chip.position.set(-0.04, -0.01, 0);
+      g.add(chip);
+      break;
+    }
+    case 'modShock': {
+      // Zwei Batterien, mit Kupferdraht umwickelt, auf einem Fellstreifen.
+      for (const x of [-0.015, 0.015]) {
+        const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 8), MATERIALS.batteryBody);
+        cell.position.x = x;
+        g.add(cell);
+        const plus = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.006, 6), MATERIALS.tin);
+        plus.position.set(x, 0.028, 0);
+        g.add(plus);
+      }
+      for (let i = 0; i < 4; i++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.031, 0.0025, 4, 14), MATERIALS.copper);
+        coil.scale.set(1, 1, 0.55);
+        coil.rotation.x = Math.PI / 2;
+        coil.position.y = -0.018 + i * 0.012;
+        g.add(coil);
+      }
+      const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.06, 4), MATERIALS.copper);
+      lead.position.set(0.02, 0.05, 0);
+      lead.rotation.z = -0.6;
+      g.add(lead);
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.03, 0.012), MATERIALS.fur);
+      strap.position.set(0, -0.005, -0.016);
+      g.add(strap);
+      break;
+    }
+    case 'modCaustic': {
+      // Bauchige Flasche mit leuchtend grünem Pilzsud, Korken.
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 10), MATERIALS.plastic);
+      body.scale.y = 0.9;
+      g.add(body);
+      const liquid = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 10), MATERIALS.acid);
+      liquid.scale.y = 0.78;
+      liquid.position.y = -0.006;
+      g.add(liquid);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.05, 10), MATERIALS.plastic);
+      neck.position.y = 0.055;
+      g.add(neck);
+      const cork = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.011, 0.02, 8), MATERIALS.cork);
+      cork.position.y = 0.088;
+      g.add(cork);
+      break;
+    }
+    case 'modBleed': {
+      // Splitter aus Knochen und Feuerstein, mit Sehne gebündelt.
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        const bone = i % 2 === 0;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(bone ? 0.01 : 0.012, bone ? 0.14 : 0.1, 5), bone ? MATERIALS.oldBone : MATERIALS.flint);
+        spike.position.set(Math.cos(a) * 0.014, 0.02 + (bone ? 0.01 : 0), Math.sin(a) * 0.014);
+        spike.rotation.set(Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25);
+        g.add(spike);
+      }
+      for (const y of [-0.02, 0.005]) {
+        const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 8), MATERIALS.binding);
+        wrap.position.y = y;
+        g.add(wrap);
+      }
+      break;
+    }
     case 'torch': {
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.55, 6), MATERIALS.stick);
       g.add(shaft);
@@ -871,6 +955,14 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
     case 'rawFish':
     case 'cookedFish':
       return RAPIER.ColliderDesc.cuboid(0.05, 0.2, 0.03).setDensity(1000);
+    case 'modFire':
+      return RAPIER.ColliderDesc.cylinder(0.045, 0.036).setDensity(900);
+    case 'modShock':
+      return RAPIER.ColliderDesc.cuboid(0.035, 0.03, 0.02).setDensity(1500);
+    case 'modCaustic':
+      return RAPIER.ColliderDesc.ball(0.045).setDensity(1000);
+    case 'modBleed':
+      return RAPIER.ColliderDesc.cylinder(0.07, 0.025).setDensity(1200);
   }
 }
 

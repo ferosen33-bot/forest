@@ -10,7 +10,8 @@ import type { BiomeWeights } from '../world/Biomes';
 import { ViewModel } from '../entities/ViewModel';
 import { WorldItems } from '../entities/items/WorldItems';
 import { getItem } from '../entities/items/ItemDefs';
-import { isWeapon, maxDurability, rollWeapon, weaponOf } from '../entities/items/Weapons';
+import { canMod, isWeapon, maxDurability, rollWeapon, weaponName, weaponOf } from '../entities/items/Weapons';
+import { ELEMENTS } from '../entities/items/Elements';
 import { Inventory } from '../systems/Inventory';
 import { ItemService } from '../systems/ItemService';
 import { HarvestSystem } from '../systems/HarvestSystem';
@@ -85,6 +86,7 @@ import { EndingUI } from '../ui/EndingUI';
 import { NOTES } from '../systems/Notes';
 import { Motes } from '../world/Motes';
 import { Defenses, type Intruder } from '../systems/Defenses';
+import { ElementEffects } from '../systems/ElementEffects';
 
 export interface GameOptions {
   container: HTMLElement;
@@ -146,7 +148,7 @@ export class Game {
   readonly audio = new Audio();
   readonly particles = new Particles();
   /** Leuchtende Partikel (Glut). */
-  readonly embers = new Particles(250, true);
+  readonly embers = new Particles(450, true);
   readonly viewModel = new ViewModel();
   readonly inventory = new Inventory(30, 6);
   readonly postFX: PostFX;
@@ -214,6 +216,8 @@ export class Game {
   private readonly boltLight: LightRequest = { position: new THREE.Vector3(), color: new THREE.Color(0.75, 0.8, 1), intensity: 0, distance: 900 };
   private fireflies!: Fireflies;
   defenses!: Defenses;
+  /** Elemente der Waffenmods (Brand, Schock, Säure, Blutung). */
+  elementFx!: ElementEffects;
   private readonly intruderCache = new WeakMap<object, Intruder>();
   hud!: HUD;
   inventoryUI!: InventoryUI;
@@ -526,6 +530,27 @@ export class Game {
       },
     });
     this.scene.add(this.defenses.group);
+    const enemies = this.enemies;
+    this.elementFx = new ElementEffects({
+      enemies: function* () {
+        yield* enemies.enemies;
+        yield* enemies.caveDwellers;
+      },
+      hurt: (e, amount, from, element) => enemies.hurt(e, amount, from, element),
+      particles: this.particles,
+      embers: this.embers,
+      lights: this.lights,
+      audio: this.audio,
+      events: this.events,
+      heightMap: this.world.heightMap,
+      rain: () => (this.caves.current ? 0 : this.climate.weather.rain * (1 - this.climate.season.snowfall * 0.6)),
+      blood: this.blood,
+      player: {
+        position: this.player.position,
+        hurt: (amount, from) => this.player.stats.damage(amount, 'fire', true, from.clone()),
+      },
+    });
+    this.scene.add(this.elementFx.group);
     this.cooking = new Cooking(this.building, this.items, this.audio, this.events);
     this.camp = new Camp({
       building: this.building,
@@ -779,6 +804,7 @@ export class Game {
       this.caves,
       this.skills,
     );
+    this.tools.elements = this.elementFx;
     wireSkillEvents(this.skills, this.events);
     this.fishing = new Fishing({
       heightMap: this.world.heightMap,
@@ -881,6 +907,7 @@ export class Game {
     if (this.world.town) this.mapUI.drawTown(this.world.town);
     this.compass = new Compass(this.hud.compassCanvas);
     this.inventoryUI.onUse = (slot) => this.useSlot(slot);
+    this.inventoryUI.onApplyMod = (modSlot, weaponSlot) => this.applyMod(modSlot, weaponSlot);
     this.inventoryUI.onCraft = (recipe) => this.craft(recipe);
     this.inventoryUI.onDrop = (slot) => {
       this.camera.getWorldDirection(this.tmpDir);
@@ -1197,6 +1224,35 @@ export class Game {
   private nearWorkbench(): boolean {
     const p = this.player.position;
     return this.building.structures.some((s) => s.def.camp === 'workbench' && s.position.distanceTo(p) < WORKBENCH_RADIUS);
+  }
+
+  /**
+   * Waffenmod anbringen – an der Werkbank, auf die Waffe in der Hand (Rechtsklick auf den Mod) oder auf
+   * die, auf die er im Inventar gezogen wurde.
+   * @returns true, wenn der Versuch behandelt wurde (auch abgelehnt); false, wenn es kein Mod ist.
+   */
+  private applyMod(modSlot: number, weaponSlot = this.tools.selected): boolean {
+    const mod = this.inventory.get(modSlot);
+    const element = mod ? getItem(mod.id).mod : undefined;
+    if (!mod || !element) return false;
+    const deny = (text: string): true => {
+      this.audio.play('denied');
+      this.events.emit('hud:message', { text });
+      return true;
+    };
+    const target = this.inventory.get(weaponSlot);
+    if (!target?.weapon) return deny('Nimm die Waffe in die Hand, die den Mod bekommen soll – oder zieh ihn im Inventar auf die Waffe.');
+    const name = weaponName(target.id, target.weapon);
+    if (!this.nearWorkbench()) return deny('Mods lassen sich nur an der Werkbank anbringen.');
+    if (!canMod(target.weapon)) return deny(`${name} ist zu gewöhnlich für einen Mod – das geht erst ab „Ungewöhnlich“ (grün).`);
+    if (target.weapon.mod === element) return deny(`${name} trägt diesen Mod schon.`);
+    const old = target.weapon.mod;
+    this.inventory.takeFromSlot(modSlot, 1);
+    this.inventory.setMod(weaponSlot, element);
+    this.audio.play('craft');
+    const replaced = old ? ` (ersetzt ${ELEMENTS[old].name})` : '';
+    this.events.emit('hud:message', { text: `${name}: ${ELEMENTS[element].name}-Mod angebracht${replaced}.` });
+    return true;
   }
 
   /** Werkzeug in der Hand, das abgenutzt ist und sich an der Werkbank ausbessern lässt. */
@@ -1628,6 +1684,7 @@ export class Game {
           },
           hurt: (amount, from) => void enemies.hurt(e, amount, from),
           stun: (seconds) => e.stun(seconds),
+          ignite: (seconds) => this.elementFx.ignite(e, seconds),
         };
         cache.set(e, w);
       }
@@ -1723,6 +1780,10 @@ export class Game {
       this.inventory.restore(lamp);
       this.audio.play('pickup');
       this.events.emit('hud:message', { text: 'Neue Batterie eingelegt – die Taschenlampe ist voll.' });
+      return;
+    }
+    if (getItem(stack.id).mod) {
+      this.applyMod(slot);
       return;
     }
     if (getItem(stack.id).food) {
@@ -1876,6 +1937,7 @@ export class Game {
     this.defenses.rain = this.climate.weather.rain * (1 - this.climate.season.snowfall * 0.5);
     this.defenses.update(dt);
     this.enemies.update(dt, alpha);
+    this.elementFx.update(dt);
     this.animals.update(dt, alpha);
     this.projectiles.update(alpha);
     this.cooking.update(dt);

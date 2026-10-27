@@ -61,6 +61,44 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 49 – Nahkampf-Ausbau (Teil 2: Mods & Elemente)
+
+- **Vier Waffenmods**, an der Werkbank hergestellt (eigener Abschnitt „Waffenmods“) oder gefunden:
+  - *Brandsatz* (Lampenöl, Feuerstein, Stock): **Feuer** setzt in Brand (9 Schaden/s für 5 s). Wer Feuer fängt,
+    schlägt kurz um sich. Brennende stecken Nachbarn an, im Wasser erlischt das Feuer, Regen löscht es schneller.
+  - *Elektrosatz* (2 Batterien, Fell): **Schock** macht Sofortschaden, lähmt 1,2 s und springt auf zwei Gegner
+    in der Nähe über (mit sichtbaren Lichtbögen).
+  - *Säuresatz* (4 Leuchtpilze, Flasche): **Ätzend** zersetzt sechs Sekunden lang. Verätzte nehmen ein
+    Drittel mehr Schaden aus jeder Quelle.
+  - *Widerhaken* (2 Knochen, 2 Feuerstein): **Blutung** reißt bis zu drei Wunden. Sie bluten und verlangsamen.
+- **Anbringen:** an der Werkbank per Rechtsklick auf den Mod (die Waffe in der Hand bekommt ihn) oder indem man
+  den Mod im Inventar auf die Waffe zieht. Das geht erst ab Seltenheit „Ungewöhnlich“. Ein neuer Mod ersetzt
+  den alten.
+- **Auslösen:** Jeder Treffer hat eine Chance (38 %, schwere Waffen 60 %, Blutung mit Klingen 55 %). Kritische
+  Treffer lösen immer aus, und nach etwas Pech greift das Element spätestens beim dritten Treffer.
+- **Kombinationen:**
+  - *Wasser + Schock* → **Kurzschluss:** Nasse Gegner (im Regen oder im Wasser) nehmen doppelten Schaden, der
+    Schlag springt auf bis zu vier Gegner in 8 m über.
+  - *Säure + Feuer* → **Verpuffung:** Feuer an einem verätzten Gegner lässt eine Stichflamme aufschießen, die
+    alles ringsum verletzt und anzündet. Wer zu nah steht, verbrennt sich.
+  - *Brennendes Öl:* Wer durch die Flammen einer Brandflasche läuft, fängt selbst Feuer und brennt weiter.
+- **Schwächen und Widerstände:**
+  - Hansen und Kriecher brennen besonders gut. Hansen widersteht Säure und Blutung, Kriecher der Säure.
+  - Kolosse und Schreierinnen sind anfällig für Schock, Kolosse kaum für Blutung.
+  - Späher und Hetzer bluten schnell, Hetzer brennen auch gut.
+- **Sichtbar:**
+  - Die Waffe in der Hand leuchtet in der Elementfarbe (zur Klinge hin stärker): Feuer flackert, Schock
+    entlädt sich in Blitzen, Säure pulsiert zäh, Blut glimmt im Herzschlag. Glut steigt auf, Funken springen,
+    Säure und Blut tropfen ab. Ein farbiges Licht fällt auf Hand und Waffe.
+  - Am Gegner sieht man Flammen am Körper (mit Licht), kriechende Lichtbögen, grünen Säuredampf und
+    Blutstropfen.
+  - Unter dem Fadenkreuz erscheint ein Schriftzug: BRAND, SCHOCK, ÄTZEND, BLUTUNG oder KURZSCHLUSS! bzw.
+    VERPUFFUNG!, dazu ANFÄLLIG oder WIDERSTEHT.
+  - Slots zeigen einen leuchtenden Punkt in der Elementfarbe, das Inventar nennt Mod und Wirkung.
+- Eigene Klänge für Stromschlag, Säure und Verpuffung.
+- `entities/items/Elements.ts` enthält Werte und Zustandslogik, `systems/ElementEffects.ts` Auslösen, Wirkung
+  und Effekte, `entities/WeaponAura.ts` das Leuchten in der Hand.
+
 ### Meilenstein 49 – Nahkampf-Ausbau (Teil 1: Seltenheit & neue Waffen)
 
 - **Jede Waffe ist ein Einzelstück:** Nahkampfwaffen haben eine Seltenheit, und zwar *Gewöhnlich* (grau),

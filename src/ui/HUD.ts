@@ -1,5 +1,6 @@
 import type { EventBus } from '../core/EventBus';
 import { getRarity, getWeaponPerk, weaponName } from '../entities/items/Weapons';
+import { ELEMENTS } from '../entities/items/Elements';
 import { ScreenBlood } from './ScreenBlood';
 import { MUD_TIME, type Player } from '../entities/Player';
 import type { Prompt } from '../systems/InteractionSystem';
@@ -13,6 +14,7 @@ const REFS = [
   'underwater',
   'crosshair',
   'hitmarker',
+  'elementTag',
   'prompt',
   'promptKey',
   'promptAction',
@@ -148,6 +150,19 @@ export class HUD {
     events.on('weapon:crit', () => {
       this.hitKind = 'crit';
       this.hitTimer = 0.35;
+    });
+    // Element eines Waffenmods hat gegriffen: kurzer Schriftzug unter dem Fadenkreuz.
+    events.on('weapon:element', ({ element, combo, weak, resist }) => {
+      const def = ELEMENTS[element];
+      const note = weak ? ' · ANFÄLLIG' : resist ? ' · WIDERSTEHT' : '';
+      const tag = this.el.elementTag;
+      tag.textContent = (combo ? `${combo}!` : def.tag) + note;
+      tag.style.color = def.css;
+      tag.classList.toggle('is-combo', !!combo);
+      // Animation neu starten (sie blendet den Schriftzug selbst wieder aus).
+      tag.classList.remove('is-visible');
+      void tag.offsetWidth;
+      tag.classList.add('is-visible');
     });
     events.on('tool:hit', ({ target }) => {
       if ((this.hitKind === 'kill' || this.hitKind === 'crit') && this.hitTimer > 0) return;
@@ -308,7 +323,8 @@ export class HUD {
         // Waffen: Name in der Farbe ihrer Seltenheit, darunter die Perks.
         const w = stack?.weapon;
         const perks = w?.perks.length ? ` · ${w.perks.map((p) => getWeaponPerk(p).name).join(' · ')}` : '';
-        this.text('hotbarName', w ? `${weaponName(item, w)}${perks}` : getItem(item).name);
+        const mod = w?.mod ? ` · ${ELEMENTS[w.mod].name}` : '';
+        this.text('hotbarName', w ? `${weaponName(item, w)}${mod}${perks}` : getItem(item).name);
         this.el.hotbarName.style.color = w ? getRarity(w.rarity).color : '';
         this.nameTimer = w ? 2.4 : 1.6;
       } else {

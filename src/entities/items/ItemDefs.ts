@@ -3,6 +3,8 @@
  * Neue Items (Seil, Fleisch, Speer …) werden ausschließlich hier eingetragen.
  */
 
+import type { ElementId } from './Elements';
+
 export type ItemId =
   | 'log'
   | 'stick'
@@ -53,7 +55,11 @@ export type ItemId =
   | 'sledgehammer'
   | 'kitchenKnife'
   | 'fireAxe'
-  | 'sabre';
+  | 'sabre'
+  | 'modFire'
+  | 'modShock'
+  | 'modCaustic'
+  | 'modBleed';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -133,6 +139,8 @@ export interface ItemDef {
   tool?: ToolStats;
   food?: FoodStats;
   light?: HeldLight;
+  /** Waffenmod: lädt Treffer mit diesem Element auf (an der Werkbank anbringen). */
+  mod?: ElementId;
 }
 
 export const ITEMS: Record<ItemId, ItemDef> = {
@@ -681,6 +689,38 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       reach: 1.6,
       animation: 'thrust',
     },
+  },
+  modFire: {
+    id: 'modFire',
+    name: 'Mod: Brandsatz',
+    description: 'Ein ölgetränkter Docht und ein Feuerstein-Zünder für die Klinge. An der Werkbank auf eine Waffe ziehen: Treffer setzen in Brand.',
+    category: 'resource',
+    maxStack: 3,
+    mod: 'fire',
+  },
+  modShock: {
+    id: 'modShock',
+    name: 'Mod: Elektrosatz',
+    description: 'Zwei Batterien, blanker Draht, ein Fellstück zur Isolierung. An der Werkbank auf eine Waffe ziehen: Treffer lähmen und springen über.',
+    category: 'resource',
+    maxStack: 3,
+    mod: 'shock',
+  },
+  modCaustic: {
+    id: 'modCaustic',
+    name: 'Mod: Säuresatz',
+    description: 'Eingekochter Pilzsud in einer Flasche – er frisst sich durch Haut und Knochen. An der Werkbank auf eine Waffe ziehen: Treffer verätzen.',
+    category: 'resource',
+    maxStack: 3,
+    mod: 'caustic',
+  },
+  modBleed: {
+    id: 'modBleed',
+    name: 'Mod: Widerhaken',
+    description: 'Knochen- und Feuersteinsplitter, mit Sehne festgebunden. An der Werkbank auf eine Waffe ziehen: Treffer reißen blutende Wunden.',
+    category: 'resource',
+    maxStack: 3,
+    mod: 'bleed',
   },
   torch: {
     id: 'torch',

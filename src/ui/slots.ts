@@ -1,6 +1,7 @@
 import type { Slot } from '../systems/Inventory';
 import type { ItemId } from '../entities/items/ItemDefs';
 import { getRarity, maxDurability } from '../entities/items/Weapons';
+import { ELEMENTS } from '../entities/items/Elements';
 
 export type IconSet = Record<ItemId, string>;
 
@@ -13,7 +14,8 @@ export function renderSlot(el: HTMLElement, slot: Slot, icons: IconSet): void {
   const max = slot ? maxDurability(slot.id, slot.weapon) : undefined;
   const condition = slot && max !== undefined && slot.durability !== undefined ? Math.min(1, Math.round((slot.durability / max) * 50) / 50) : null;
   const rarity = slot?.weapon?.rarity ?? '';
-  const key = slot ? `${slot.id}:${slot.count}:${condition ?? ''}:${rarity}` : '';
+  const mod = slot?.weapon?.mod;
+  const key = slot ? `${slot.id}:${slot.count}:${condition ?? ''}:${rarity}:${mod ?? ''}` : '';
   if (el.dataset.content === key) return;
   el.dataset.content = key;
   el.classList.toggle('is-empty', !slot);
@@ -46,6 +48,18 @@ export function renderSlot(el: HTMLElement, slot: Slot, icons: IconSet): void {
   if (condition !== null) {
     wear.style.setProperty('--condition', String(condition));
     wear.classList.toggle('is-low', condition < 0.25);
+  }
+
+  // Waffenmod: Punkt in der Elementfarbe.
+  let pip = el.querySelector<HTMLElement>('.slot__mod');
+  if (mod && !pip) {
+    pip = document.createElement('span');
+    pip.className = 'slot__mod';
+    el.appendChild(pip);
+  }
+  if (pip) {
+    pip.hidden = !mod;
+    if (mod) pip.style.setProperty('--element', ELEMENTS[mod].css);
   }
 
   if (slot) {

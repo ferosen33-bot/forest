@@ -1,7 +1,8 @@
 import type { Inventory } from '../systems/Inventory';
-import { getRarity, getWeaponPerk, weaponName, weaponStats, type WeaponMeta } from '../entities/items/Weapons';
+import { canMod, getRarity, getWeaponPerk, weaponName, weaponStats, type WeaponMeta } from '../entities/items/Weapons';
+import { ELEMENTS } from '../entities/items/Elements';
 import { getItem, type ItemId } from '../entities/items/ItemDefs';
-import { RECIPES, needsWorkbench, recipeDescription, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
+import { RECIPES, needsWorkbench, recipeDescription, recipeGroup, recipeName, type Crafting, type Recipe } from '../systems/Crafting';
 import { collectRefs } from './dom';
 import { renderSlot } from './slots';
 import type { IconSets } from './ItemIcons';
@@ -37,6 +38,8 @@ interface DragState {
 export class InventoryUI {
   /** Wird für "Benutzen/Ausrüsten" per Rechtsklick aufgerufen. */
   onUse: ((slot: number) => void) | null = null;
+  /** Mod auf eine Waffe gezogen. @returns true, wenn der Versuch behandelt wurde. */
+  onApplyMod: ((modSlot: number, weaponSlot: number) => boolean) | null = null;
   /** Wird aufgerufen, wenn ein Stapel aus dem Fenster gezogen wurde. */
   onDrop: ((slot: number) => void) | null = null;
   /** Klick auf ein Rezept. */
@@ -171,14 +174,15 @@ export class InventoryUI {
   }
 
   private buildRecipeCards(): void {
-    let lastKind: Recipe['kind'] | null = null;
+    let lastGroup: string | null = null;
     for (const recipe of RECIPES) {
-      if (recipe.kind !== lastKind) {
+      const group = recipeGroup(recipe);
+      if (group !== lastGroup) {
         const heading = document.createElement('h3');
         heading.className = 'inventory__subtitle';
-        heading.textContent = recipe.kind === 'item' ? 'Werkzeuge' : 'Baupläne';
+        heading.textContent = group;
         this.el.recipes.appendChild(heading);
-        lastKind = recipe.kind;
+        lastGroup = group;
       }
       const el = document.createElement('button');
       el.className = 'recipe';
@@ -267,6 +271,7 @@ export class InventoryUI {
     this.el.detailName.textContent = stack.count > 1 ? `${def.name} ×${stack.count}` : def.name;
     let desc = def.description;
     if (def.food) desc += ` (+${def.food.hunger} Sättigung)`;
+    if (def.mod) desc += ` ${ELEMENTS[def.mod].text} Rechtsklick an der Werkbank: auf die Waffe in der Hand.`;
     this.el.detailDesc.textContent = desc;
     if (stack.weapon) this.renderWeapon(stack.id, stack.weapon, stack.durability);
   }
@@ -303,6 +308,18 @@ export class InventoryUI {
       row('Haltbarkeit', `${Math.round(durability ?? 0)} / ${stats.maxDurability ?? 0}`),
       ...w.perks.map((p) => row(`◆ ${getWeaponPerk(p).name}: ${getWeaponPerk(p).text}`, '', true)),
     );
+    if (w.mod) {
+      const el = ELEMENTS[w.mod];
+      const li = document.createElement('li');
+      li.className = 'is-mod';
+      li.style.setProperty('--element', el.css);
+      const text = document.createElement('small');
+      text.textContent = el.text;
+      li.append(`✦ Mod: ${el.name}`, text);
+      this.el.detailStats.append(li);
+    } else if (canMod(w)) {
+      this.el.detailStats.append(row('Mod: keiner (an der Werkbank anbringen)', '', true));
+    }
   }
 
   private slotAt(target: EventTarget | null): SlotRef | null {
@@ -377,6 +394,13 @@ export class InventoryUI {
       const under = document.elementFromPoint(e.clientX, e.clientY);
       const to = this.slotAt(under);
       const from = drag.from;
+      // Mod auf eine Waffe gezogen: anbringen statt tauschen.
+      const modOnWeapon =
+        to && to.inv === this.inventory && from.inv === this.inventory && to.index !== from.index && !!getItem(from.inv.get(from.index)!.id).mod && !!to.inv.get(to.index)?.weapon;
+      if (modOnWeapon && this.onApplyMod?.(from.index, to.index)) {
+        this.cancelDrag();
+        return;
+      }
       if (to && to.inv === from.inv) from.inv.move(from.index, to.index);
       else if (to) from.inv.transferTo(from.index, to.inv, to.index);
       // Nur aus dem eigenen Inventar lässt sich etwas fallenlassen.

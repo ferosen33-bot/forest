@@ -1,3 +1,5 @@
+import { RESIST_FACTOR, WEAK_FACTOR, type ElementId } from '../items/Elements';
+
 /** Gegnertypen der Insel. */
 export type EnemyKind = 'schrat' | 'spaeher' | 'koloss' | 'kriecher' | 'hetzer' | 'schreier' | 'hansen';
 
@@ -36,6 +38,9 @@ export interface EnemyKindDef {
   ranged?: { minRange: number; maxRange: number; cooldown: number; speed: number; damage: number; scream?: boolean };
   /** Endgegner: Bodenstampfer trifft rundum, ruft bei diesen Lebensanteilen Kriecher herbei, wird unter der Hälfte rasend. */
   boss?: { slamRadius: number; summonAt: number[] };
+  /** Elemente, gegen die der Typ anfällig ist bzw. die ihm wenig anhaben. */
+  weak?: ElementId[];
+  resist?: ElementId[];
   /** Hauttöne (sRGB) für die Variation innerhalb des Typs. */
   tones: number[];
 }
@@ -79,6 +84,7 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: true,
     club: false,
     ranged: { minRange: 6, maxRange: 20, cooldown: 3.5, speed: 19, damage: 8 },
+    weak: ['bleed'],
     tones: [0xa08a68, 0x947f61, 0xa99372],
   },
   // Groß, langsam und zäh – schlägt hart zu, fürchtet kein Feuer und reißt Bauwerke ein.
@@ -99,6 +105,8 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     fearsFire: false,
     hitAndRun: false,
     club: true,
+    weak: ['shock'],
+    resist: ['bleed'],
     tones: [0x5f5c58, 0x56534f, 0x67625a],
   },
   // Höhlenbewohner: bleich und fast blind, aber mit feinem Gehör. Scheut den Fackelschein,
@@ -121,6 +129,8 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: true,
     club: false,
     hunch: 1,
+    weak: ['fire'],
+    resist: ['caustic'],
     tones: [0xcfc6b8, 0xc2baad, 0xd8cfc0],
   },
   // Verwandelte aus dem Ort: hager, barfuß und schneller als jeder Mensch. Jagen nachts zu zweit,
@@ -143,6 +153,7 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: true,
     club: false,
     hunch: 0.35,
+    weak: ['bleed', 'fire'],
     tones: [0xb8b0a2, 0xa9a194, 0xc2b9aa],
   },
   // Die Schreiende: bleich, langes schwarzes Haar. Hält Abstand, und wenn sie dich sieht, schreit sie –
@@ -165,6 +176,7 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: true,
     club: false,
     ranged: { minRange: 5, maxRange: 28, cooldown: 11, speed: 0, damage: 0, scream: true },
+    weak: ['shock'],
     tones: [0xd8d2ca, 0xcfc8be],
   },
   // Hansen, der Erste: der Bergmann, mit dem es im neuen Stollen begann. Riesig, von Pilzen durchwachsen,
@@ -187,9 +199,18 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     hitAndRun: false,
     club: false,
     boss: { slamRadius: 3.4, summonAt: [0.66, 0.33] },
+    weak: ['fire'],
+    resist: ['caustic', 'bleed'],
     tones: [0xa8b49a],
   },
 };
+
+/** Schadensfaktor eines Elements gegen den Gegnertyp. */
+export function elementFactor(kind: EnemyKindDef, element: ElementId): number {
+  if (kind.weak?.includes(element)) return WEAK_FACTOR;
+  if (kind.resist?.includes(element)) return RESIST_FACTOR;
+  return 1;
+}
 
 export const isEnemyKind = (k: unknown): k is EnemyKind => typeof k === 'string' && k in ENEMY_KINDS;
 

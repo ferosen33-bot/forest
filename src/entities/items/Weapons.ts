@@ -1,9 +1,10 @@
 import { getItem, type ItemId, type ToolStats } from './ItemDefs';
+import { isElementId, type ElementId } from './Elements';
 
 /**
  * Waffen mit Seltenheit und Perks: Jede gefundene Waffe ist ein Einzelstück. Höhere Seltenheit bringt
  * mehr Schaden, mehr Haltbarkeit und Platz für Perks; ab „Ungewöhnlich“ lässt sich an der Werkbank ein
- * Mod anbringen (Teil 2). Werkzeuge ohne Kampfwert (Taschenlampe, Fackel, Angel) bleiben außen vor.
+ * Mod mit einem Element anbringen (siehe `Elements.ts`). Werkzeuge ohne Kampfwert (Taschenlampe, Fackel, Angel) bleiben außen vor.
  */
 
 export type RarityId = 'common' | 'uncommon' | 'rare' | 'superior' | 'legendary';
@@ -56,8 +57,8 @@ const isWeaponPerkId = (id: unknown): id is WeaponPerkId => typeof id === 'strin
 export interface WeaponMeta {
   rarity: RarityId;
   perks: WeaponPerkId[];
-  /** Angebrachter Mod (Teil 2). */
-  mod?: string;
+  /** Angebrachter Mod: Treffer tragen dieses Element. */
+  mod?: ElementId;
 }
 
 /** Ist das Item eine Nahkampfwaffe mit Seltenheit? */
@@ -157,7 +158,10 @@ export function sanitizeWeapon(data: unknown): WeaponMeta | undefined {
   const d = data as Partial<WeaponMeta>;
   if (!isRarityId(d.rarity)) return undefined;
   const perks = Array.isArray(d.perks) ? d.perks.filter(isWeaponPerkId).slice(0, 3) : [];
-  return { rarity: d.rarity, perks, ...(typeof d.mod === 'string' ? { mod: d.mod } : {}) };
+  return { rarity: d.rarity, perks, ...(isElementId(d.mod) ? { mod: d.mod } : {}) };
 }
+
+/** Mods passen erst ab „Ungewöhnlich“. */
+export const canMod = (w: WeaponMeta | undefined): boolean => !!w && w.rarity !== 'common';
 
 export const cloneWeapon = (w: WeaponMeta | undefined): WeaponMeta | undefined => (w ? { ...w, perks: [...w.perks] } : undefined);

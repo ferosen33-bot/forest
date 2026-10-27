@@ -7,7 +7,8 @@ import type { Vegetation } from '../../world/Vegetation';
 import { isTree } from '../../world/Vegetation';
 import type { Player } from '../../entities/Player';
 import { Enemy, type EnemyContext, type PlayerTarget } from '../../entities/enemies/Enemy';
-import { ENEMY_KINDS, isEnemyKind, SNEAK_MULTIPLIER, type EnemyKind } from '../../entities/enemies/EnemyKinds';
+import { elementFactor, ENEMY_KINDS, isEnemyKind, SNEAK_MULTIPLIER, type EnemyKind } from '../../entities/enemies/EnemyKinds';
+import type { ElementId } from '../../entities/items/Elements';
 import { EnemyRenderer } from '../../entities/enemies/EnemyRenderer';
 import { EnemyAvatars } from '../../entities/characters/EnemyAvatars';
 import { setEyeGlow, type CharacterLibrary } from '../../entities/characters/CharacterLibrary';
@@ -635,14 +636,16 @@ export class EnemyDirector {
   }
 
   /**
-   * Schaden durch Fallen und Feuer (ohne Treffer-Anzeige im HUD, ohne Schleichbonus).
+   * Schaden durch Fallen, Feuer und Elemente (ohne Treffer-Anzeige im HUD, ohne Schleichbonus).
    * @returns true, wenn der Gegner dadurch gestorben ist.
    */
-  hurt(enemy: Enemy, amount: number, from: THREE.Vector3): boolean {
+  hurt(enemy: Enemy, amount: number, from: THREE.Vector3, element?: ElementId): boolean {
     if (enemy.isDead) return false;
-    // Hansen brennt wie Zunder: Feuer und Fallen treffen ihn doppelt.
-    const killed = enemy.takeDamage(amount * (enemy.kind.boss ? 2 : 1), from, this.ctxFor(enemy));
-    this.d.particles.burst(enemy.feet.clone().setY(enemy.feet.y + 0.9), { count: 6, color: 0x5c0f10, speed: 2, size: 0.03 });
+    // Elemente: Schwächen und Widerstände des Typs, ohne Taumeln. Sonst gilt: Hansen brennt wie Zunder,
+    // Feuer und Fallen treffen ihn doppelt.
+    const factor = element ? elementFactor(enemy.kind, element) : enemy.kind.boss ? 2 : 1;
+    const killed = enemy.takeDamage(amount * factor, from, this.ctxFor(enemy), !element);
+    if (!element) this.d.particles.burst(enemy.feet.clone().setY(enemy.feet.y + 0.9), { count: 6, color: 0x5c0f10, speed: 2, size: 0.03 });
     if (killed) {
       this.afterKill(enemy);
       // Auch Fallen-Opfer zählen (Tagebuch, Aufträge).
