@@ -53,7 +53,11 @@ export type PlaceKind =
   | 'gallows'
   | 'bunker'
   | 'scarecrows'
-  | 'train';
+  | 'train'
+  // Meilenstein 56: Reviere neuer Gegner
+  | 'slaughter'
+  | 'plaguepit'
+  | 'playground';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -92,6 +96,9 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   bunker: 'Bunker Elster',
   scarecrows: 'Acker der Stummen',
   train: 'Der Geisterzug',
+  slaughter: 'Schlachthof Wendt',
+  plaguepit: 'Die Pestgrube',
+  playground: 'Spielplatz am Waldrand',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -323,6 +330,7 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: {
   placeWonders(hm, sites, search, taken, b, n, rng);
   placeSights(hm, sites, search, taken, b, n, rng);
   placeHorrors(hm, sites, search, taken, b, rng);
+  placeLairs(hm, sites, search, taken, b, rng);
   return sites;
 }
 
@@ -667,6 +675,47 @@ function placeHorrors(
   }
 }
 
+/** Meilenstein 56: Schlachthof, Pestgrube und Spielplatz – Reviere neuer Gegner (ganz hinten). */
+function placeLairs(
+  hm: HeightMap,
+  sites: PlaceSite[],
+  search: (step: number, score: (x: number, z: number) => { s: number; yaw: number; y?: number } | null) => { x: number; z: number; s: number; yaw: number; y?: number } | null,
+  taken: (x: number, z: number, r: number) => boolean,
+  b: BiomeWeights,
+  rng: () => number,
+): void {
+  const water = hm.waterLevel;
+  const push = (kind: PlaceKind, x: number, y: number, z: number, yaw: number, radius: number) =>
+    sites.push({ kind, name: PLACE_NAMES[kind], position: new THREE.Vector3(x, y, z), yaw, radius });
+  const flat = (r: number, maxSpread: number, swamp = 0.15) => (x: number, z: number) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > swamp || b.highland > 0.2 || b.cliffs > 0.3) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 4 || h > 50 || taken(x, z, r + 16)) return null;
+    const { min, max } = spread(hm, x, z, r);
+    if (max - min > maxSpread) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  };
+
+  const slaughter = search(16, flat(17, 3));
+  if (slaughter) {
+    hm.flatten(slaughter.x, slaughter.z, 17, 8, slaughter.y!);
+    push('slaughter', slaughter.x, slaughter.y!, slaughter.z, slaughter.yaw, 22);
+  }
+  // Pestgrube: ebener Platz, in den eine 3 m tiefe Grube gegraben wird.
+  const pit = search(16, flat(12, 2.5, 0.5));
+  if (pit) {
+    hm.flatten(pit.x, pit.z, 12, 7, pit.y!);
+    hm.flatten(pit.x, pit.z, 5.5, 3.5, pit.y! - 3.2);
+    push('plaguepit', pit.x, pit.y!, pit.z, pit.yaw, 18);
+  }
+  const playground = search(16, flat(12, 2));
+  if (playground) {
+    hm.flatten(playground.x, playground.z, 12, 6, playground.y!);
+    push('playground', playground.x, playground.y!, playground.z, playground.yaw, 16);
+  }
+}
+
 /** Weltpunkt in lokale Koordinaten eines Ortes (Umkehrung der Drehung um Y). */
 function toLocal(s: PlaceSite, x: number, z: number): [number, number] {
   const dx = x - s.position.x;
@@ -700,7 +749,14 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
       const [lx, lz] = toLocal(s, x, z);
       const inside = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(lx) - 4.5, Math.abs(lz + 0.5) - 5.5, 0), 0, 1);
       u = Math.max(u, inside, (1 - THREE.MathUtils.smoothstep(d, 8, 14)) * 0.7);
-    } else if (s.kind === 'dolls') {
+    } else if (s.kind === 'slaughter') {
+      // Hallenboden ohne Gras, der Hof zertrampelt
+      const [lx, lz] = toLocal(s, x, z);
+      const hall = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(lx) - 7, Math.abs(lz + 4.5) - 4.5, 0), 0, 1);
+      u = Math.max(u, hall, (1 - THREE.MathUtils.smoothstep(d, 8, 17)) * 0.6);
+    } else if (s.kind === 'plaguepit') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 8, 12));
+    else if (s.kind === 'playground') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 6, 11)) * 0.45);
+    else if (s.kind === 'dolls') {
       // Dielen im Puppenhaus
       const [lx, lz] = toLocal(s, x, z);
       u = Math.max(u, 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(lx) - 3.5, Math.abs(lz + 5) - 3, 0), 0, 1));

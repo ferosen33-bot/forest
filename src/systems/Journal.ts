@@ -131,7 +131,7 @@ export const CHAPTERS: Chapter[] = [
       { id: 'radio2', text: 'Das letzte Funkprotokoll lesen', trigger: { on: 'note', id: 'funk2' } },
       { id: 'doctor', text: 'Die Notiz des Arztes finden', trigger: { on: 'note', id: 'arzt' } },
       { id: 'shiftbook', text: 'Das Schichtbuch im Stollen finden', trigger: { on: 'note', id: 'schichtbuch' } },
-      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 53 },
+      { id: 'allNotes', text: 'Alle Notizen finden', trigger: { on: 'note' }, count: 56 },
     ],
   },
   {
@@ -198,6 +198,21 @@ export const CHAPTERS: Chapter[] = [
       { id: 'scarecrows', text: 'Den Acker der Stummen überqueren', trigger: { on: 'place', kind: 'scarecrows' } },
       { id: 'train', text: 'Den Geisterzug finden', trigger: { on: 'place', kind: 'train' } },
       { id: 'rope', text: 'Ein Kletterseil an einer Steilkante anbringen', trigger: { on: 'build', structure: 'climbRope' } },
+    ],
+  },
+  {
+    title: 'Was im Wald wohnt',
+    intro: 'An den unheimlichen Orten der Insel haust etwas. Manches nur nachts. Manches bewegt sich nur, wenn du nicht hinsiehst.',
+    objectives: [
+      { id: 'slaughter', text: 'Den Schlachthof finden', trigger: { on: 'place', kind: 'slaughter' } },
+      { id: 'butcher', text: 'Den Schlächter besiegen', trigger: { on: 'kill', name: 'Der Schlächter' } },
+      { id: 'plaguepit', text: 'Die Pestgrube finden', trigger: { on: 'place', kind: 'plaguepit' } },
+      { id: 'playground', text: 'Den Spielplatz am Waldrand finden', trigger: { on: 'place', kind: 'playground' } },
+      { id: 'porcelain', text: 'Porzellankinder zerschlagen', trigger: { on: 'kill', name: 'Porzellankind' }, count: 3 },
+      { id: 'strawmen', text: 'Strohmänner verbrennen oder zerschlagen', trigger: { on: 'kill', name: 'Strohmann' }, count: 3 },
+      { id: 'hanged', text: 'Den Gehängten zur Ruhe bringen', trigger: { on: 'kill', name: 'Der Gehängte' } },
+      { id: 'soldiers', text: 'Bunkersoldaten besiegen', trigger: { on: 'kill', name: 'Bunkersoldat' }, count: 2 },
+      { id: 'shadows', text: 'Schatten des Geisterzugs vertreiben', trigger: { on: 'kill', name: 'Schatten' }, count: 3 },
     ],
   },
 ];

@@ -440,6 +440,9 @@ export class Places {
         bunker: 'Ein Bunker hinter Stacheldraht. Die Panzertür steht einen Spalt offen. Von drinnen summt etwas.',
         scarecrows: 'Ein verdorrter Acker voller Vogelscheuchen. Wenn du dich umdrehst, stehen sie anders als vorher.',
         train: 'Ein entgleister Zug, mitten im Wald. Es gibt hier keine Strecke. Es hat hier nie eine gegeben.',
+        slaughter: 'Ein Schlachthof. Es riecht nach altem Blut – und nach frischem. Drinnen quietscht eine Kette.',
+        plaguepit: 'Eine Grube voller Knochen, umringt von schiefen Kreuzen. Aus der Tiefe steigt grüner Dunst.',
+        playground: 'Ein Spielplatz am Waldrand. Das Karussell dreht sich, obwohl kein Wind geht. Eine Schaukel schwingt.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });

@@ -1,5 +1,8 @@
 import type { HeightMap } from './HeightMap';
-import { placeSites, type PlaceSite } from './Places';
+import { placeSites, type PlaceKind, type PlaceSite } from './Places';
+
+/** Die ursprünglichen Orte der Geschichte (brauchen viel Abstand zu Dörfern). */
+const STORY_PLACES = new Set<PlaceKind>(['crash', 'mine', 'hut', 'radio', 'ferry', 'chapel', 'lab', 'stones', 'lighthouse', 'smugglers']);
 import { findTownSite, generateTown, TOWN_FLAT_BLEND, TOWN_FLAT_RADIUS, townWorld, type TownLayout } from './Town';
 import { findHarborSite, generateHarbor, HARBOR_FLAT_BLEND, HARBOR_FLAT_RADIUS, type HarborLayout } from './Harbor';
 import { placeHamlets } from './Hamlets';
@@ -47,7 +50,8 @@ export function planIsland(hm: HeightMap, seed: number): IslandPlan {
     { x: spawn.x, z: spawn.z, radius: 160 },
     ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 120 }] : []),
     ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 100 }] : []),
-    ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
+    // Die großen Orte der Geschichte halten weiten Abstand, die kleinen (ab Meilenstein 53) dürfen näher heran.
+    ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + (STORY_PLACES.has(p.kind) ? 60 : 10) })),
   ]);
   const roads = buildRoads(hm, seed, roadNodes(town, harbor, places, hamlets, spawn), [
     ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius - 4 }] : []),

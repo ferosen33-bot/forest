@@ -65,7 +65,32 @@ interface Camp {
   respawnTimer: number;
 }
 
+/** Revier eines Ortes: dort wohnen bestimmte Gegner (manche nur nachts). */
+export interface Lair {
+  center: THREE.Vector3;
+  roster: EnemyKind[];
+  /** Nur nachts bewohnt (bei Tag verschwinden sie, sobald der Spieler außer Sicht ist). */
+  nightOnly?: boolean;
+}
+
+interface LairState {
+  def: Lair;
+  members: Enemy[];
+  /** Bewohner sind gerade in der Welt. */
+  spawned: boolean;
+  /** Nach einem Sieg dauert es eine Weile, bis wieder etwas einzieht (s). */
+  cooldown: number;
+}
+
+/** Ab dieser Entfernung (m) beziehen die Bewohner ihr Revier, ab der doppelten verschwinden sie wieder. */
+const LAIR_SPAWN = 85;
+const LAIR_DESPAWN = 170;
+/** Ruhe nach einem Sieg (s). */
+const LAIR_COOLDOWN = 900;
+
 export interface DirectorDeps {
+  /** Reviere der unheimlichen Orte (Meilenstein 56). */
+  lairs?: Lair[];
   /** Feste Lager (Schrate, die den Steinkreis bewachen). */
   extraCamps?: THREE.Vector3[];
   /** Weitere Flächen ohne Lager (besondere Orte). */
@@ -156,6 +181,9 @@ export class EnemyDirector {
   /** Nächtliche Jäger ohne Lager: Hetzer-Paare und Schreierinnen. */
   private readonly stalkers = new Set<Enemy>();
   private stalkTimer = 90;
+  private readonly lairs: LairState[];
+  private readonly watchCache = new WeakMap<Enemy, { t: number; v: boolean }>();
+  private readonly viewDir = new THREE.Vector3();
 
   constructor(private readonly d: DirectorDeps) {
     this.cfg = d.config.ai;
@@ -229,8 +257,18 @@ export class EnemyDirector {
       sound: (id, pos) => this.playAt(id, pos),
       throwStone: (origin, velocity, damage) => this.onThrow?.(origin, velocity, damage),
       scream: (source) => this.scream(source, this.enemies, this.ctx),
+      slam: (source) => this.slam(source),
+      watched: (source) => {
+        const c = this.watchCache.get(source);
+        if (c && this.ctx.time - c.t < 0.1) return c.v;
+        const v = this.isWatched(source);
+        this.watchCache.set(source, { t: this.ctx.time, v });
+        return v;
+      },
+      blink: (source) => this.blink(source),
     };
 
+    this.lairs = (d.lairs ?? []).map((def) => ({ def, members: [], spawned: false, cooldown: 0 }));
     this.createCamps();
   }
 
@@ -724,6 +762,7 @@ export class EnemyDirector {
 
     this.updateHunts(dt, night);
     this.updateStalkers(dt);
+    this.updateLairs(dt);
     this.updateCamps(dt);
     this.updateHorde(dt);
 
@@ -788,6 +827,7 @@ export class EnemyDirector {
           dead: v.enemy.isDead,
           severed: v.enemy.severed,
           crawling: v.enemy.crawling,
+          frozen: v.enemy.frozen,
         })),
         dt,
         d.camera.position,
@@ -838,10 +878,83 @@ export class EnemyDirector {
     this.onSlam?.(source.feet.clone(), source.feet.distanceTo(this.d.player.position));
   }
 
-  /** Lebender Endgegner in der aktuellen Höhle, sobald er kämpft (für die Lebensleiste). */
+  /** Lebender Endgegner in der aktuellen Höhle oder in einem Revier, sobald er kämpft (für die Lebensleiste). */
   get activeBoss(): Enemy | null {
     for (const e of this.cave?.enemies ?? []) if (e.kind.boss && !e.isDead && e.isAggressive) return e;
+    const player = this.d.player.position;
+    for (const l of this.lairs) for (const e of l.members) if (e.kind.boss && !e.isDead && e.isAggressive && e.feet.distanceTo(player) < 60) return e;
     return null;
+  }
+
+  /** Blickt der Spieler zu diesem Gegner, und ist die Sicht frei? */
+  private isWatched(e: Enemy): boolean {
+    const d = this.d;
+    if (d.player.stats.isDead || d.playerHidden()) return false;
+    const eye = d.camera.position;
+    const dir = d.camera.getWorldDirection(this.viewDir);
+    const to = e.feet.clone();
+    to.y += 0.9 * e.rig.scale;
+    to.sub(eye);
+    const dist = to.length();
+    if (dist > 70 || dist < 0.01) return false;
+    to.divideScalar(dist);
+    // Etwa das Bildfeld (etwas großzügiger als die Bildmitte).
+    if (to.dot(dir) < 0.62) return false;
+    const hit = d.physics.raycast(eye, to, dist, d.player.collisionShape, true);
+    return !hit || hit.collider.handle === e.collider.handle || hit.collider.handle === e.headCollider.handle || hit.distance >= dist - 0.6;
+  }
+
+  /** Der Gehängte springt außer Sicht ein gutes Stück näher an den Spieler (begehbarer Punkt). */
+  private blink(e: Enemy): void {
+    const player = this.d.player.position;
+    const from = e.feet;
+    const dist = Math.hypot(from.x - player.x, from.z - player.z);
+    const near = Math.max((e.kind.blink?.min ?? 7) - 2.5, dist * 0.45);
+    const base = Math.atan2(from.x - player.x, from.z - player.z);
+    for (const off of [0, 0.5, -0.5, 1, -1]) {
+      const a = base + off;
+      const x = player.x + Math.sin(a) * near;
+      const z = player.z + Math.cos(a) * near;
+      if (!this.nav.isWalkable(x, z)) continue;
+      e.teleport(this.tmp.set(x, this.d.heightMap.heightAt(x, z), z));
+      this.playAt('whisper', e.feet, 0.7, 40);
+      return;
+    }
+  }
+
+  /**
+   * Reviere: Nähert sich der Spieler einem unheimlichen Ort (manche nur nachts), beziehen dessen Bewohner
+   * ihn. Weit weg (oder bei Tag) verschwinden sie wieder; nach einem Sieg bleibt es eine Weile ruhig.
+   */
+  private updateLairs(dt: number): void {
+    const d = this.d;
+    const player = d.player.position;
+    const night = d.dayNight.isNight;
+    const blocked = d.player.stats.isDead || d.playerHidden() || this.hordeActive;
+    for (const l of this.lairs) {
+      l.members = l.members.filter((e) => this.enemies.includes(e));
+      if (l.cooldown > 0) l.cooldown -= dt;
+      const dist = Math.hypot(l.def.center.x - player.x, l.def.center.z - player.z);
+      const allowed = !l.def.nightOnly || night;
+      if (l.spawned) {
+        const alive = l.members.filter((e) => !e.isDead);
+        if (alive.length === 0) {
+          // Alle besiegt: Ruhe für eine Weile.
+          l.spawned = false;
+          l.cooldown = LAIR_COOLDOWN;
+        } else if (dist > LAIR_DESPAWN || (!allowed && dist > 45)) {
+          for (const e of alive) this.removeEnemy(this.enemies.indexOf(e));
+          l.members = l.members.filter((e) => e.isDead);
+          l.spawned = false;
+        }
+        continue;
+      }
+      if (!allowed || blocked || l.cooldown > 0 || dist > LAIR_SPAWN) continue;
+      if (this.enemies.length + l.def.roster.length > MAX_ENEMIES + MAX_HORDE) continue;
+      l.members = this.spawnGroup(l.def.center, l.def.roster);
+      for (const e of l.members) e.active = true;
+      l.spawned = l.members.length > 0;
+    }
   }
 
   /**

@@ -79,6 +79,61 @@ const CAST: Record<EnemyKind, Cast> = {
     walkSpeed: 1.6,
     runSpeed: 2.4,
   },
+  // Lebensgroße Puppe: kleine Frau ohne Textur, glattes Porzellan.
+  porzellan: {
+    models: ['female_9'],
+    idle: 'Idle_Subtle',
+    walk: 'Walk_Female',
+    run: 'Run_Female',
+    attack: 'Zombie_Scratch',
+    walkSpeed: 0.7,
+    runSpeed: 3.4,
+  },
+  strohmann: {
+    models: ['killer_6'],
+    idle: 'Zombie_Idle',
+    walk: 'Zombie_Walk_2',
+    run: 'Jog',
+    attack: 'Melee_Hook',
+    walkSpeed: 1.0,
+    runSpeed: 3.2,
+  },
+  gehenkter: {
+    models: ['male_10'],
+    idle: 'Tired Hunched',
+    walk: 'Walk_Stealth',
+    run: 'Walk_Stealth',
+    attack: 'Zombie_Scratch',
+    walkSpeed: 1.2,
+    runSpeed: 2.2,
+  },
+  soldat: {
+    models: ['killer_4'],
+    idle: 'Idle_A',
+    walk: 'Walk_Stealth',
+    run: 'Sprint',
+    attack: 'OverhandThrow',
+    walkSpeed: 1.2,
+    runSpeed: 5.5,
+  },
+  schatten: {
+    models: ['male_15', 'police_male'],
+    idle: 'Zombie_Idle',
+    walk: 'Walk_Stealth',
+    run: 'Sprint',
+    attack: 'Zombie_Scratch',
+    walkSpeed: 1.2,
+    runSpeed: 6.5,
+  },
+  schlaechter: {
+    models: ['killer_7'],
+    idle: 'Angry',
+    walk: 'Walk_Large',
+    run: 'Jog',
+    attack: 'Melee_Hook',
+    walkSpeed: 1.4,
+    runSpeed: 3.4,
+  },
   kriecher: {
     models: ['monster_4'],
     idle: 'Zombie_Idle_Crouch',
@@ -94,7 +149,117 @@ const KIND_TINT: Partial<Record<EnemyKind, [number, number, number]>> = {
   hetzer: [0.82, 0.84, 0.8],
   schreier: [0.9, 0.9, 0.92],
   hansen: [0.42, 0.55, 0.38],
+  strohmann: [1.15, 0.98, 0.68],
+  gehenkter: [0.6, 0.7, 0.84],
+  soldat: [0.72, 0.82, 0.58],
+  schlaechter: [0.95, 0.84, 0.8],
 };
+
+/** Ganz ohne Textur: Porzellan bzw. Ruß (Farbe, Rauheit). */
+const PLAIN: Partial<Record<EnemyKind, [number, number]>> = {
+  porzellan: [0xece2d6, 0.25],
+  schatten: [0x050506, 1],
+};
+
+const propMat = (color: number, roughness = 0.9, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+const PROP = {
+  burlap: propMat(0xa08a62, 1),
+  hat: propMat(0x1c1a18),
+  stitch: propMat(0x0a0a0a),
+  rope: propMat(0x8b7a58),
+  mask: propMat(0x2a2e26, 0.6),
+  glass: propMat(0x101418, 0.1, 0.3),
+  filter: propMat(0x4a4e44, 0.5, 0.4),
+  pig: propMat(0xd8a0a0, 0.55),
+  pigDark: propMat(0x6a2a2a, 0.6),
+  blade: propMat(0x9aa0a4, 0.3, 0.8),
+  handle: propMat(0x3a2a1c),
+  apron: propMat(0x8a7060, 1),
+  blood: propMat(0x4a0606, 0.3),
+};
+
+/**
+ * Teil an einen Knochen hängen. `offset` (m) und Drehung gelten im Raum der Figur (+Z = vorn) bei
+ * 1,8 m Körpergröße; Größe und Lage werden aus der Ruhehaltung umgerechnet.
+ */
+function attachProp(avatar: Avatar, bone: string, prop: THREE.Object3D, offset: [number, number, number], k: number, rot: [number, number, number] = [0, 0, 0]): void {
+  const b = avatar.bones.get(bone);
+  if (!b) return;
+  avatar.object.updateMatrixWorld(true);
+  const q = avatar.object.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)));
+  const at = b.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...offset).multiplyScalar(k).applyQuaternion(avatar.object.getWorldQuaternion(new THREE.Quaternion())));
+  const m = new THREE.Matrix4().compose(at, q, new THREE.Vector3(k, k, k)).premultiply(b.matrixWorld.clone().invert());
+  b.add(prop);
+  m.decompose(prop.position, prop.quaternion, prop.scale);
+}
+
+const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: [number, number, number] = [0, 0, 0], rot: [number, number, number] = [0, 0, 0], scale: [number, number, number] = [1, 1, 1]) => {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...pos);
+  m.rotation.set(...rot);
+  m.scale.set(...scale);
+  m.castShadow = true;
+  return m;
+};
+
+/** Ausstattung je Typ: Sackkopf und Hut, Strick, Gasmaske, Schweinsmaske mit Hackbeil und Schürze. */
+type PropSpec = [bone: string, prop: THREE.Object3D, offset: [number, number, number], rot?: [number, number, number]];
+const PROPS = new Map<EnemyKind, PropSpec[]>();
+
+function dress(avatar: Avatar, kind: EnemyKind, k: number): void {
+  let specs = PROPS.get(kind);
+  if (!specs) {
+    specs = buildProps(kind);
+    PROPS.set(kind, specs);
+  }
+  // Kopien teilen Geometrie und Material mit der Vorlage.
+  for (const [bone, prop, offset, rot] of specs) attachProp(avatar, bone, prop.clone(), offset, k, rot);
+}
+
+function buildProps(kind: EnemyKind): PropSpec[] {
+  const out: PropSpec[] = [];
+  const g = new THREE.Group();
+  if (kind === 'strohmann') {
+    g.add(mesh(new THREE.SphereGeometry(0.15, 12, 10), PROP.burlap, [0, 0, 0], [0, 0, 0], [1, 1.15, 1.05]));
+    g.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.02, 16), PROP.hat, [0, 0.13, -0.01], [-0.1, 0, 0.05]));
+    g.add(mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.17, 12), PROP.hat, [0, 0.22, -0.01]));
+    for (const s of [-1, 1]) g.add(mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 8), PROP.stitch, [s * 0.05, 0.03, 0.15], [Math.PI / 2, 0, 0]));
+    g.add(mesh(new THREE.BoxGeometry(0.12, 0.008, 0.01), PROP.stitch, [0, -0.06, 0.155]));
+    for (let i = 0; i < 6; i++) g.add(mesh(new THREE.ConeGeometry(0.02, 0.12, 4), PROP.burlap, [Math.cos(i) * 0.1, -0.16, Math.sin(i) * 0.08], [Math.PI + Math.sin(i * 2.3) * 0.25, 0, 0]));
+    out.push(['head', g, [0, 0.09, 0.01]]);
+  } else if (kind === 'gehenkter') {
+    g.add(mesh(new THREE.TorusGeometry(0.075, 0.018, 6, 14), PROP.rope, [0, 0, 0], [Math.PI / 2, 0, 0]));
+    g.add(mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.75, 5), PROP.rope, [0.02, -0.32, -0.08], [0.15, 0, 0.1]));
+    g.add(mesh(new THREE.SphereGeometry(0.03, 6, 4), PROP.rope, [0.03, 0.01, -0.08]));
+    out.push(['neck_01', g, [0, 0.02, 0]]);
+  } else if (kind === 'soldat') {
+    g.add(mesh(new THREE.SphereGeometry(0.13, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), PROP.mask, [0, 0, 0.02], [Math.PI / 2 - 0.2, 0, 0], [1, 0.9, 1]));
+    for (const s of [-1, 1]) g.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 12), PROP.glass, [s * 0.05, 0.03, 0.13], [Math.PI / 2, 0, 0]));
+    g.add(mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.1, 12), PROP.filter, [0, -0.07, 0.15], [Math.PI / 2 + 0.5, 0, 0]));
+    g.add(mesh(new THREE.SphereGeometry(0.135, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), PROP.mask, [0, 0.05, -0.01], [0, 0, 0], [1, 0.9, 1.05]));
+    out.push(['head', g, [0, 0.08, 0.01]]);
+  } else if (kind === 'schlaechter') {
+    g.add(mesh(new THREE.SphereGeometry(0.14, 14, 10), PROP.pig, [0, 0, 0.01], [0, 0, 0], [1, 1.05, 1.05]));
+    g.add(mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.07, 12), PROP.pig, [0, -0.02, 0.15], [Math.PI / 2, 0, 0]));
+    for (const s of [-1, 1]) {
+      g.add(mesh(new THREE.SphereGeometry(0.012, 6, 4), PROP.pigDark, [s * 0.02, -0.02, 0.186]));
+      g.add(mesh(new THREE.ConeGeometry(0.05, 0.09, 4), PROP.pig, [s * 0.1, 0.12, 0], [0, 0, -s * 0.6]));
+      g.add(mesh(new THREE.SphereGeometry(0.018, 6, 4), PROP.stitch, [s * 0.05, 0.04, 0.13]));
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), PROP.blood, [0.06, -0.06, 0.12], [0, 0, 0], [1, 0.5, 0.3]));
+    out.push(['head', g, [0, 0.09, 0.01]]);
+    const cleaver = new THREE.Group();
+    cleaver.add(mesh(new THREE.BoxGeometry(0.03, 0.14, 0.03), PROP.handle, [0, 0, 0]));
+    cleaver.add(mesh(new THREE.BoxGeometry(0.012, 0.22, 0.3), PROP.blade, [0, 0.16, 0.08]));
+    cleaver.add(mesh(new THREE.BoxGeometry(0.014, 0.08, 0.12), PROP.blood, [0, 0.2, 0.15]));
+    out.push(['hand_r', cleaver, [0, -0.02, 0.04], [Math.PI / 2, 0, 0]]);
+    const apron = mesh(new THREE.BoxGeometry(0.42, 0.75, 0.02), PROP.apron);
+    apron.add(mesh(new THREE.BoxGeometry(0.2, 0.25, 0.022), PROP.blood, [0.06, -0.12, 0.001]));
+    // Am Becken: hängt mit, auch wenn er sich vorbeugt.
+    out.push(['pelvis', apron, [0, -0.08, 0.17]]);
+  }
+  return out;
+}
 
 const DEATHS = ['Death_A', 'Death_B', 'Death_C', 'Death_D'];
 const HIT = 'Hit_Chest';
@@ -186,6 +351,8 @@ export interface AvatarTarget {
   dead: boolean;
   severed: ReadonlySet<Limb>;
   crawling: boolean;
+  /** Erstarrt (Porzellankind unter Blicken): Pose einfrieren. */
+  frozen?: boolean;
 }
 
 interface Driven {
@@ -254,6 +421,17 @@ export class EnemyAvatars {
     const [r, g, b] = KIND_TINT[t.kind] ?? [1, 0.98, 0.95];
     this.tint.setRGB(v * r, v * g, v * b);
     const avatar = this.lib.create(model, BASE_HEIGHT * t.rig.scale, { eyes: true, tint: this.tint });
+    const plain = PLAIN[t.kind];
+    if (plain) {
+      for (const m of avatar.meshes) {
+        const mat = m.material as THREE.MeshStandardMaterial;
+        mat.map = null;
+        mat.color.setHex(plain[0]);
+        mat.roughness = plain[1];
+        mat.needsUpdate = true;
+      }
+    }
+    dress(avatar, t.kind, t.rig.scale);
     this.group.add(avatar.object);
     for (const name of [cast.idle, cast.walk, cast.run, cast.attack, HIT, YELL, RISE, CRAWL]) {
       const a = avatar.action(name);
@@ -293,6 +471,10 @@ export class EnemyAvatars {
 
     // Ferne Figuren seltener rechnen (spart bei Horden viel Zeit).
     const dist = obj.position.distanceTo(viewer);
+    if (t.frozen && !t.dead) {
+      d.pending = 0;
+      return;
+    }
     d.pending += dt;
     const step = dist > 70 ? 0.1 : dist > 35 ? 0.05 : 0;
     if (d.pending < step) return;

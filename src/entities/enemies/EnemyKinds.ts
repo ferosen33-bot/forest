@@ -1,7 +1,21 @@
 import { RESIST_FACTOR, WEAK_FACTOR, type ElementId } from '../items/Elements';
 
 /** Gegnertypen der Insel. */
-export type EnemyKind = 'schrat' | 'spaeher' | 'koloss' | 'kriecher' | 'hetzer' | 'schreier' | 'hansen';
+export type EnemyKind =
+  | 'schrat'
+  | 'spaeher'
+  | 'koloss'
+  | 'kriecher'
+  | 'hetzer'
+  | 'schreier'
+  | 'hansen'
+  // Meilenstein 56: Bewohner der unheimlichen Orte
+  | 'porzellan'
+  | 'strohmann'
+  | 'gehenkter'
+  | 'soldat'
+  | 'schatten'
+  | 'schlaechter';
 
 export interface EnemyKindDef {
   kind: EnemyKind;
@@ -41,6 +55,10 @@ export interface EnemyKindDef {
   /** Elemente, gegen die der Typ anfällig ist bzw. die ihm wenig anhaben. */
   weak?: ElementId[];
   resist?: ElementId[];
+  /** Bewegt sich nur, solange der Spieler nicht hinsieht – dann aber rasend schnell (Porzellankind). */
+  statue?: boolean;
+  /** Springt außer Sicht näher heran, wenn er weiter als `min` m entfernt ist (Der Gehängte). */
+  blink?: { min: number; cooldown: number };
   /** Hauttöne (sRGB) für die Variation innerhalb des Typs. */
   tones: number[];
 }
@@ -202,6 +220,147 @@ export const ENEMY_KINDS: Record<EnemyKind, EnemyKindDef> = {
     weak: ['fire'],
     resist: ['caustic', 'bleed'],
     tones: [0xa8b49a],
+  },
+  // Porzellankind: eine lebensgroße Puppe in Kindergröße. Erstarrt, sobald man sie ansieht; wer
+  // wegschaut, hat sie im nächsten Augenblick neben sich. Zerbrechlich – stumpfe Schläge zerschmettern sie.
+  porzellan: {
+    kind: 'porzellan',
+    name: 'Porzellankind',
+    scale: 0.6,
+    health: 0.45,
+    speed: 2.1,
+    damage: 0.7,
+    attackRange: 0.8,
+    attackTime: 0.6,
+    sight: 1.4,
+    hearing: 1.4,
+    alertRadius: 30,
+    structureDamage: 6,
+    staggerThreshold: 0,
+    fearsFire: false,
+    hitAndRun: false,
+    club: false,
+    statue: true,
+    weak: ['shock'],
+    resist: ['bleed', 'caustic'],
+    tones: [0xe8ddd0, 0xefe6da],
+  },
+  // Strohmann: eine Vogelscheuche, die nachts vom Pfahl steigt. Zäh und langsam, Klingen schneiden nur
+  // Stroh – aber Feuer frisst ihn.
+  strohmann: {
+    kind: 'strohmann',
+    name: 'Strohmann',
+    scale: 1.08,
+    health: 1.7,
+    speed: 0.85,
+    damage: 1.3,
+    attackRange: 1.15,
+    attackTime: 1.25,
+    sight: 1.1,
+    hearing: 0.9,
+    alertRadius: 40,
+    structureDamage: 25,
+    staggerThreshold: 20,
+    fearsFire: false,
+    hitAndRun: false,
+    club: true,
+    weak: ['fire'],
+    resist: ['bleed', 'caustic'],
+    tones: [0xb89a6a, 0xa88c60],
+  },
+  // Der Gehängte: hager, blau angelaufen, mit dem Strick um den Hals. Geht langsam – doch wer ihn aus
+  // den Augen lässt, findet ihn plötzlich viel näher.
+  gehenkter: {
+    kind: 'gehenkter',
+    name: 'Der Gehängte',
+    scale: 1.18,
+    health: 1.3,
+    speed: 0.7,
+    damage: 1.6,
+    attackRange: 1.2,
+    attackTime: 1.1,
+    sight: 1.3,
+    hearing: 1.1,
+    alertRadius: 30,
+    structureDamage: 20,
+    staggerThreshold: 15,
+    fearsFire: false,
+    hitAndRun: false,
+    club: false,
+    hunch: 0.2,
+    blink: { min: 7, cooldown: 5 },
+    weak: ['fire'],
+    resist: ['bleed'],
+    tones: [0x8a98a8, 0x7e8c9a],
+  },
+  // Soldat aus dem Bunker: Gasmaske, Uniform in Fetzen. Hält Abstand und wirft mit Schrott und Steinen.
+  soldat: {
+    kind: 'soldat',
+    name: 'Bunkersoldat',
+    scale: 1.02,
+    health: 1.2,
+    speed: 1.05,
+    damage: 1.0,
+    attackRange: 1,
+    attackTime: 0.95,
+    sight: 1.2,
+    hearing: 1.2,
+    alertRadius: 45,
+    structureDamage: 30,
+    staggerThreshold: 10,
+    fearsFire: false,
+    hitAndRun: true,
+    club: false,
+    ranged: { minRange: 6, maxRange: 24, cooldown: 4, speed: 18, damage: 13 },
+    weak: ['shock'],
+    resist: ['caustic'],
+    tones: [0x6a7058, 0x5e6450],
+  },
+  // Schatten: Fahrgäste des Geisterzugs. Schwarz wie Ruß, lautlos und schnell, zerfallen bei Tag.
+  schatten: {
+    kind: 'schatten',
+    name: 'Schatten',
+    scale: 1,
+    health: 0.6,
+    speed: 1.45,
+    damage: 0.85,
+    attackRange: 1,
+    attackTime: 0.75,
+    sight: 1.5,
+    hearing: 1.3,
+    alertRadius: 40,
+    structureDamage: 10,
+    staggerThreshold: 0,
+    fearsFire: true,
+    hitAndRun: true,
+    club: false,
+    weak: ['fire', 'shock'],
+    resist: ['bleed', 'caustic'],
+    tones: [0x141418],
+  },
+  // Der Schlächter: hinter der Schweinsmaske steckt der Metzger von Gut Wendt. Riesig, mit Hackbeil,
+  // schlägt rundum – und lässt sich von nichts aufhalten.
+  schlaechter: {
+    kind: 'schlaechter',
+    name: 'Der Schlächter',
+    scale: 1.45,
+    health: 9,
+    speed: 0.95,
+    damage: 2.2,
+    attackRange: 1.4,
+    attackTime: 1.4,
+    sight: 1.1,
+    hearing: 1.5,
+    alertRadius: 60,
+    structureDamage: 80,
+    staggerThreshold: 60,
+    fearsFire: false,
+    hitAndRun: false,
+    club: false,
+    boss: { slamRadius: 2.6, summonAt: [] },
+    weak: ['shock'],
+    resist: ['bleed'],
+    tones: [0xc8a898],
   },
 };
 

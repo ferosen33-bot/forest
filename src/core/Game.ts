@@ -31,6 +31,8 @@ import { EnemyDirector } from '../systems/ai/EnemyDirector';
 import { AnimalDirector } from '../systems/AnimalDirector';
 import { Projectiles, STONE_NOISE } from '../systems/Projectiles';
 import { Enemy } from '../entities/enemies/Enemy';
+import type { EnemyKind } from '../entities/enemies/EnemyKinds';
+import type { PlaceKind } from '../world/Places';
 import { Cooking } from '../systems/Cooking';
 import { Camp } from '../systems/Camp';
 import { Rafts } from '../systems/Rafts';
@@ -489,6 +491,21 @@ export class Game {
           })()
         : null,
       harbor: this.world.harbor ? { center: this.world.harbor.center, radius: 30 } : null,
+      // Reviere der unheimlichen Orte: wer dort wohnt (und ob nur nachts).
+      lairs: this.world.places.flatMap((p) => {
+        const roster: Partial<Record<PlaceKind, [EnemyKind[], boolean]>> = {
+          dolls: [['porzellan', 'porzellan'], false],
+          playground: [['porzellan', 'porzellan', 'porzellan'], true],
+          scarecrows: [['strohmann', 'strohmann', 'strohmann'], true],
+          gallows: [['gehenkter', 'gehenkter'], true],
+          bunker: [['soldat', 'soldat'], false],
+          train: [['schatten', 'schatten', 'schatten'], true],
+          slaughter: [['schlaechter'], false],
+          plaguepit: [['kriecher', 'kriecher', 'kriecher', 'kriecher'], true],
+        };
+        const r = roster[p.kind];
+        return r ? [{ center: p.position.clone(), roster: r[0], nightOnly: r[1] }] : [];
+      }),
       avoidAreas: [
         ...this.world.places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 60 })),
         ...this.world.hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 70 })),

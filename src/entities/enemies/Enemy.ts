@@ -66,6 +66,10 @@ export interface EnemyContext {
   summon?(source: Enemy): void;
   /** Endgegner: Bodenstampfer (Staub, Beben). */
   slam?(source: Enemy): void;
+  /** Sieht der Spieler gerade zu diesem Gegner hin (Blickrichtung und freie Sicht)? */
+  watched?(source: Enemy): boolean;
+  /** Außer Sicht ein Stück näher an den Spieler springen (Der Gehängte). */
+  blink?(source: Enemy): void;
 }
 
 /** Dauer eines Schreis (Luft holen, schreien, ausklingen). */
@@ -138,6 +142,9 @@ export class Enemy {
   private throwCooldown = 1 + Math.random() * 2;
   private growlTimer = 3 + Math.random() * 8;
   private senseTimer = Math.random() * 0.15;
+  /** Erstarrt unter dem Blick des Spielers (Porzellankind). */
+  frozen = false;
+  private blinkCooldown = 3 + Math.random() * 3;
 
   // Pfad
   private path: NavPoint[] | null = null;
@@ -440,8 +447,26 @@ export class Enemy {
     }
     this.perceive(dt, ctx);
     this.updateDown(dt);
+    // Porzellankind: unter Blicken regungslos – kein Schritt, kein Hieb.
+    if (this.kind.statue) {
+      this.frozen = !this.downed && !!ctx.watched?.(this);
+      if (this.frozen) {
+        this.velocity.set(0, 0, 0);
+        if (this.isAggressive) this.suspicion = 1;
+        return;
+      }
+    }
     this.think(dt, ctx);
     this.move(dt, ctx);
+    // Der Gehängte: wer ihn aus den Augen lässt, findet ihn plötzlich näher.
+    const blink = this.kind.blink;
+    if (blink && ctx.blink && this.isAggressive && this.state !== 'attack' && !this.downed) {
+      this.blinkCooldown -= dt;
+      if (this.blinkCooldown <= 0 && this.curr.distanceTo(ctx.player.position) > blink.min && !ctx.watched?.(this)) {
+        this.blinkCooldown = blink.cooldown * (0.8 + Math.random() * 0.5);
+        ctx.blink(this);
+      }
+    }
   }
 
   /** Umgeworfen: hinfallen, liegen, aufrappeln (setzt die Animation). */

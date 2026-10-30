@@ -23,7 +23,7 @@ import { along, put, sign, strut, strutInto, yawPitch } from './SightMeshes';
 
 type V3 = [number, number, number];
 
-export const HORRORS = new Set<PlaceKind>(['dolls', 'gallows', 'bunker', 'scarecrows', 'train']);
+export const HORRORS = new Set<PlaceKind>(['dolls', 'gallows', 'bunker', 'scarecrows', 'train', 'slaughter', 'plaguepit', 'playground']);
 
 const std = (color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra });
@@ -63,6 +63,21 @@ const H = {
   carriageTrim: std(0x8a7a4a, { metalness: 0.4, roughness: 0.5 }),
   ballast: texturize(std(0x6a665e, { roughness: 1 }), 'sand', 0.5),
   seat: std(0x5a2a24, { roughness: 0.9 }),
+  brick: texturize(std(0x7a4a3a), 'plaster', 0.4),
+  tile: std(0xc8c4b8, { roughness: 0.35 }),
+  pool: std(0x2a0404, { roughness: 0.08, metalness: 0.2 }),
+  smear: std(0x5a0a08, { roughness: 0.5, transparent: true, opacity: 0.8 }),
+  meat: std(0x8a2a24, { roughness: 0.35 }),
+  skin: std(0xd8a08a, { roughness: 0.6 }),
+  fat: std(0xe0c8b0, { roughness: 0.5 }),
+  tube: std(0xe8f0e8, { emissive: new THREE.Color(0xd8ffe8), emissiveIntensity: 0 }),
+  lime: std(0xe8e6dc, { roughness: 1 }),
+  shroud: std(0x8a8270, { roughness: 1 }),
+  leather: std(0x2a201a, { roughness: 0.7 }),
+  sand: texturize(std(0xc8b48a, { roughness: 1 }), 'sand', 0.6),
+  paintRed: std(0x9a2e26, { roughness: 0.7 }),
+  paintBlue: std(0x2e5578, { roughness: 0.7 }),
+  paintYellow: std(0xc89a2c, { roughness: 0.7 }),
 };
 
 // ---------------------------------------------------------------------------
@@ -888,6 +903,346 @@ function buildTrain(b: Builder, rng: () => number): void {
   b.model.sounds.push({ position: new THREE.Vector3(0, 2, -13), sound: 'creak', every: [8, 16], volume: 0.4 });
 }
 
+// ---------------------------------------------------------------------------
+// Schlachthof Wendt
+// ---------------------------------------------------------------------------
+
+function buildSlaughter(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  // Halle aus Backstein (14 × 9 m), Tor nach +Z, Dach teilweise eingestürzt
+  const HZ = -4.5;
+  const WH = 4.5;
+  b.box(H.concrete, [14, 0.12, 9], [0, 0.06, HZ]);
+  b.box(H.brick, [14, WH, 0.35], [0, WH / 2, HZ - 4.5]);
+  for (const s of [-1, 1]) {
+    b.box(H.brick, [0.35, WH, 9], [s * 7, WH / 2, HZ]);
+    b.box(H.brick, [5.25, WH, 0.35], [s * 4.375, WH / 2, 0]);
+    // Giebel
+    b.add(gable(9.4, 1.8).rotateY(Math.PI / 2), H.brick, [s * 7, WH, HZ]);
+  }
+  b.box(H.brick, [3.5, 1.2, 0.35], [0, WH - 0.6, 0], [0, 0, 0], false);
+  // Dach: hintere Hälfte ganz, vordere nur links (rechts eingestürzt, Sparren ragen in den Himmel)
+  b.box(W.roof, [14.6, 0.14, 5.3], [0, WH + 0.9, HZ - 2.3], [-0.36, 0, 0], false);
+  b.box(W.roof, [7.6, 0.14, 5.3], [-3.5, WH + 0.9, HZ + 2.3], [0.36, 0, 0], false);
+  for (let i = 0; i < 4; i++) b.box(W.woodDark, [0.12, 0.14, 5.0], [0.6 + i * 1.6, WH + 0.95 - (i % 2) * 0.4, HZ + 2.3], [0.36 + (i % 2) * 0.3, 0, (rng() - 0.5) * 0.3], false);
+  const rubble = new Batch();
+  for (let i = 0; i < 14; i++) rubble.add(new THREE.BoxGeometry(0.5 + rng() * 0.8, 0.06, 0.4 + rng() * 0.6), [2 + rng() * 4.5, 0.15 + rng() * 0.2, HZ + 1 + rng() * 3], [rng() * 0.4, rng() * 3, rng() * 0.4]);
+  rubble.build(b, W.roof, true);
+  // Kacheln an den Innenwänden, Blutspuren, Lachen
+  for (const s of [-1, 1]) b.box(H.tile, [0.04, 2.0, 8.4], [s * 6.8, 1.0, HZ], [0, 0, 0], false);
+  b.box(H.tile, [13.4, 2.0, 0.04], [0, 1.0, HZ - 4.3], [0, 0, 0], false);
+  const smears = new Batch();
+  for (let i = 0; i < 9; i++) {
+    const side = rng() < 0.5 ? -1 : 1;
+    smears.add(new THREE.PlaneGeometry(0.3 + rng() * 0.8, 0.5 + rng() * 1.2), [side * 6.77, 0.8 + rng() * 1.2, HZ - 3.5 + rng() * 7], [0, -side * Math.PI / 2, (rng() - 0.5) * 0.6]);
+  }
+  for (let i = 0; i < 5; i++) smears.add(new THREE.PlaneGeometry(0.4 + rng() * 0.9, 0.6 + rng()), [-5 + rng() * 10, 0.9 + rng(), HZ - 4.27], [0, 0, (rng() - 0.5) * 0.5]);
+  smears.build(b, H.smear);
+  const pools = new Batch();
+  for (let i = 0; i < 12; i++) {
+    const x = -6 + rng() * 12;
+    const z = HZ - 3.8 + rng() * 7.5;
+    const r = 0.3 + rng() * 0.9;
+    pools.add(new THREE.CircleGeometry(r, 14).rotateX(-Math.PI / 2), [x, 0.125 + i * 0.0005, z], [0, 0, 0], [1, 1, 0.5 + rng() * 0.7]);
+  }
+  pools.add(new THREE.CircleGeometry(0.12, 10).rotateX(-Math.PI / 2), [0, 0.126, HZ], [0, 0, 0]);
+  pools.build(b, H.pool);
+  // Fleischschienen mit Haken, halbe Schweine schwingen leicht
+  for (const rz of [HZ - 1.8, HZ + 1.2]) {
+    b.box(H.steel, [12, 0.1, 0.1], [-0.5, 3.4, rz], [0, 0, 0], false);
+    for (let i = 0; i < 9; i++) {
+      const x = -6 + i * 1.3;
+      const hang = new THREE.Group();
+      put(hang, new THREE.CylinderGeometry(0.012, 0.012, 0.5, 4), H.steel, [0, -0.25, 0], [0, 0, 0], false);
+      put(hang, new THREE.TorusGeometry(0.06, 0.012, 4, 10, Math.PI * 1.4), H.steel, [0, -0.55, 0], [0, 0, 2.2], false);
+      if (rng() < 0.6) {
+        // Schweinehälfte: Schwarte hinten, flache rote Schnittseite mit Rippen vorn, oben die Hinterläufe am Haken
+        put(hang, new THREE.CapsuleGeometry(0.24, 0.85, 4, 12), H.skin, [0, -1.3, -0.04], [0, 0, 0]).scale.set(1, 1, 0.42);
+        put(hang, new THREE.BoxGeometry(0.4, 1.05, 0.02), H.meat, [0, -1.3, 0.06], [0, 0, 0], false);
+        for (let k = 0; k < 7; k++) put(hang, new THREE.BoxGeometry(0.34, 0.025, 0.012), H.fat, [0, -1.0 - k * 0.09, 0.075], [0, 0, (k % 2 ? 0.08 : -0.08)], false);
+        for (const sx of [-0.07, 0.07]) put(hang, new THREE.CylinderGeometry(0.035, 0.05, 0.3, 6), H.skin, [sx, -0.68, -0.02], [0, 0, sx * 2], false);
+      }
+      const hp = b.point([x, 3.35, rz]);
+      hang.position.copy(hp);
+      b.group.add(hang);
+      b.model.bobbers.push({ object: hang, base: hp.clone(), amp: 0, speed: 0.6 + rng() * 0.4, roll: 0.03 + rng() * 0.03 });
+    }
+  }
+  // Hackklötze mit Beilen, Messerleiste, Fleischwolf
+  for (const [x, z] of [[-3, HZ + 3], [2.5, HZ + 3.2]]) {
+    b.cyl(W.woodDark, 0.45, 0.5, 0.9, [x, 0.55, z], [0, 0, 0], 14);
+    b.add(new THREE.CircleGeometry(0.44, 14).rotateX(-Math.PI / 2), H.smear, [x, 1.005, z], [0, 0, 0], false);
+    b.box(H.steel, [0.02, 0.2, 0.3], [x + 0.1, 1.08, z], [0, 0.4, 0.2], false);
+    b.box(W.woodDark, [0.03, 0.03, 0.18], [x + 0.1, 1.2, z - 0.15], [0.6, 0.4, 0], false);
+  }
+  b.box(W.woodDark, [1.6, 0.08, 0.06], [-3, 1.9, HZ - 4.25], [0, 0, 0], false);
+  for (let i = 0; i < 6; i++) b.box(H.steel, [0.04, 0.3, 0.01], [-3.6 + i * 0.24, 1.72, HZ - 4.22], [0, 0, 0], false);
+  b.cyl(H.steel, 0.2, 0.25, 0.5, [5, 1.05, HZ - 3.6], [0, 0, 0], 12, false);
+  b.box(H.steel, [0.6, 0.8, 0.6], [5, 0.4, HZ - 3.6]);
+  // Kühlraum-Tür, Büroecke mit Lieferbuch
+  b.box(H.steel, [1.4, 2.3, 0.1], [-5.2, 1.15, HZ - 4.25], [0, 0, 0], false);
+  b.add(new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8), H.steel, [-4.7, 1.2, HZ - 4.15], [0, 0, Math.PI / 2], false);
+  sign(b, ['KÜHLRAUM', 'Tür geschlossen halten'], '#d8d4c8', '#1a3a5a', [-5.2, 2.6, HZ - 4.12], 0, 0.7);
+  b.setFrame([5.4, 0.12, HZ + 3.2], [0, -Math.PI / 2, 0]);
+  b.box(W.woodDark, [1.4, 0.06, 0.7], [0, 0.78, 0]);
+  for (const [sx, sz] of [[-0.62, -0.3], [0.62, -0.3], [-0.62, 0.3], [0.62, 0.3]]) b.box(W.woodDark, [0.05, 0.78, 0.05], [sx, 0.39, sz], [0, 0, 0], false);
+  b.container('desk', [0, 0.95, 0]);
+  b.note('schlachthof', [0.35, 0.815, 0.1], 0.2);
+  b.setFrame(null);
+  // Leuchtröhren, eine davon flackert
+  for (const x of [-3.5, 3]) {
+    b.box(H.tube, [1.4, 0.06, 0.1], [x, 4.1, HZ], [0, 0, 0], false);
+    b.light([x, 3.8, HZ], 0xd8ffe8, 5, 11, 'flicker');
+  }
+  b.model.glows.push({ material: H.tube, day: 0.6, night: 2.4, pulse: 7 });
+  b.model.sounds.push({ position: b.point([0, 3, HZ]), sound: 'creak', every: [5, 10], volume: 0.5 });
+  b.model.sounds.push({ position: b.point([0, 1, HZ]), loop: { freq: 620, q: 4, gain: 0.12, range: 14 } });
+
+  // Hof: Viehpferch mit Trog, Lieferwagen, Fässer, Knochenhaufen
+  const rails = new Batch();
+  const px = -9;
+  const pz = 6;
+  for (const [x0, z0, x1, z1] of [[px - 4, pz - 3, px + 4, pz - 3], [px - 4, pz + 3, px + 4, pz + 3], [px - 4, pz - 3, px - 4, pz + 3], [px + 4, pz - 3, px + 4, pz + 0.5]]) {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const yaw = Math.atan2(x1 - x0, z1 - z0);
+    for (const y of [0.45, 0.95]) rails.add(new THREE.BoxGeometry(0.06, 0.1, len), [(x0 + x1) / 2, g((x0 + x1) / 2, (z0 + z1) / 2) + y, (z0 + z1) / 2], [0, yaw, 0]);
+    for (let k = 0; k <= Math.round(len / 2); k++) {
+      const u = k / Math.round(len / 2);
+      rails.add(new THREE.BoxGeometry(0.12, 1.2, 0.12), [x0 + (x1 - x0) * u, g(x0 + (x1 - x0) * u, z0 + (z1 - z0) * u) + 0.6, z0 + (z1 - z0) * u]);
+    }
+    b.collider([0.06, 0.6, len / 2], [(x0 + x1) / 2, g((x0 + x1) / 2, (z0 + z1) / 2) + 0.6, (z0 + z1) / 2], [0, yaw, 0]);
+  }
+  rails.build(b, W.woodDark, true);
+  b.box(W.woodDark, [2.4, 0.4, 0.6], [px, g(px, pz) + 0.2, pz + 1.8]);
+  b.add(new THREE.PlaneGeometry(2.2, 0.5).rotateX(-Math.PI / 2), H.pool, [px, g(px, pz) + 0.36, pz + 1.8], [0, 0, 0], false);
+  // Lieferwagen
+  const vx = 9;
+  const vz = 6;
+  b.setFrame([vx, g(vx, vz), vz], [0, 0.4, 0.04]);
+  b.box(std(0xb8b0a0, { roughness: 0.7 }), [2.0, 2.0, 3.6], [0, 1.45, -0.6]);
+  b.box(std(0xb8b0a0, { roughness: 0.7 }), [2.0, 1.4, 1.6], [0, 1.15, 1.9]);
+  b.box(M.glass, [1.9, 0.6, 0.05], [0, 1.55, 2.71], [-0.25, 0, 0], false);
+  for (const [sx, sz] of [[-1, -1.6], [1, -1.6], [-1, 1.9], [1, 1.9]]) b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.25, 14), H.loco, [sx * 0.95, 0.42, sz], [0, 0, Math.PI / 2], false);
+  b.setFrame(null);
+  sign(b, ['Wendt Fleischwaren', 'Frisch vom Lande'], '#b8b0a0', '#7a1a14', [vx + Math.cos(0.4) * 1.02 - Math.sin(0.4) * 0.6, g(vx, vz) + 1.7, vz - Math.sin(0.4) * 1.02 - Math.cos(0.4) * 0.6], 0.4 + Math.PI / 2, 1.3);
+  for (const [x, z] of [[6, -1.5], [6.8, -2.2], [-8, -2]]) b.cyl(H.rust, 0.3, 0.3, 0.9, [x, g(x, z) + 0.45, z], [0, 0, 0], 12);
+  const bones = new Batch();
+  for (let i = 0; i < 26; i++) {
+    const x = 7.6 + rng() * 2;
+    const z = -6 + rng() * 3;
+    bones.add(new THREE.CylinderGeometry(0.03, 0.04, 0.4 + rng() * 0.3, 5), [x, g(x, z) + 0.1 + rng() * 0.3, z], [rng() * 3, rng() * 3, rng() * 3]);
+  }
+  for (let i = 0; i < 4; i++) bones.add(new THREE.SphereGeometry(0.12, 8, 6), [8.2 + rng(), g(8.5, -4.5) + 0.2, -5 + rng()], [0, 0, 0], [1, 0.8, 1.4]);
+  bones.build(b, H.bone);
+  b.model.sounds.push({ position: new THREE.Vector3(8.5, 1, -4.5), sound: 'crow', every: [8, 16], volume: 0.6, when: 'day' });
+}
+
+// ---------------------------------------------------------------------------
+// Die Pestgrube
+// ---------------------------------------------------------------------------
+
+function buildPlaguePit(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  const floor = g(0, 0);
+  // Knochen, Schädel, Kalk und verhüllte Tote auf dem Grund
+  const bones = new Batch();
+  const skulls = new Batch();
+  const lime = new Batch();
+  for (let i = 0; i < 90; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = Math.sqrt(rng()) * 6;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    if (i % 4 === 0) skulls.add(new THREE.SphereGeometry(0.12, 8, 6), [x, g(x, z) + 0.06, z], [rng(), rng() * 6, rng()], [0.9, 1, 1.2]);
+    else bones.add(new THREE.CylinderGeometry(0.025, 0.035, 0.3 + rng() * 0.3, 5), [x, g(x, z) + 0.04, z], [Math.PI / 2, rng() * 6, rng() * 0.3]);
+  }
+  for (let i = 0; i < 9; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = rng() * 5;
+    lime.add(new THREE.CircleGeometry(0.6 + rng() * 1.2, 12).rotateX(-Math.PI / 2), [Math.cos(a) * r, g(Math.cos(a) * r, Math.sin(a) * r) + 0.02 + i * 0.002, Math.sin(a) * r]);
+  }
+  bones.build(b, H.bone);
+  skulls.build(b, H.bone);
+  lime.build(b, H.lime);
+  for (let i = 0; i < 6; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = 1 + rng() * 3.5;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    b.add(new THREE.CapsuleGeometry(0.22, 1.3, 4, 10), H.shroud, [x, g(x, z) + 0.18, z], yawPitch(rng() * 6, Math.PI / 2), true).scale.set(1, 1, 0.7);
+  }
+  // Rampe aus Bohlen vom Rand hinab (+Z), damit man wieder herauskommt
+  const top = g(0, 10.5);
+  const bot = g(0, 4);
+  const run = 6.5;
+  const pitch = Math.atan2(top - bot, run);
+  const len = Math.hypot(run, top - bot);
+  b.box(W.woodDark, [1.4, 0.1, len], [0.3, (top + bot) / 2 + 0.06, 7.25], yawPitch(Math.PI, pitch));
+  for (let i = 0; i < 12; i++) {
+    const u = (i + 0.5) / 12;
+    b.box(W.wood, [1.5, 0.05, 0.18], [0.3, bot + (top - bot) * u + 0.13, 4 + run * u], yawPitch(Math.PI, pitch), false);
+  }
+  // Umgekippter Karren, halb in der Grube
+  b.setFrame([-3.5, g(-3.5, 3.5) + 0.6, 3.5], [0.5, 0.6, 0.35]);
+  b.box(W.woodDark, [1.3, 0.08, 2.2], [0, 0, 0], [0, 0, 0], false);
+  for (const s of [-1, 1]) b.box(W.woodDark, [0.06, 0.45, 2.2], [s * 0.65, 0.22, 0], [0, 0, 0], false);
+  b.add(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 12), W.woodDark, [0.75, -0.2, -0.4], [0, 0, Math.PI / 2], false);
+  b.setFrame(null);
+  // Kreuze am Rand, schief, als hätte jemand von unten dagegen gedrückt
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + rng() * 0.15;
+    const r = 9.5 + rng() * 1.5;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    if (z > 8 && Math.abs(x) < 2) continue;
+    const y = g(x, z);
+    const tilt: V3 = [(rng() - 0.5) * 0.5, a, (rng() - 0.5) * 0.5];
+    b.box(W.woodDark, [0.1, 1.5, 0.08], [x, y + 0.65, z], tilt, false);
+    b.box(W.woodDark, [0.6, 0.08, 0.08], [x, y + 1.05, z], tilt, false);
+  }
+  // Pfähle mit Pestdoktor-Masken
+  for (const [x, z] of [[-8, -6], [7.5, -6.5]]) {
+    const y = g(x, z);
+    b.cyl(W.woodDark, 0.05, 0.06, 2.0, [x, y + 1.0, z], [0, 0, 0], 6, false);
+    b.add(new THREE.SphereGeometry(0.15, 12, 10), H.leather, [x, y + 2.05, z], [0, 0, 0], false);
+    b.add(new THREE.ConeGeometry(0.06, 0.35, 10), H.leather, [x, y + 2.0, z + 0.25], [Math.PI / 2 + 0.3, 0, 0], false);
+    for (const s of [-1, 1]) b.add(new THREE.CircleGeometry(0.04, 10), M.glass, [x + s * 0.06, y + 2.1, z + 0.14], [0, 0, 0], false);
+    b.add(new THREE.CylinderGeometry(0.17, 0.2, 0.18, 12), H.leather, [x, y + 2.22, z], [0, 0, 0], false);
+    b.add(new THREE.CylinderGeometry(0.28, 0.28, 0.02, 14), H.leather, [x, y + 2.15, z], [0, 0, 0], false);
+  }
+  // Schild, Laternen, Kalksäcke, Schaufel
+  const sy = g(1.6, 11.5);
+  for (const s of [-0.5, 0.5]) b.box(W.woodDark, [0.08, 1.6, 0.08], [1.6 + s, sy + 0.8, 11.5]);
+  sign(b, ['PEST 1712', 'Hier ruhen 214 Seelen · Nicht graben'], '#d8d0b8', '#2a1a10', [1.6, sy + 1.45, 11.55], 0, 1.0);
+  b.note('pestgrube', [2.6, sy + 0.02, 12.3], 0.4);
+  for (const [x, z] of [[-6.5, 7.5], [8, 4], [-2, -10.5]]) {
+    const y = g(x, z);
+    b.cyl(W.woodDark, 0.05, 0.06, 2.4, [x, y + 1.2, z], [0, 0, 0], 6, false);
+    b.lantern([x + 0.2, y + 2.2, z]);
+  }
+  for (let i = 0; i < 4; i++) b.add(new THREE.CapsuleGeometry(0.22, 0.4, 3, 8), H.lime, [-7 + i * 0.5, g(-7, 9) + 0.22, 9 + (i % 2) * 0.3], [0, 0, Math.PI / 2], false).scale.set(1, 1, 0.7);
+  b.box(M.oldPlanks, [0.7, 0.45, 0.45], [5.5, g(5.5, 9) + 0.23, 9], [0, 0.4, 0]);
+  b.container('crate', [5.5, g(5.5, 9) + 0.6, 9]);
+  b.box(W.woodDark, [0.04, 1.1, 0.04], [6.6, g(6.6, 8) + 0.5, 8], [0.2, 0, 0.15], false);
+  b.box(H.steel, [0.22, 0.3, 0.02], [6.55, g(6.6, 8) + 0.02, 8.05], [0.2, 0, 0.15], false);
+  // Grüner Dunst aus der Tiefe, Fliegen, Flüstern
+  particles(b, { count: 110, center: [0, floor + 0.1, 0], radius: 7, height: 3.5, color: 0x9ab08a, size: 6, rise: 0.06, sway: 1.5, day: 0.18, night: 0.42 });
+  b.model.sounds.push({ position: new THREE.Vector3(0, floor + 1, 0), loop: { freq: 640, q: 4, gain: 0.14, range: 16 } });
+  b.model.sounds.push({ position: new THREE.Vector3(0, floor + 0.5, 0), sound: 'whisper', every: [10, 22], volume: 0.6, when: 'night' });
+}
+
+// ---------------------------------------------------------------------------
+// Spielplatz am Waldrand
+// ---------------------------------------------------------------------------
+
+function buildPlayground(b: Builder, rng: () => number): void {
+  const g = b.ground;
+  // Karussell: dreht sich, obwohl niemand anschiebt
+  const cx = -4;
+  const cz = 2;
+  const cy = g(cx, cz);
+  b.cyl(H.steel, 0.1, 0.12, 0.5, [cx, cy + 0.25, cz], [0, 0, 0], 8);
+  const spin = new THREE.Group();
+  spin.position.copy(b.point([cx, cy + 0.32, cz]));
+  b.group.add(spin);
+  put(spin, new THREE.CylinderGeometry(1.6, 1.6, 0.08, 24), H.paintRed, [0, 0, 0]);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    put(spin, new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), H.steel, [Math.cos(a) * 1.1, 0.38, Math.sin(a) * 1.1], [0, 0, 0], false);
+    put(spin, new THREE.TorusGeometry(0.55, 0.025, 5, 12, Math.PI), H.steel, [Math.cos(a + 0.4) * 0.85, 0.72, Math.sin(a + 0.4) * 0.85], [0, -a - 0.4 + Math.PI / 2, 0], false);
+  }
+  b.collider([1.1, 0.35, 1.1], [cx, cy + 0.35, cz]);
+  b.model.spinners.push({ object: spin, speed: 0.35 });
+  b.model.sounds.push({ position: b.point([cx, cy + 0.5, cz]), sound: 'creak', every: [3, 6], volume: 0.4 });
+  // Schaukelgerüst mit drei Schaukeln: zwei schwingen, eine hängt nur an einem Seil
+  const sx = 4;
+  const sz = -3;
+  const sy = g(sx, sz);
+  for (const s of [-1, 1]) {
+    strut(b, H.paintBlue, [sx + s * 2.6, sy, sz - 0.9], [sx + s * 2.4, sy + 2.6, sz], 0.06, true);
+    strut(b, H.paintBlue, [sx + s * 2.6, sy, sz + 0.9], [sx + s * 2.4, sy + 2.6, sz], 0.06);
+  }
+  b.cyl(H.paintBlue, 0.07, 0.07, 4.9, [sx, sy + 2.6, sz], [0, 0, Math.PI / 2], 8, false);
+  [-1.5, 0, 1.5].forEach((dx, i) => {
+    const swing = new THREE.Group();
+    if (i === 2) {
+      put(swing, new THREE.CylinderGeometry(0.01, 0.01, 2.0, 3), M.rope, [-0.22, -1.0, 0], [0, 0, 0], false);
+      put(swing, new THREE.BoxGeometry(0.5, 0.04, 0.2), W.wood, [-0.1, -1.85, 0], [0, 0, 1.2], false);
+    } else {
+      for (const r of [-0.22, 0.22]) put(swing, new THREE.CylinderGeometry(0.01, 0.01, 2.0, 3), M.rope, [r, -1.0, 0], [0, 0, 0], false);
+      put(swing, new THREE.BoxGeometry(0.5, 0.04, 0.22), W.wood, [0, -2.0, 0]);
+      if (i === 1) {
+        put(swing, new THREE.SphereGeometry(0.13, 10, 8), std(0x8a6a4a, { roughness: 1 }), [0, -1.86, 0]);
+        put(swing, new THREE.SphereGeometry(0.1, 10, 8), std(0x8a6a4a, { roughness: 1 }), [0, -1.66, 0.02]);
+      }
+    }
+    const p = b.point([sx + dx, sy + 2.6, sz]);
+    swing.position.copy(p);
+    swing.rotation.y = Math.PI / 2;
+    b.group.add(swing);
+    if (i < 2) b.model.bobbers.push({ object: swing, base: p.clone(), amp: 0, speed: 1.5 + i * 0.25, roll: i === 1 ? 0.35 : 0.2 });
+  });
+  // Rutsche
+  const rx = 4.5;
+  const rz = 5;
+  const ry = g(rx, rz);
+  for (const s of [-1, 1]) for (const dz of [-0.5, 0.5]) b.box(H.paintYellow, [0.08, 2.0, 0.08], [rx + s * 0.45, ry + 1.0, rz + dz]);
+  b.box(W.wood, [1.0, 0.08, 1.0], [rx, ry + 2.0, rz]);
+  for (let i = 0; i < 6; i++) b.box(H.steel, [0.9, 0.04, 0.05], [rx, ry + 0.3 + i * 0.3, rz - 0.55], [0, 0, 0], false);
+  b.box(H.paintRed, [0.8, 0.06, 3.4], [rx, ry + 1.05, rz + 2.05], [0.55, 0, 0]);
+  for (const s of [-1, 1]) b.box(H.paintRed, [0.05, 0.2, 3.4], [rx + s * 0.4, ry + 1.15, rz + 2.05], [0.55, 0, 0], false);
+  // Wippe, Sandkasten mit Spielzeug, Federpferd
+  b.box(H.steel, [0.3, 0.45, 0.3], [-4, g(-4, -5) + 0.22, -5]);
+  b.box(H.paintBlue, [3.2, 0.08, 0.3], [-4, g(-4, -5) + 0.55, -5], [0, 0, 0.25], false);
+  const bx = 0;
+  const bz = -7;
+  const by = g(bx, bz);
+  for (const s of [-1, 1]) {
+    b.box(W.woodDark, [3.2, 0.3, 0.15], [bx, by + 0.15, bz + s * 1.6], [0, 0, 0], false);
+    b.box(W.woodDark, [0.15, 0.3, 3.2], [bx + s * 1.6, by + 0.15, bz], [0, 0, 0], false);
+  }
+  b.box(H.sand, [3.1, 0.2, 3.1], [bx, by + 0.08, bz], [0, 0, 0], false);
+  b.cyl(H.paintRed, 0.1, 0.08, 0.15, [bx - 0.6, by + 0.25, bz + 0.5], [0.3, 0, 0.2], 10, false);
+  b.box(H.paintYellow, [0.08, 0.02, 0.35], [bx - 0.3, by + 0.2, bz + 0.6], [0, 0.6, 0], false);
+  b.add(new THREE.SphereGeometry(0.14, 12, 10), H.paintBlue, [bx + 0.8, by + 0.3, bz - 0.4], [0, 0, 0], false);
+  // ein halb vergrabener Puppenkopf
+  b.add(new THREE.SphereGeometry(0.1, 12, 10), H.porcelain, [bx + 0.3, by + 0.2, bz - 0.9], [0.4, 0.5, 0], false);
+  const hx = -6.5;
+  const hz = 6;
+  const hy = g(hx, hz);
+  for (let i = 0; i < 6; i++) b.add(new THREE.TorusGeometry(0.12, 0.025, 5, 12), H.steel, [hx, hy + 0.05 + i * 0.07, hz], [Math.PI / 2, 0, 0], false);
+  b.add(new THREE.CapsuleGeometry(0.16, 0.5, 4, 10), H.paintYellow, [hx, hy + 0.65, hz], [Math.PI / 2, 0, 0]);
+  b.add(new THREE.BoxGeometry(0.12, 0.3, 0.2), H.paintYellow, [hx, hy + 0.85, hz + 0.32], [-0.4, 0, 0], false);
+  b.add(new THREE.SphereGeometry(0.03, 6, 4), H.black, [hx + 0.06, hy + 0.95, hz + 0.38], [0, 0, 0], false);
+  // Bank mit einem einzelnen Kinderschuh, Laterne, Schild, Zaun
+  b.setFrame([-1, g(-1, 8.5), 8.5], [0, Math.PI, 0]);
+  for (let i = 0; i < 3; i++) b.box(W.wood, [1.6, 0.04, 0.12], [0, 0.45, -0.15 + i * 0.14], [0, 0, 0], i === 0);
+  b.box(W.wood, [1.6, 0.3, 0.04], [0, 0.72, -0.25], [-0.1, 0, 0], false);
+  for (const s of [-0.7, 0.7]) b.box(H.steel, [0.05, 0.45, 0.4], [s, 0.22, -0.05], [0, 0, 0], false);
+  b.box(H.paintRed, [0.07, 0.06, 0.16], [0.3, 0.5, 0], [0, 0.3, 0], false);
+  b.note('spielplatz', [-0.4, 0.475, 0], 0.2);
+  b.setFrame(null);
+  const ly = g(1, 9.5);
+  b.cyl(H.steel, 0.05, 0.07, 3, [1, ly + 1.5, 9.5], [0, 0, 0], 8);
+  b.add(new THREE.SphereGeometry(0.18, 10, 8), glow(b, 0xfff0d0, 0xffd090, 0.05, 2.8, 0.4), [1, ly + 3.1, 9.5], [0, 0, 0], false);
+  b.light([1, ly + 2.9, 9.5], 0xffcf90, 4, 12, 'flicker');
+  sign(b, ['Spielplatz', 'Eltern haften für ihre Kinder'], '#e8dcc0', '#2a4a2a', [-3.5, g(-3.5, 10.8) + 1.4, 10.8], 0, 0.9);
+  for (const s of [-0.5, 0.5]) b.box(W.woodDark, [0.08, 1.5, 0.08], [-3.5 + s, g(-3.5, 10.8) + 0.75, 10.8]);
+  const pickets = new Batch();
+  for (let i = 0; i < 70; i++) {
+    const a = (i / 70) * Math.PI * 2;
+    if (Math.abs(a - Math.PI / 2) < 0.18 || rng() < 0.12) continue;
+    const x = Math.cos(a) * 11;
+    const z = Math.sin(a) * 11;
+    const h = 0.8 + rng() * 0.1;
+    pickets.add(new THREE.BoxGeometry(0.08, h, 0.03), [x, g(x, z) + h / 2, z], [rng() * 0.15, -a, rng() * 0.15]);
+  }
+  pickets.build(b, H.dress[2]);
+  b.model.sounds.push({ position: new THREE.Vector3(0, 1, 0), sound: 'musicbox', every: [45, 90], volume: 0.5, when: 'night' });
+  b.model.sounds.push({ position: new THREE.Vector3(3, 1, -2), sound: 'whisper', every: [12, 24], volume: 0.5, when: 'night' });
+  particles(b, { count: 60, center: [0, 0.1, 0], radius: 12, height: 1.5, color: 0xc8c8c0, size: 6, rise: 0.02, sway: 2, day: 0.06, night: 0.22 });
+}
+
 /** Einstieg aus `buildPlace`. */
 export function buildHorror(kind: PlaceKind, b: Builder, rng: () => number): void {
   if (kind === 'dolls') buildDolls(b, rng);
@@ -895,4 +1250,7 @@ export function buildHorror(kind: PlaceKind, b: Builder, rng: () => number): voi
   else if (kind === 'bunker') buildBunker(b, rng);
   else if (kind === 'scarecrows') buildScarecrows(b, rng);
   else if (kind === 'train') buildTrain(b, rng);
+  else if (kind === 'slaughter') buildSlaughter(b, rng);
+  else if (kind === 'plaguepit') buildPlaguePit(b, rng);
+  else if (kind === 'playground') buildPlayground(b, rng);
 }

@@ -61,6 +61,50 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 56 – Was im Wald wohnt (neue Gegner und Reviere)
+
+An den unheimlichen Orten haust jetzt etwas. Nähert man sich (etwa 85 m), beziehen die Bewohner ihr
+**Revier**, manche nur nachts. Entfernt man sich weit oder wird es Tag, verschwinden sie wieder. Nach
+einem Sieg bleibt es eine Viertelstunde ruhig. Neues Tagebuch-Kapitel „Was im Wald wohnt“.
+
+**Neue Gegner**
+- **Porzellankind** (Haus der Puppen, nachts auf dem Spielplatz): eine lebensgroße Puppe aus weißem
+  Porzellan. **Erstarrt, solange man sie ansieht**, mitten in der Bewegung. Schaut man weg, ist sie
+  rasend schnell heran. Zerbrechlich, gegen Blutung und Säure unempfindlich, anfällig für Schock.
+- **Strohmann** (Acker der Stummen, nachts): eine Vogelscheuche mit Sackkopf, Knopfaugen und Hut.
+  Zäh und langsam, Klingen schneiden nur Stroh, aber Feuer frisst ihn.
+- **Der Gehängte** (Galgenbaum, nachts): hager, blau angelaufen, mit dem Strick um den Hals. Geht
+  langsam, aber wer ihn aus den Augen lässt, findet ihn plötzlich viel näher (er springt außer Sicht
+  heran, begleitet von einem Flüstern).
+- **Bunkersoldat** (Bunker Elster): mit Gasmaske. Hält Abstand und wirft Schrott, schlägt zu und
+  weicht zurück.
+- **Schatten** (Geisterzug, nachts): rußschwarze Gestalten ohne Gesicht, schnell und lautlos, scheuen
+  Feuer.
+- **Der Schlächter** (Schlachthof, Endgegner mit Lebensleiste): riesig, Schweinsmaske, blutiges
+  Hackbeil und Schürze. Schlägt rundum und lässt sich von nichts umwerfen.
+- In der **Pestgrube** kriechen nachts Kriecher aus den Knochen.
+
+**Neue Orte**
+- **Schlachthof Wendt**: eine Backsteinhalle mit eingestürztem Dach, gekachelten Wänden und Blutlachen.
+  Darin Fleischschienen mit schwingenden Schweinehälften, Hackklötze mit Beilen, ein Kühlraum, das
+  Lieferbuch und flackernde Leuchtröhren. Auf dem Hof ein Viehpferch, ein Lieferwagen „Wendt
+  Fleischwaren“ und ein Knochenhaufen. Man hört Fliegen und quietschende Ketten.
+- **Die Pestgrube**: eine drei Meter tiefe Grube voller Knochen, Kalk und verhüllter Toter, mit einer
+  Bohlenrampe hinab. Ringsum schiefe Kreuze, Pfähle mit Pestdoktor-Masken, Laternen und das Schild
+  „PEST 1712“. Aus der Tiefe steigt grüner Dunst.
+- **Spielplatz am Waldrand**: das Karussell dreht sich von allein, Schaukeln schwingen (auf einer
+  sitzt ein Teddy), dazu Rutsche, Wippe, Federpferd, ein Sandkasten mit halb vergrabenem Puppenkopf,
+  eine Bank mit einem einzelnen Kinderschuh und eine flackernde Laterne. Nachts spielt eine Spieluhr.
+
+**Technik**
+- Gegnertypen können jetzt *erstarren* (die Animation friert unter dem Blick des Spielers ein; das
+  Spiel prüft Blickrichtung und freie Sicht) und *außer Sicht springen*.
+- Ausstattung wie Sackkopf, Hut, Strick, Gasmaske, Schweinsmaske, Hackbeil und Schürze hängt an den
+  Knochen der Figuren.
+- Die Reviere sind eine neue Fähigkeit des `EnemyDirector`.
+- Die kleinen Orte ab Meilenstein 53 halten weniger Abstand zu Weilern, damit Moorwinkel weiter
+  Platz findet.
+
 ### Meilenstein 55 – Mysteriöse und unheimliche Orte
 
 Fünf Orte zum Fürchten, jeder mit Notiz, Fundstück, Tagebuch-Ziel (Kapitel „Jenseits der Küste“)

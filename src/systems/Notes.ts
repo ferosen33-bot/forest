@@ -521,6 +521,35 @@ export const NOTES: NoteDef[] = [
       'In den Abteilen sitzen Leute, ganz still. Der Schaffner hat mir eine Karte gegeben und gesagt, ich soll mich setzen, es geht gleich los. ' +
       'Ich bin ausgestiegen. Er hat gesagt, dann eben beim nächsten Mal. Seitdem höre ich nachts die Pfeife.“',
   },
+  {
+    id: 'schlachthof',
+    title: 'Lieferbuch Schlachthof Wendt',
+    style: 'paper',
+    text:
+      'Mo. 12 Schweine von Hollmann, 3 Rinder Brinkmann. Ausgeliefert an Gasthof und Zeche.\nDi. 10 Schweine. Kühlraum voll.\n' +
+      'Mi. Keine Lieferung. Bauern bleiben weg, sagen, die Tiere werden krank.\nDo. Keine Lieferung. Zeche bestellt trotzdem. „Egal was, Hauptsache Fleisch.“\n\n' +
+      'Fr. Herr Wendt hat die Maske aufgesetzt, die Schweinsmaske vom Schützenfest. Er nimmt sie nicht mehr ab. ' +
+      'Er sagt, die Zeche zahlt das Doppelte. Ich habe gefragt, woher das Fleisch kommt. Er hat mir das Hackbeil gezeigt.',
+  },
+  {
+    id: 'pestgrube',
+    title: 'Pfarrbuch, Abschrift 1712 (Pestgrube)',
+    style: 'paper',
+    text:
+      'Im Jahre des Herrn 1712 kam die Pestilenz mit einem Schiff aus Riga. Binnen dreier Wochen starben in Altwasser 214 Seelen. ' +
+      'Man warf sie in die Grube am Waldrand und streute Kalk darüber, denn der Boden des Kirchhofs nahm sie nicht mehr.\n\n' +
+      'Am Rande, mit anderer Tinte: Der Totengräber berichtet, dass in mancher Nacht der Kalk sich bewegt. ' +
+      'Er hat Kreuze um die Grube gesteckt und schwört, dass sie am Morgen schief stehen, als hätte jemand von unten dagegen gedrückt.',
+  },
+  {
+    id: 'spielplatz',
+    title: 'Kinderzeichnung (Spielplatz)',
+    style: 'child',
+    text:
+      'Das ist der Spielplatz. Das bin ich auf der Schaukel und das ist Lotte und das sind die weißen Kinder.\n\n' +
+      'Die weißen Kinder spielen nur wenn keiner guckt. Wenn man guckt sind sie ganz still wie Puppen. Lotte hat weggeguckt und jetzt spielt sie mit ihnen.\n\n' +
+      'Mama sagt ich darf nicht mehr hin. Aber ich muss doch gucken ob Lotte noch da ist.',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -564,6 +593,9 @@ export const PLACE_NOTES = [
   'bunker',
   'acker',
   'zug',
+  'schlachthof',
+  'pestgrube',
+  'spielplatz',
 ] as const;
 
 /** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */
