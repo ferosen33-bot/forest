@@ -473,6 +473,54 @@ export const NOTES: NoteDef[] = [
       'Tag 5. Habe heute Nacht gebadet. Unter Wasser leuchtet es auch, nur tiefer, weiter draußen. Als würde da unten jemand Lampen tragen.\n\n' +
       'Tag 6. Die Lichter draußen kommen jede Nacht ein Stück näher an den Strand.',
   },
+  {
+    id: 'puppen',
+    title: 'Auftragsbuch der Puppenmacherin (Haus der Puppen)',
+    style: 'paper',
+    text:
+      'Nr. 112 – Familie Brinkmann, Mädchen, blonde Locken, blaues Kleid. „Damit sie nicht allein ist.“\n' +
+      'Nr. 113 – Familie Hollmann, Junge, Matrosenanzug. Foto liegt bei.\nNr. 114 – Moorwinkel, zwei Stück, Zwillinge.\n\n' +
+      'Seit dem Herbst bringen sie mir keine Fotos mehr. Sie bringen mir Haare. Und sie wollen die Augen aus Glas, „damit sie sehen können“.\n\n' +
+      'Ich habe alle in den Hof gesetzt, mit dem Gesicht zur Tür. Das ist besser so. Dann weiß ich, wohin sie schauen.',
+  },
+  {
+    id: 'galgen',
+    title: 'Zettel am Galgenbaum',
+    style: 'paper',
+    text:
+      'Wer den Baum füttert, den lässt der Wald in Ruhe. So hat es der Alte aus Moorwinkel gesagt, und so haben wir es gemacht.\n\n' +
+      'Erst Strohpuppen. Dann ein Schaf. Dann hat der Wald wieder geholt, aus dem Dorf, nachts, und die Strohpuppen haben nicht mehr gereicht.\n\n' +
+      'Es sind neun Schlingen. Bis zum Winter, sagt der Alte, müssen alle neun gefüllt sein. Ich habe meinen Namen auf die fünfte geschrieben, damit es wenigstens nicht mein Junge wird.',
+  },
+  {
+    id: 'bunker',
+    title: 'Wachbuch Objekt ELSTER',
+    style: 'radio',
+    text:
+      'Tag 1. Objekt übernommen. Luke im Kontrollraum verschlossen und versiegelt, Befehl: unter keinen Umständen öffnen.\n' +
+      'Tag 9. Klopfen aus der Luke, 03:10 Uhr. Dreimal, Pause, dreimal. Gemeldet. Antwort: ignorieren.\n' +
+      'Tag 14. Klopfen jetzt jede Nacht. Gefreiter M. behauptet, es antwortet, wenn man zurückklopft.\n' +
+      'Tag 15. Gefreiter M. hat zurückgeklopft.\nTag 16. Gefreiter M. fehlt. Siegel an der Luke unversehrt.\nTag 17. Es klopft jetzt in seinem Rhythmus.',
+  },
+  {
+    id: 'acker',
+    title: 'Brief am Brunnen (Acker der Stummen)',
+    style: 'paper',
+    text:
+      'Lieber Bruder, du hast gefragt, warum ich so viele Vogelscheuchen aufgestellt habe. Ich habe nur eine aufgestellt. Im Frühjahr, wie jedes Jahr.\n\n' +
+      'Im Sommer standen sieben auf dem Acker. Im Herbst zwanzig. Sie haben die Kleider von Leuten aus dem Dorf an, die weggezogen sind. Ich habe niemanden wegziehen sehen.\n\n' +
+      'Dreh dich nicht um, wenn du über das Feld gehst. Sie mögen es nicht, wenn man zusieht, wie sie näher kommen.',
+  },
+  {
+    id: 'zug',
+    title: 'Fahrkarte (Geisterzug)',
+    style: 'paper',
+    text:
+      'Personenzug 1903 – Altwasser (Zeche) nach Nirgendwo. Einfache Fahrt. Gültig für eine Seele.\n\n' +
+      'Auf der Rückseite mit Bleistift: „Die Insel hat nie eine Bahnstrecke gehabt. Trotzdem stand der Zug heute Morgen hier, als wäre er nachts aus dem Wald gefahren. ' +
+      'In den Abteilen sitzen Leute, ganz still. Der Schaffner hat mir eine Karte gegeben und gesagt, ich soll mich setzen, es geht gleich los. ' +
+      'Ich bin ausgestiegen. Er hat gesagt, dann eben beim nächsten Mal. Seitdem höre ich nachts die Pfeife.“',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -511,6 +559,11 @@ export const PLACE_NOTES = [
   'irrlicht',
   'rosenthal',
   'leuchtbucht',
+  'puppen',
+  'galgen',
+  'bunker',
+  'acker',
+  'zug',
 ] as const;
 
 /** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */

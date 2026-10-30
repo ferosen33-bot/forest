@@ -47,7 +47,13 @@ export type PlaceKind =
   | 'observatory'
   | 'bog'
   | 'manor'
-  | 'glowbay';
+  | 'glowbay'
+  // Meilenstein 55: mysteriöse und unheimliche Orte
+  | 'dolls'
+  | 'gallows'
+  | 'bunker'
+  | 'scarecrows'
+  | 'train';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -81,6 +87,11 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   bog: 'Irrlichtmoor',
   manor: 'Gut Rosenthal',
   glowbay: 'Bucht der tausend Lichter',
+  dolls: 'Haus der Puppen',
+  gallows: 'Der Galgenbaum',
+  bunker: 'Bunker Elster',
+  scarecrows: 'Acker der Stummen',
+  train: 'Der Geisterzug',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -311,6 +322,7 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: {
   }
   placeWonders(hm, sites, search, taken, b, n, rng);
   placeSights(hm, sites, search, taken, b, n, rng);
+  placeHorrors(hm, sites, search, taken, b, rng);
   return sites;
 }
 
@@ -539,6 +551,131 @@ function placeSights(
   if (glowbay) push('glowbay', glowbay.x, glowbay.y!, glowbay.z, glowbay.yaw, 30);
 }
 
+/** Meilenstein 55: Puppenhaus, Galgenbaum, Bunker, Vogelscheuchen-Acker und Geisterzug (ganz hinten). */
+function placeHorrors(
+  hm: HeightMap,
+  sites: PlaceSite[],
+  search: (step: number, score: (x: number, z: number) => { s: number; yaw: number; y?: number } | null) => { x: number; z: number; s: number; yaw: number; y?: number } | null,
+  taken: (x: number, z: number, r: number) => boolean,
+  b: BiomeWeights,
+  rng: () => number,
+): void {
+  const water = hm.waterLevel;
+  const push = (kind: PlaceKind, x: number, y: number, z: number, yaw: number, radius: number) =>
+    sites.push({ kind, name: PLACE_NAMES[kind], position: new THREE.Vector3(x, y, z), yaw, radius });
+  const forest = (x: number, z: number) => {
+    hm.biomes.weights(x, z, b);
+    return b.swamp < 0.15 && b.highland < 0.15 && b.cliffs < 0.25;
+  };
+
+  // Haus der Puppen: kleine ebene Lichtung mitten im Wald.
+  const dolls = search(16, (x, z) => {
+    if (!forest(x, z)) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 3 || h > 45 || taken(x, z, 30)) return null;
+    const { min, max } = spread(hm, x, z, 13);
+    if (max - min > 2.5) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (dolls) {
+    hm.flatten(dolls.x, dolls.z, 13, 8, dolls.y!);
+    push('dolls', dolls.x, dolls.y!, dolls.z, dolls.yaw, 18);
+  }
+
+  // Galgenbaum: auf einer kleinen Anhöhe, von weitem zu sehen.
+  const gallows = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.3 || b.highland > 0.4) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 4 || h > 60 || taken(x, z, 30)) return null;
+    const { min, max } = spread(hm, x, z, 10);
+    if (max - min > 2.5) return null;
+    let ring = 0;
+    for (let i = 0; i < 8; i++) ring += hm.heightAt(x + Math.cos(i * 0.785) * 30, z + Math.sin(i * 0.785) * 30);
+    const prominence = h - ring / 8;
+    if (prominence < 1) return null;
+    return { s: -prominence + (max - min) + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (gallows) {
+    hm.flatten(gallows.x, gallows.z, 11, 7, gallows.y!);
+    push('gallows', gallows.x, gallows.y!, gallows.z, gallows.yaw, 18);
+  }
+
+  // Bunker: ebener Platz am Waldrand; der Betonklotz steht über der Erde, mit Wällen.
+  const bunker = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.2 || b.highland > 0.5) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 4 || h > 55 || taken(x, z, 32)) return null;
+    const { min, max } = spread(hm, x, z, 14);
+    if (max - min > 3) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (bunker) {
+    hm.flatten(bunker.x, bunker.z, 14, 8, bunker.y!);
+    push('bunker', bunker.x, bunker.y!, bunker.z, bunker.yaw, 20);
+  }
+
+  // Acker der Stummen: großes, ebenes Feld.
+  const field = search(16, (x, z) => {
+    if (!forest(x, z)) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 3 || h > 40 || taken(x, z, 36)) return null;
+    const { min, max } = spread(hm, x, z, 20);
+    if (max - min > 3) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (field) {
+    hm.flatten(field.x, field.z, 21, 8, field.y!);
+    push('scarecrows', field.x, field.y!, field.z, field.yaw, 24);
+  }
+
+  // Geisterzug: ein 70 m langer, fast gerader und flacher Streifen im Wald (+Z = Fahrtrichtung).
+  const L = 34;
+  const train = search(18, (x, z) => {
+    if (!forest(x, z)) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 3 || h > 45 || taken(x, z, 40)) return null;
+    for (let k = 0; k < 8; k++) {
+      const yaw = (k / 8) * Math.PI;
+      const dx = Math.sin(yaw);
+      const dz = Math.cos(yaw);
+      const h0 = hm.heightAt(x - dx * L, z - dz * L);
+      const h1 = hm.heightAt(x + dx * L, z + dz * L);
+      if (Math.abs(h1 - h0) > 4 || Math.min(h0, h1) < water + 2) continue;
+      let dev = 0;
+      for (let t = -L; t <= L; t += 6) {
+        const line = h0 + ((h1 - h0) * (t + L)) / (2 * L);
+        for (const side of [-5, 0, 5]) dev = Math.max(dev, Math.abs(hm.heightAt(x + dx * t + dz * side, z + dz * t - dx * side) - line));
+      }
+      if (dev > 2.5) continue;
+      return { s: dev + Math.abs(h1 - h0) * 0.3 + rng(), yaw, y: (h0 + h1) / 2 };
+    }
+    return null;
+  });
+  if (train) {
+    const dx = Math.sin(train.yaw);
+    const dz = Math.cos(train.yaw);
+    const h0 = hm.heightAt(train.x - dx * L, train.z - dz * L);
+    const h1 = hm.heightAt(train.x + dx * L, train.z + dz * L);
+    // Bahndamm: in Abschnitten auf die Gerade zwischen den Enden einebnen.
+    for (let t = -L - 4; t <= L + 4; t += 4) {
+      const u = THREE.MathUtils.clamp((t + L) / (2 * L), 0, 1);
+      hm.flatten(train.x + dx * t, train.z + dz * t, 6, 6, h0 + (h1 - h0) * u);
+    }
+    push('train', train.x, (h0 + h1) / 2, train.z, train.yaw, 36);
+  }
+}
+
+/** Weltpunkt in lokale Koordinaten eines Ortes (Umkehrung der Drehung um Y). */
+function toLocal(s: PlaceSite, x: number, z: number): [number, number] {
+  const dx = x - s.position.x;
+  const dz = z - s.position.z;
+  const c = Math.cos(s.yaw);
+  const n = Math.sin(s.yaw);
+  return [dx * c - dz * n, dx * n + dz * c];
+}
+
 /** Bodenbeschaffenheit der Orte für das Gelände: zertretene Erde, Brandspuren, Schotter (0..1). */
 export function placeGround(sites: PlaceSite[], x: number, z: number): number {
   let u = 0;
@@ -554,7 +691,27 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
     else if (s.kind === 'grove') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 14, 26)) * 0.85);
     // Rummelplatz: zertrampelte Wiese zwischen den Buden.
     else if (s.kind === 'fair') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 8, 22)) * 0.5);
-    else if (s.kind === 'observatory') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 9)) * 0.5);
+    // Sternwarte: Plattenterrasse, drinnen Holzboden – kein Gras.
+    else if (s.kind === 'observatory') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 4.6, 9));
+    // Galgenbaum: nackte, schwarze Erde im Ritualkreis; Bunker: festgefahrener Platz; Acker: umgegraben.
+    else if (s.kind === 'gallows') u = Math.max(u, 1 - THREE.MathUtils.smoothstep(d, 6, 11));
+    else if (s.kind === 'bunker') {
+      // Innenraum ganz ohne Gras, der Platz davor festgefahren.
+      const [lx, lz] = toLocal(s, x, z);
+      const inside = 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(lx) - 4.5, Math.abs(lz + 0.5) - 5.5, 0), 0, 1);
+      u = Math.max(u, inside, (1 - THREE.MathUtils.smoothstep(d, 8, 14)) * 0.7);
+    } else if (s.kind === 'dolls') {
+      // Dielen im Puppenhaus
+      const [lx, lz] = toLocal(s, x, z);
+      u = Math.max(u, 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(lx) - 3.5, Math.abs(lz + 5) - 3, 0), 0, 1));
+    }
+    else if (s.kind === 'scarecrows') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 14, 21)) * 0.75);
+    else if (s.kind === 'train') {
+      // Schotterbett entlang der Gleise
+      const along = (x - s.position.x) * Math.sin(s.yaw) + (z - s.position.z) * Math.cos(s.yaw);
+      const across = (x - s.position.x) * Math.cos(s.yaw) - (z - s.position.z) * Math.sin(s.yaw);
+      if (Math.abs(along) < 38) u = Math.max(u, (1 - THREE.MathUtils.smoothstep(Math.abs(across), 1.8, 4)) * 0.8);
+    }
     else if (s.kind === 'mine') {
       const yx = s.position.x - Math.sin(s.yaw) * 12;
       const yz = s.position.z - Math.cos(s.yaw) * 12;

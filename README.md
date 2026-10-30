@@ -61,6 +61,38 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 55 – Mysteriöse und unheimliche Orte
+
+Fünf Orte zum Fürchten, jeder mit Notiz, Fundstück, Tagebuch-Ziel (Kapitel „Jenseits der Küste“)
+und eigener Geräuschkulisse:
+
+- **Haus der Puppen** (Waldlichtung): die Werkstatt einer Puppenmacherin. Drinnen eine Werkbank
+  voller Puppenteile, ein Regal mit Reihen von Porzellanköpfen und eine große Puppe im
+  Schaukelstuhl. Im Hof sitzen Puppen auf Stühlen, mit dem Gesicht zur Tür. An der Hauswand lehnt
+  eine riesige Puppe mit gesprungenem Gesicht, in den toten Bäumen hängen weitere, und auf der
+  Schaukel schaukelt eine ganz allein. Nachts glimmen die Glasaugen rot und eine Spieluhr spielt.
+- **Der Galgenbaum** (kleine Anhöhe): eine riesige tote Eiche mit Schlingen, an zweien hängen
+  Strohpuppen, alle schwingen im Wind. Dazu ein Kreis aus Steinen mit Kerzen, Geweih-Totems und ein
+  Altar mit Schale, Knochen und einer Truhe. Nachts glimmen Runenringe rot im Boden, und aus der
+  Ferne hört man Trommeln.
+- **Bunker Elster** (hinter Stacheldraht und Natodraht): ein Betonklotz mit Erdwällen, die Panzertür
+  steht offen. Drinnen Pritschen, Gasmasken, Spinde, ein Funkgerät mit grüner Anzeige, das Wachbuch,
+  rotes Notlicht und eine **versiegelte Luke im Boden, aus der es nachts dreimal klopft**. Dazu
+  Brummen, flackernde Lampen, Sandsäcke und Warnschilder.
+- **Acker der Stummen** (großes Feld): verdorrter Mais in Reihen, ein Pfad zum Brunnen in der Mitte
+  und über zwanzig Vogelscheuchen mit Sackköpfen, Knopfaugen und zugenähten Mündern.
+- **Der Geisterzug** (Schneise im Wald, ohne Strecke): eine entgleiste Dampflok mit brennender
+  Stirnlampe und dampfendem Schornstein, ein Tender mit Kohle, drei Wagen. Den ersten kann man
+  betreten, darin sitzen dunkle Fahrgäste. Im zweiten stehen Silhouetten hinter den erleuchteten
+  Fenstern, der dritte liegt umgekippt neben dem Gleis. Neben dem Zug wartet der Schaffner, am Ende
+  der Gleise leuchtet ein rotes Signal, nachts pfeift die Lok.
+- **Beobachter:** Puppenköpfe, Vogelscheuchen, die Fahrgäste und der Schaffner drehen sich zum
+  Spieler um, aber **nur, solange man nicht hinsieht**. Schaut man zurück, stehen sie anders als
+  vorher.
+- **Technik:** `src/world/HorrorMeshes.ts`. Die Beobachter sind eine neue Fähigkeit der Orte; die
+  Kamera wird dafür an die Orte durchgereicht. Neue Klänge: Dampfpfeife und Schläge gegen Stahl. Die
+  Gleisschneise wird abschnittweise eingeebnet und gerodet.
+
 ### Meilenstein 54 – Noch mehr Orte zum Staunen
 
 Fünf weitere Schauplätze mit eigener Stimmung, Notiz, Fundstück und Tagebuch-Ziel (Kapitel

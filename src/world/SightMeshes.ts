@@ -80,7 +80,7 @@ const S = {
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Drehung, die die Y-Achse auf die Richtung a → c legt (für Streben, Stangen, Seile). */
-function along(a: V3, c: V3): { mid: V3; len: number; rot: V3 } {
+export function along(a: V3, c: V3): { mid: V3; len: number; rot: V3 } {
   const d = new THREE.Vector3(c[0] - a[0], c[1] - a[1], c[2] - a[2]);
   const len = d.length();
   const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
@@ -88,26 +88,26 @@ function along(a: V3, c: V3): { mid: V3; len: number; rot: V3 } {
 }
 
 /** Strebe als einzelnes Mesh (optional mit Kollision). */
-function strut(b: Builder, mat: THREE.Material, a: V3, c: V3, r: number, collide = false): void {
+export function strut(b: Builder, mat: THREE.Material, a: V3, c: V3, r: number, collide = false): void {
   const s = along(a, c);
   b.cyl(mat, r, r, s.len, s.mid, s.rot, 6, collide);
 }
 
 /** Strebe in einen Batch. */
-function strutInto(batch: Batch, a: V3, c: V3, r: number, segs = 5): void {
+export function strutInto(batch: Batch, a: V3, c: V3, r: number, segs = 5): void {
   const s = along(a, c);
   batch.add(new THREE.CylinderGeometry(r, r, s.len, segs, 1, true), s.mid, s.rot);
 }
 
 /** Drehung erst um Y (Richtung), dann um die eigene X-Achse (Neigung) – als Euler-XYZ für den Builder. */
-function yawPitch(yaw: number, pitch: number, roll = 0): V3 {
+export function yawPitch(yaw: number, pitch: number, roll = 0): V3 {
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
   const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
   return [e.x, e.y, e.z];
 }
 
 /** Mesh direkt in eine Gruppe (drehende Teile), ohne Builder. */
-function put(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0], shadow = true): THREE.Mesh {
+export function put(parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0], shadow = true): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(...pos);
   m.rotation.set(...rot);
@@ -151,7 +151,7 @@ function garland(wires: Batch, bulbs: Bulbs, a: V3, c: V3, sag: number, spacing 
 }
 
 /** Schild an einen Ort hängen (Plakette aus WonderMeshes), skaliert und gedreht. */
-function sign(b: Builder, text: string[], bg: string, fg: string, pos: V3, yaw: number, scale = 1): void {
+export function sign(b: Builder, text: string[], bg: string, fg: string, pos: V3, yaw: number, scale = 1): void {
   const m = plaque(text, bg, fg);
   if (!m) return;
   m.position.copy(b.point(pos));
@@ -161,7 +161,7 @@ function sign(b: Builder, text: string[], bg: string, fg: string, pos: V3, yaw: 
 }
 
 /** Leuchtende Kugel mit weichem Hof (Kristallkugel, Irrlicht), Hof nachts heller. */
-function orb(b: Builder, color: number, radius: number, halo: number, day: number, night: number, pulse: number): THREE.Group {
+export function orb(b: Builder, color: number, radius: number, halo: number, day: number, night: number, pulse: number): THREE.Group {
   const g = new THREE.Group();
   const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), glow(b, color, color, day, night, pulse));
   g.add(core);
@@ -397,16 +397,19 @@ function buildFair(b: Builder, rng: () => number): void {
       b.container('locker', [0, 1.15, 0.9]);
     } else if (bo.kind === 'lots') {
       const teddy = S.teddy.map(() => new Batch());
+      const strings = new Batch();
       for (let i = 0; i < 7; i++) {
         const tx = -1.4 + i * 0.47;
         const t = teddy[i % teddy.length];
         const hang = 1.9 - (i % 3) * 0.12;
-        strutInto(wires, [tx, 2.6, -0.8], [tx, hang + 0.25, -0.8], 0.006, 3);
+        strutInto(strings, [tx, 2.6, -0.8], [tx, hang + 0.25, -0.8], 0.006, 3);
         t.add(new THREE.SphereGeometry(0.16, 8, 6), [tx, hang, -0.8], [0, 0, 0], [1, 1.15, 0.9]);
         t.add(new THREE.SphereGeometry(0.11, 8, 6), [tx, hang + 0.22, -0.78]);
         for (const s of [-1, 1]) t.add(new THREE.SphereGeometry(0.045, 6, 4), [tx + s * 0.08, hang + 0.31, -0.8]);
       }
-      teddy.forEach((t, i) => t.build(b, S.teddy[i]));
+      // Batches kennen den Rahmen der Bude nicht – fertig gebaut hineinsetzen.
+      teddy.forEach((t, i) => b.adopt(t.build(b, S.teddy[i])));
+      b.adopt(strings.build(b, S.wire));
       b.add(new THREE.CylinderGeometry(0.35, 0.35, 0.6, 8), S.paintCream, [0.9, 1.35, 0.9], [0, 0, Math.PI / 2]);
       // Ballons an der Bude: schaukeln im Wind
       for (let i = 0; i < 4; i++) {
@@ -432,7 +435,7 @@ function buildFair(b: Builder, rng: () => number): void {
         ducks.add(new THREE.SphereGeometry(0.09, 8, 6), [Math.cos(a) * 0.5, 1.42, 0.2 + Math.sin(a) * 0.5], [0, 0, 0], [1, 0.8, 1.3]);
         ducks.add(new THREE.SphereGeometry(0.055, 8, 6), [Math.cos(a) * 0.5, 1.53, 0.28 + Math.sin(a) * 0.5]);
       }
-      ducks.build(b, S.paintYellow);
+      b.adopt(ducks.build(b, S.paintYellow));
     }
     b.setFrame(null);
     // Schild über der Front (außerhalb des Rahmens gedreht)
@@ -601,7 +604,7 @@ function buildObservatory(b: Builder, rng: () => number): void {
       x += w + 0.008;
     }
   }
-  books.forEach((bk, i) => bk.build(b, S.book[i]));
+  books.forEach((bk, i) => b.adopt(bk.build(b, S.book[i])));
   b.setFrame(null);
   // Draußen: Windmesser (dreht sich), Sonnenuhr, Bank, kleines Fernrohr, Schild
   b.cyl(S.iron, 0.04, 0.05, 4.4, [-5.6, g(-5.6, 3) + 2.2, 3], [0, 0, 0], 6);

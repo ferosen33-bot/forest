@@ -196,6 +196,9 @@ export class Game {
   worldItems!: WorldItems;
   items!: ItemService;
   harvest!: HarvestSystem;
+  /** Kamera für die Beobachter an den Orten (wiederverwendet). */
+  private readonly viewEye = new THREE.Vector3();
+  private readonly viewDir = new THREE.Vector3();
   interaction!: InteractionSystem;
   tools!: ToolController;
   building!: BuildingSystem;
@@ -2170,7 +2173,9 @@ export class Game {
     this.updateFear(dt, playing);
     this.updateClimate(dt);
     this.updateLightning(dt);
-    this.places.update(dt, player.position, this.dayNight.isNight, !!this.caves.current);
+    this.camera.getWorldPosition(this.viewEye);
+    this.camera.getWorldDirection(this.viewDir);
+    this.places.update(dt, player.position, this.dayNight.isNight, !!this.caves.current, { eye: this.viewEye, dir: this.viewDir });
     this.fogWake.update(dt, player.position, this.nearbyFeet());
     this.blood.update(dt);
     // Kiste zerstört oder zu weit weg → Fenster schließen.

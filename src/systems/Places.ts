@@ -115,6 +115,8 @@ export class Places {
   /** Weicher Übergang Tag → Nacht für leuchtende Materialien (0..1). */
   private night = 0;
   private readonly tmp = new THREE.Vector3();
+  private readonly tmp2 = new THREE.Vector3();
+  private view: { eye: THREE.Vector3; dir: THREE.Vector3 } | null = null;
 
   constructor(private readonly d: PlacesDeps) {
     this.group.name = 'Places';
@@ -276,7 +278,11 @@ export class Places {
     return this.places.map((p) => ({ x: p.site.position.x, z: p.site.position.z, radius: p.site.radius + 20 }));
   }
 
-  update(dt: number, player: THREE.Vector3, isNight: boolean, underground: boolean): void {
+  /**
+   * @param view Kamera (Augenpunkt und Blickrichtung) – Beobachter drehen sich nur, wenn sie nicht im Blick sind.
+   */
+  update(dt: number, player: THREE.Vector3, isNight: boolean, underground: boolean, view?: { eye: THREE.Vector3; dir: THREE.Vector3 }): void {
+    this.view = view ?? null;
     this.time += dt;
     this.night = THREE.MathUtils.damp(this.night, isNight ? 1 : 0, 0.8, dt);
     if (!underground) {
@@ -351,6 +357,29 @@ export class Places {
       b.object.rotation.z = Math.sin(t * 0.8 + 1) * b.roll;
       b.object.rotation.x = Math.cos(t * 0.6) * b.roll * 0.6;
     }
+    if (m.watchers.length) {
+      // Beobachter: wer nicht im Blickfeld ist, wendet sich dem Spieler zu (Vorderseite +Z).
+      const v = this.view;
+      for (const w of m.watchers) {
+        const pos = w.getWorldPosition(this.tmp2);
+        const dx = player.x - pos.x;
+        const dz = player.z - pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 45 || dist < 0.5) continue;
+        if (v) {
+          const ex = pos.x - v.eye.x;
+          const ey = pos.y - v.eye.y;
+          const ez = pos.z - v.eye.z;
+          const len = Math.hypot(ex, ey, ez) || 1;
+          if ((ex * v.dir.x + ey * v.dir.y + ez * v.dir.z) / len > 0.45) continue;
+        }
+        const target = Math.atan2(dx, dz) - p.site.yaw;
+        let diff = target - w.rotation.y;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        const step = 1.6 * dt;
+        w.rotation.y += Math.abs(diff) < step ? diff : Math.sign(diff) * step;
+      }
+    }
     if (m.wisps.length) {
       // Irrlichter: langsame Achten um ihren Platz; wer näher als 7 m kommt, vor dem weichen sie zurück.
       const local = p.group.worldToLocal(this.tmp.copy(player));
@@ -406,6 +435,11 @@ export class Places {
         bog: 'Ein Bohlenweg führt ins schwarze Wasser. Zwischen den Birken schweben kleine Lichter – und weichen zurück.',
         manor: 'Ein verwilderter Gutsgarten. Rosen klettern über Statuen, im Glashaus wächst ein Dschungel.',
         glowbay: 'Eine stille Bucht mit hellem Sand. Die Brandung riecht nach Salz – und nachts, heißt es, leuchtet sie.',
+        dolls: 'Ein Häuschen voller Puppen. Sie sitzen im Hof, hängen in den Bäumen – und alle schauen zur Tür.',
+        gallows: 'Eine tote Eiche, an der Schlingen hängen. Um sie herum ein Kreis aus Steinen, Kerzen und Geweihen.',
+        bunker: 'Ein Bunker hinter Stacheldraht. Die Panzertür steht einen Spalt offen. Von drinnen summt etwas.',
+        scarecrows: 'Ein verdorrter Acker voller Vogelscheuchen. Wenn du dich umdrehst, stehen sie anders als vorher.',
+        train: 'Ein entgleister Zug, mitten im Wald. Es gibt hier keine Strecke. Es hat hier nie eine gegeben.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });

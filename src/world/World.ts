@@ -106,8 +106,12 @@ export class World {
           x: p.position.x,
           z: p.position.z,
           // Hain: keine gesunden Bäume darin; Wasserfall: der Wald reicht bis ans Becken.
-          radius: p.kind === 'mine' ? 10 : p.kind === 'grove' ? 24 : p.kind === 'falls' ? 9 : p.kind === 'fair' ? 27 : p.kind === 'manor' ? 22 : p.kind === 'bog' ? 12 : p.kind === 'glowbay' ? 14 : p.radius * 0.6,
+          radius: p.kind === 'mine' ? 10 : p.kind === 'grove' ? 24 : p.kind === 'falls' ? 9 : p.kind === 'fair' ? 27 : p.kind === 'manor' ? 22 : p.kind === 'bog' ? 12 : p.kind === 'glowbay' ? 14 : p.kind === 'train' ? 6 : p.kind === 'scarecrows' ? 23 : p.kind === 'bunker' ? 16 : p.radius * 0.6,
         })),
+        // Geisterzug: eine Schneise entlang der Gleise
+        ...places
+          .filter((p) => p.kind === 'train')
+          .flatMap((p) => [-30, -20, -10, 0, 10, 20, 30].map((t) => ({ x: p.position.x + Math.sin(p.yaw) * t, z: p.position.z + Math.cos(p.yaw) * t, radius: 9 }))),
         // Zechenhof vor dem Mundloch
         ...places
           .filter((p) => p.kind === 'mine')

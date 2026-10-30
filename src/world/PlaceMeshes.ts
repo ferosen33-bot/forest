@@ -7,6 +7,7 @@ import type { HeightMap } from './HeightMap';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { buildWonder } from './WonderMeshes';
 import { buildSight, SIGHTS } from './SightMeshes';
+import { buildHorror, HORRORS } from './HorrorMeshes';
 
 /**
  * Modelle der besonderen Orte (Absturzstelle, Zeche, Hütte im Moor, Funkstation) aus einfachen Körpern
@@ -78,6 +79,8 @@ export interface PlaceModel {
   sounds: PlaceSound[];
   /** Irrlichter: schweben um ihren Platz und weichen zurück, wenn man ihnen nahe kommt. */
   wisps: { object: THREE.Object3D; home: THREE.Vector3; range: number; phase: number }[];
+  /** Beobachter (Puppenköpfe, Vogelscheuchen …): drehen sich zum Spieler – aber nur, solange er nicht hinsieht. Vorderseite +Z, Kinder der Ortsgruppe. */
+  watchers: THREE.Object3D[];
 }
 
 export interface PlaceSound {
@@ -186,12 +189,19 @@ export class Builder {
       bobbers: [],
       sounds: [],
       wisps: [],
+      watchers: [],
     };
   }
 
   /** Folgende Teile in einem gedrehten/verschobenen Rahmen bauen (null = wieder im Ortsraum). */
   setFrame(pos: [number, number, number] | null, rot: [number, number, number] = [0, 0, 0]): void {
     this.frame = pos ? new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1)) : null;
+  }
+
+  /** Fertiges Objekt (z. B. ein zusammengefasstes Batch-Mesh) in den aktuellen Rahmen setzen. */
+  adopt<T extends THREE.Object3D>(obj: T | null): T | null {
+    if (obj && this.frame) obj.applyMatrix4(this.frame);
+    return obj;
   }
 
   /** Lage im Ortsraum (Rahmen angewandt). */
@@ -1147,6 +1157,7 @@ export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3,
   else if (kind === 'smugglers') buildSmugglers(b, rng);
   else if (kind === 'stones') buildStones(b, rng);
   else if (SIGHTS.has(kind)) buildSight(kind, b, rng, hm.waterLevel - origin.y);
+  else if (HORRORS.has(kind)) buildHorror(kind, b, rng);
   else buildWonder(kind, b, rng);
   return b.model;
 }

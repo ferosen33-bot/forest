@@ -93,7 +93,9 @@ export type SoundId =
   | 'bell'
   | 'buoy'
   | 'musicbox'
-  | 'frog';
+  | 'frog'
+  | 'whistle'
+  | 'pound';
 
 export interface PlayOptions {
   volume?: number;
@@ -729,6 +731,18 @@ export class Audio {
         for (let i = 0; i < n; i++) this.tone(t + i * 0.11, 'sawtooth', 210 * pitch, 150 * pitch, 0.07, 0.12, 700);
         break;
       }
+      // Dampfpfeife einer Lok: hohler Akkord, an- und abschwellend, mit Zischen.
+      case 'whistle':
+        for (const f of [392, 466, 587]) this.tone(t, 'sawtooth', f * pitch * 0.98, f * pitch, 2.6, 0.05, 1400);
+        this.noise(t, 2.6, 'bandpass', 3000, 1.2, 0.08);
+        break;
+      // Drei dumpfe Schläge von unten gegen Stahl (Bunkerluke).
+      case 'pound':
+        for (let i = 0; i < 3; i++) {
+          this.tone(t + i * 0.42, 'sine', 70 * pitch, 45, 0.35, 0.9, 400);
+          this.noise(t + i * 0.42, 0.12, 'lowpass', 300, 1, 0.6);
+        }
+        break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':
         this.tone(t, 'sawtooth', 150 * pitch, 95, 0.45, 0.16, 700);
