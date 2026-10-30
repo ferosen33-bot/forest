@@ -432,6 +432,8 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
     else if (s.kind === 'chapel') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 9)) * 0.6);
     else if (s.kind === 'lighthouse') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 12)) * 0.7);
     else if (s.kind === 'smugglers') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 3, 7)) * 0.5);
+    // Myzel-Hain: dunkler, nackter Boden – das Gespinst hat das Gras erstickt.
+    else if (s.kind === 'grove') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 14, 26)) * 0.85);
     else if (s.kind === 'mine') {
       const yx = s.position.x - Math.sin(s.yaw) * 12;
       const yz = s.position.z - Math.cos(s.yaw) * 12;

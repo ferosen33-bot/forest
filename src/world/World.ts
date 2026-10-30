@@ -102,7 +102,12 @@ export class World {
         ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 24 }] : []),
         ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 4 })),
         ...landmarks.map((l) => ({ x: l.x, z: l.z, radius: l.radius })),
-        ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.kind === 'mine' ? 10 : p.radius * 0.6 })),
+        ...places.map((p) => ({
+          x: p.position.x,
+          z: p.position.z,
+          // Hain: keine gesunden Bäume darin; Wasserfall: der Wald reicht bis ans Becken.
+          radius: p.kind === 'mine' ? 10 : p.kind === 'grove' ? 24 : p.kind === 'falls' ? 9 : p.radius * 0.6,
+        })),
         // Zechenhof vor dem Mundloch
         ...places
           .filter((p) => p.kind === 'mine')

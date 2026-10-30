@@ -37,6 +37,9 @@ const seasonal = (m: THREE.MeshStandardMaterial, bias = 0) => {
 const W = {
   rock: texturize(seasonal(std(0x6e6c62, { roughness: 0.95 }), 0.1), 'mossyRock', 0.6),
   rockDark: texturize(std(0x4e4c45, { roughness: 0.95 }), 'rockFace', 0.5),
+  rockGrey: texturize(seasonal(std(0x5f5d56, { roughness: 0.95 }), 0.1), 'rockFace', 0.5),
+  rockWet: texturize(std(0x34342f, { roughness: 0.25, metalness: 0.1 }), 'rockFace', 0.5),
+  moss: texturize(seasonal(std(0x4a5a2e, { roughness: 1 }), 0.3), 'mossyRock', 0.6),
   bark: texturize(std(0x8f8a80, { roughness: 1 }), 'bark', 0.5),
   myceliumBark: texturize(std(0xd8d4c8, { roughness: 1, emissive: new THREE.Color(0x4ac8b8), emissiveIntensity: 0.04 }), 'bark', 0.35),
   bracket: std(0xd9b884, { roughness: 0.8 }),
@@ -65,6 +68,22 @@ function plain(g: THREE.BufferGeometry): THREE.BufferGeometry {
   for (const key of Object.keys(n.attributes)) if (key !== 'position' && key !== 'normal') n.deleteAttribute(key);
   if (!n.getAttribute('normal')) n.computeVertexNormals();
   return n;
+}
+
+/** Unregelmäßiger Felsbrocken: Ikosaeder mit verwackelten Ecken, flach gedrückt. */
+function boulder(size: number, rng: () => number): THREE.BufferGeometry {
+  const geo = new THREE.IcosahedronGeometry(size, 1);
+  const p = geo.getAttribute('position');
+  // Gleiche Ecken (mehrfach vorhanden) gleich verschieben, sonst reißt die Fläche auf.
+  const moved = new Map<string, [number, number, number]>();
+  for (let i = 0; i < p.count; i++) {
+    const key = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+    let d = moved.get(key);
+    if (!d) moved.set(key, (d = [1 + (rng() - 0.5) * 0.35, 1 + (rng() - 0.5) * 0.35, 1 + (rng() - 0.5) * 0.35]));
+    p.setXYZ(i, p.getX(i) * d[0] * 1.25, p.getY(i) * d[1] * 0.7, p.getZ(i) * d[2]);
+  }
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /** Viele kleine Teile (Pilze, Seerosen …) als ein Mesh. */
@@ -278,17 +297,20 @@ function buildGrove(b: Builder, rng: () => number): void {
     color: 0xf0eee6,
     roughness: 1,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.32,
     alphaMap: veilTexture(),
     side: THREE.DoubleSide,
     depthWrite: false,
     emissive: new THREE.Color(0x7de0d0),
     emissiveIntensity: 0.05,
   });
-  b.model.glows.push({ material: fuzz, day: 0.04, night: 0.35, pulse: 0.5 });
-  const capMat = glow(b, 0x9ff0e0, 0x3fe6d0, 0.25, 2.6, 0.9);
-  const patchMat = glow(b, 0xcfe8e0, 0x2fb8a8, 0.05, 0.9, 0.6, { transparent: true, opacity: 0.55, depthWrite: false });
-  const fleshMat = glow(b, 0xe6c8c0, 0xff8a78, 0.15, 1.6, 1.3, { roughness: 0.4 });
+  b.model.glows.push({ material: fuzz, day: 0.05, night: 0.6, pulse: 0.5 });
+  // Auch die Rinde unter dem Gespinst glimmt nachts schwach.
+  b.model.glows.push({ material: W.myceliumBark, day: 0.03, night: 0.4, pulse: 0.45 });
+  const capMat = glow(b, 0x9ff0e0, 0x3fe6d0, 0.35, 5.5, 0.9);
+  const patchMat = glow(b, 0xcfe8e0, 0x2fb8a8, 0.06, 1.8, 0.6, { transparent: true, opacity: 0.5, depthWrite: false });
+  const fleshMat = glow(b, 0x5a2e2c, 0xff5a42, 0.08, 1.1, 1.15, { roughness: 0.35 });
+  const strandMat = glow(b, 0xe8f2ee, 0x6fe8d8, 0.12, 1.6, 0.8, { roughness: 0.7 });
 
   const capGeo = new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
   const stemGeo = new THREE.CylinderGeometry(0.25, 0.32, 1, 6);
@@ -312,7 +334,7 @@ function buildGrove(b: Builder, rng: () => number): void {
     trees.push([x, y, z]);
     b.cyl(W.myceliumBark, 0.16, 0.42, h, [x, y + h / 2, z], lean, 8);
     // Gespinst wie ein zerrissener Strumpf um den unteren Stamm
-    b.add(new THREE.CylinderGeometry(0.5, 0.75, h * 0.6, 10, 1, true), fuzz, [x, y + h * 0.3, z], lean, false);
+    b.add(new THREE.CylinderGeometry(0.48, 0.7, h * 0.42, 10, 1, true), fuzz, [x, y + h * 0.21, z], lean, false);
     for (let k = 0; k < 3; k++) {
       const by = y + h * (0.45 + rng() * 0.4);
       const ba = rng() * Math.PI * 2;
@@ -325,10 +347,10 @@ function buildGrove(b: Builder, rng: () => number): void {
       brackets.add(new THREE.CylinderGeometry(1, 1, 0.12, 10, 1, false, 0, Math.PI), [x + Math.cos(ba) * r0, y + 0.8 + k * 0.9 + rng() * 0.5, z + Math.sin(ba) * r0], [0, -ba + Math.PI / 2, 0], [0.35 + rng() * 0.25, 1, 0.35]);
     }
     // Leuchtpilze am Fuß
-    for (let k = 0; k < 9; k++) {
+    for (let k = 0; k < 13; k++) {
       const ma = rng() * Math.PI * 2;
       const mr = 0.5 + rng() * 1.8;
-      mushroom(x + Math.cos(ma) * mr, z + Math.sin(ma) * mr, 0.06 + rng() * 0.12);
+      mushroom(x + Math.cos(ma) * mr, z + Math.sin(ma) * mr, 0.07 + rng() * 0.14);
     }
   }
   // Schleier zwischen benachbarten Stämmen
@@ -336,16 +358,16 @@ function buildGrove(b: Builder, rng: () => number): void {
     const a = trees[i];
     const c = trees[(i + 1) % trees.length];
     const d = Math.hypot(c[0] - a[0], c[2] - a[2]);
-    if (d > 14 || rng() < 0.3) continue;
+    if (d > 12 || rng() < 0.5) continue;
     const top = Math.min(a[1], c[1]) + 4 + rng() * 2.5;
-    const h = 2.5 + rng() * 2;
+    const h = 1.5 + rng() * 1.2;
     b.add(new THREE.PlaneGeometry(d, h), fuzz, [(a[0] + c[0]) / 2, top - h / 2, (a[2] + c[2]) / 2], [0, Math.atan2(c[0] - a[0], c[2] - a[2]) + Math.PI / 2, 0], false);
   }
   // Pilzteppich und leuchtende Flecken überall im Hain
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 170; i++) {
     const a = rng() * Math.PI * 2;
     const r = Math.sqrt(rng()) * 24;
-    mushroom(Math.cos(a) * r, Math.sin(a) * r, 0.05 + rng() * 0.1);
+    mushroom(Math.cos(a) * r, Math.sin(a) * r, 0.05 + rng() * 0.12);
   }
   // Einige Riesenpilze, hüfthoch bis mannshoch
   for (let i = 0; i < 6; i++) {
@@ -365,43 +387,59 @@ function buildGrove(b: Builder, rng: () => number): void {
     const s = 0.8 + rng() * 2.4;
     patches.add(disc, [x, g(x, z) + 0.04, z], [0, 0, 0], [s, 1, s * (0.5 + rng() * 0.5)]);
   }
-  caps.build(b, capMat);
   stems.build(b, W.stem);
   brackets.build(b, W.bracket, true);
   patches.build(b, patchMat);
 
-  // Das Herz: ein fleischiger Klumpen auf einem Hügel, Ranken laufen zu den Bäumen.
-  const heart = new THREE.IcosahedronGeometry(1.7, 3);
+  // Das Herz: ein fleischiger, glatter Klumpen unter einem Schleier aus Gespinst, mit leuchtenden Knoten.
+  const heart = new THREE.SphereGeometry(1.6, 48, 32);
   const p = heart.getAttribute('position');
+  const v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
-    const v = new THREE.Vector3().fromBufferAttribute(p, i);
-    const n = Math.sin(v.x * 3.1) * Math.sin(v.y * 2.7 + 1) * Math.sin(v.z * 3.3 + 2);
-    v.multiplyScalar(1 + n * 0.22 + (v.y < 0 ? 0.15 : 0));
+    v.fromBufferAttribute(p, i);
+    const n =
+      Math.sin(v.x * 2.1 + 0.3) * Math.sin(v.y * 1.7 + 1) * Math.sin(v.z * 2.3 + 2) * 0.18 +
+      Math.sin(v.x * 5.3) * Math.sin(v.y * 4.9 + 2) * Math.sin(v.z * 5.1) * 0.06;
+    v.multiplyScalar(1 + n + (v.y < 0 ? 0.12 : 0));
+    v.y *= 0.82;
     p.setXYZ(i, v.x, v.y, v.z);
   }
   heart.computeVertexNormals();
   const y0 = g(0, 0);
-  b.add(heart, fleshMat, [0, y0 + 1.1, 0]);
-  b.collider([1.6, 1.4, 1.6], [0, y0 + 1, 0]);
-  const tendrils = new Batch();
-  for (const t of trees.slice(0, 10)) {
-    const pts: THREE.Vector3[] = [];
-    for (let k = 0; k <= 6; k++) {
-      const u = k / 6;
-      const x = t[0] * u + (rng() - 0.5) * 1.2 * Math.sin(u * Math.PI);
-      const z = t[2] * u + (rng() - 0.5) * 1.2 * Math.sin(u * Math.PI);
-      pts.push(new THREE.Vector3(x, g(x, z) + 0.12 + (1 - u) * 0.6, z));
-    }
-    tendrils.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.09 + rng() * 0.06, 5), [0, 0, 0]);
+  b.add(heart, fleshMat, [0, y0 + 0.95, 0]);
+  b.add(heart.clone().scale(1.1, 1.12, 1.1), fuzz, [0, y0 + 0.95, 0], [0, 0, 0], false);
+  b.collider([1.6, 1.3, 1.6], [0, y0 + 1, 0]);
+  for (let i = 0; i < 14; i++) {
+    const a = rng() * Math.PI * 2;
+    const el = rng() * 1.1 - 0.2;
+    const r = 1.55;
+    caps.add(capGeo, [Math.cos(a) * Math.cos(el) * r, y0 + 0.95 + Math.sin(el) * r * 0.82, Math.sin(a) * Math.cos(el) * r], [rng(), rng() * 3, rng()], [0.1 + rng() * 0.1, 0.08, 0.1 + rng() * 0.1]);
   }
-  tendrils.build(b, fleshMat);
-  b.light([0, y0 + 2.6, 0], 0xff9a88, 12, 16, 'pulse');
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + 0.4;
-    b.light([Math.cos(a) * 13, g(Math.cos(a) * 13, Math.sin(a) * 13) + 1.2, Math.sin(a) * 13], 0x5ff0d8, 8, 14, 'pulse');
+  // Feine Fäden vom Herzen zu den Bäumen, wellig über den Boden
+  const tendrils = new Batch();
+  for (let i = 0; i < 20; i++) {
+    const t = trees[i % trees.length];
+    const pts: THREE.Vector3[] = [];
+    const side = rng() - 0.5;
+    for (let k = 0; k <= 10; k++) {
+      const u = k / 10;
+      const wig = Math.sin(u * Math.PI * (2 + rng())) * side * 1.6 * Math.sin(u * Math.PI);
+      const x = t[0] * u - (t[2] / Math.hypot(t[0], t[2])) * wig;
+      const z = t[2] * u + (t[0] / Math.hypot(t[0], t[2])) * wig;
+      pts.push(new THREE.Vector3(x, g(x, z) + 0.05 + Math.max(0, 1 - u * 3) * 0.7, z));
+    }
+    tendrils.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.03 + rng() * 0.03, 4), [0, 0, 0]);
+  }
+  tendrils.build(b, strandMat);
+  caps.build(b, capMat);
+  b.light([0, y0 + 2.6, 0], 0xff7a60, 14, 16, 'pulse');
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.4;
+    const r = 9 + (i % 2) * 7;
+    b.light([Math.cos(a) * r, g(Math.cos(a) * r, Math.sin(a) * r) + 1.2, Math.sin(a) * r], 0x5ff0d8, 13, 15, 'pulse');
   }
   // Sporen: schweben langsam aufwärts, nachts hell.
-  particles(b, { count: 520, center: [0, y0, 0], radius: 24, height: 9, color: 0xbff8ec, size: 0.18, rise: 0.25, sway: 0.8, day: 0.25, night: 1, additive: true });
+  particles(b, { count: 750, center: [0, y0, 0], radius: 24, height: 9, color: 0xbff8ec, size: 0.32, rise: 0.25, sway: 0.8, day: 0.3, night: 1, additive: true });
 
   // Was von der Forschergruppe übrig ist: eingesponnenes Zelt, Kiste, Notizbuch.
   const cx = 9;
@@ -445,13 +483,16 @@ function buildFalls(b: Builder, rng: () => number): void {
   }
   const poolY = -0.35;
 
-  // Felswand aus großen, bemoosten Blöcken (deckt die Geländestufe ab, mit Kollision).
-  for (let x = -9; x <= 9; x += 2.2) {
-    for (let z = foot - 1; z <= lipZ + 1; z += 2) {
+  // Felswand aus großen, unregelmäßigen Blöcken in Schichten (deckt die Geländestufe ab).
+  const rockMats = [W.rock, W.rockDark, W.rockGrey];
+  for (let x = -10; x <= 10; x += 1.9) {
+    for (let z = foot - 1; z <= lipZ + 1; z += 1.7) {
       const gy = g(x, z);
-      const s = 1.6 + rng() * 1.6;
-      const geo = rng() < 0.5 ? new THREE.DodecahedronGeometry(s, 0) : new THREE.IcosahedronGeometry(s, 0);
-      b.add(geo, Math.abs(x) < 2.2 && z > foot ? W.rockDark : W.rock, [x + (rng() - 0.5), gy + s * 0.15, z + (rng() - 0.5)], [rng() * 3, rng() * 3, rng() * 3]);
+      const s = 1.3 + rng() * 1.5;
+      const wet = Math.abs(x) < 2.4 && z > foot - 0.5;
+      // Flache, gestreckte Platten wie Gesteinsschichten
+      b.add(boulder(s, rng), wet ? W.rockWet : rockMats[Math.floor(rng() * 3)], [x + (rng() - 0.5), gy + s * 0.1, z + (rng() - 0.5)], [rng() * 0.4, rng() * 3, rng() * 0.4]);
+      if (!wet && rng() < 0.35) b.add(boulder(s * 0.55, rng), W.moss, [x + (rng() - 0.5), gy + s * 0.55, z], [0, rng() * 3, 0], false);
     }
   }
   // Größere Brocken an der Kante, links und rechts der Rinne
@@ -460,7 +501,7 @@ function buildFalls(b: Builder, rng: () => number): void {
       const x = s * (2.6 + k * 1.8 + rng());
       const z = lipZ - 0.5 + rng();
       const r = 1.8 + rng() * 1.2;
-      b.add(new THREE.DodecahedronGeometry(r, 0), W.rock, [x, g(x, z) + r * 0.4, z], [rng() * 3, rng() * 3, 0]);
+      b.add(boulder(r, rng), W.rockGrey, [x, g(x, z) + r * 0.4, z], [rng() * 0.4, rng() * 3, 0]);
       b.collider([r * 0.7, r * 0.7, r * 0.7], [x, g(x, z) + r * 0.4, z]);
     }
   }
@@ -472,7 +513,7 @@ function buildFalls(b: Builder, rng: () => number): void {
     const s = 0.5 + rng() * 0.9;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
-    b.add(new THREE.DodecahedronGeometry(s, 0), W.rock, [x, g(x, z) + s * 0.3, z], [rng() * 3, rng() * 3, 0]);
+    b.add(boulder(s, rng), rng() < 0.5 ? W.rock : W.moss, [x, g(x, z) + s * 0.3, z], [0, rng() * 3, 0]);
   }
   for (let k = -2; k <= 2; k++) b.box(W.rock, [0.9, 0.5, 0.8], [k * 1.4, -0.85 + 0.25 + 0.15 * (k % 2), -3.5 + Math.abs(k) * 0.2], [0, rng(), 0]);
 
@@ -492,8 +533,8 @@ function buildFalls(b: Builder, rng: () => number): void {
     geo.computeVertexNormals();
     b.add(geo, waterMaterial(b, 2.6, opacity), [0, 0, 0], [0, 0, 0], false);
   };
-  fallSheet(3.2, 0.85, 0);
-  fallSheet(4.6, 0.35, 0.25);
+  fallSheet(4.2, 0.85, 0);
+  fallSheet(5.8, 0.32, 0.25);
   // Bach über der Kante
   const stream = new THREE.PlaneGeometry(2.6, 9, 1, 12);
   const sp = stream.getAttribute('position');
@@ -513,12 +554,12 @@ function buildFalls(b: Builder, rng: () => number): void {
   b.group.add(pool);
   // Gischt am Aufprall und Sprühnebel, der aufsteigt und über das Becken zieht
   const impact: V3 = [0, poolY, foot - 1.4];
-  particles(b, { count: 220, center: impact, radius: 1.8, height: 1.6, color: 0xffffff, size: 0.35, rise: 1.6, sway: 0.4, day: 0.8, night: 0.4, core: 0.8 });
-  particles(b, { count: 160, center: impact, radius: 6, height: 7, color: 0xe6f0f2, size: 1.6, rise: 0.6, sway: 1.2, day: 0.22, night: 0.1 });
+  particles(b, { count: 260, center: impact, radius: 2.2, height: 1.4, color: 0xffffff, size: 0.22, rise: 1.6, sway: 0.4, day: 0.7, night: 0.35, core: 0.8 });
+  particles(b, { count: 120, center: impact, radius: 6, height: 7, color: 0xe6f0f2, size: 1.0, rise: 0.6, sway: 1.2, day: 0.1, night: 0.05 });
   // Regenbogen im Sprühnebel – nur bei Sonne
   const uOpacity = { value: 0.3 };
   const rainbow = new THREE.Mesh(
-    new THREE.RingGeometry(5.2, 6.4, 48, 1, 0.15, Math.PI - 0.3),
+    new THREE.RingGeometry(7.2, 8.6, 64, 1, 0.15, Math.PI - 0.3),
     new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
@@ -531,16 +572,16 @@ function buildFalls(b: Builder, rng: () => number): void {
         varying vec2 vP;
         vec3 hue(float h) { return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); }
         void main() {
-          float r = (length(vP) - 5.2) / 1.2;
+          float r = (length(vP) - 7.2) / 1.4;
           float a = smoothstep(0.0, 0.2, r) * smoothstep(1.0, 0.8, r);
-          float ends = smoothstep(0.0, 1.2, vP.y);
+          float ends = smoothstep(0.0, 4.0, vP.y) * (0.6 + 0.4 * smoothstep(-6.0, 6.0, vP.x));
           gl_FragColor = vec4(hue(0.8 - r * 0.8), a * ends * uOpacity);
         }`,
     }),
   );
   rainbow.position.copy(b.point([0, poolY + 0.4, foot - 3.5]));
   b.group.add(rainbow);
-  b.model.fades.push({ uniform: uOpacity, day: 0.28, night: 0 });
+  b.model.fades.push({ uniform: uOpacity, day: 0.13, night: 0 });
 
   // Bank mit Blick auf den Fall, Wanderschild, eingeritztes Herz
   const bx = -4.5;
@@ -600,7 +641,7 @@ function buildWrecks(b: Builder, rng: () => number): void {
   b.setFrame(null);
 
   // Bug eines Frachters ragt steil aus dem Wasser
-  b.setFrame([13, -4, -16], [-0.5, -0.4, 0.12]);
+  b.setFrame([13, -5, -16], [0.55, -0.4, 0.12]);
   b.add(hullGeometry(26, 7.5, 9), W.rustHull, [0, -2, 0]);
   b.collider([3.4, 4.5, 11], [0, 2.5, 0]);
   b.box(W.rustHull, [7, 0.2, 14], [0, 7.05, 4]);
@@ -609,7 +650,7 @@ function buildWrecks(b: Builder, rng: () => number): void {
   if (name) {
     name.scale.set(2.6, 1.3, 1);
     name.position.copy(b.point([3.76, 4.5, 8]));
-    name.quaternion.setFromEuler(new THREE.Euler(-0.5, -0.4 + Math.PI / 2, 0.12));
+    name.quaternion.setFromEuler(new THREE.Euler(0.55, -0.4 + Math.PI / 2, 0.12));
     b.group.add(name);
   }
   b.container('crate', [0, 7.4, 3]);
