@@ -34,7 +34,7 @@ const seasonal = (m: THREE.MeshStandardMaterial, bias = 0) => {
   return m;
 };
 
-const W = {
+export const W = {
   rock: texturize(seasonal(std(0x6e6c62, { roughness: 0.95 }), 0.1), 'mossyRock', 0.6),
   rockDark: texturize(std(0x4e4c45, { roughness: 0.95 }), 'rockFace', 0.5),
   rockGrey: texturize(seasonal(std(0x5f5d56, { roughness: 0.95 }), 0.1), 'rockFace', 0.5),
@@ -71,7 +71,7 @@ function plain(g: THREE.BufferGeometry, keepUv = false): THREE.BufferGeometry {
 }
 
 /** Unregelmäßiger Felsbrocken: Ikosaeder mit verwackelten Ecken, flach gedrückt. */
-function boulder(size: number, rng: () => number): THREE.BufferGeometry {
+export function boulder(size: number, rng: () => number): THREE.BufferGeometry {
   const geo = new THREE.IcosahedronGeometry(size, 1);
   const p = geo.getAttribute('position');
   // Gleiche Ecken (mehrfach vorhanden) gleich verschieben, sonst reißt die Fläche auf.
@@ -87,16 +87,20 @@ function boulder(size: number, rng: () => number): THREE.BufferGeometry {
 }
 
 /** Viele kleine Teile (Pilze, Seerosen …) als ein Mesh. */
-class Batch {
+export class Batch {
   private readonly parts: THREE.BufferGeometry[] = [];
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
   /** keepUv: Texturkoordinaten behalten (für Alpha-Maps), dann müssen alle Teile welche haben. */
   constructor(private readonly keepUv = false) {}
   add(g: THREE.BufferGeometry, pos: V3, rot: V3 = [0, 0, 0], scale: V3 = [1, 1, 1]): void {
-    const p = plain(g.clone(), this.keepUv);
     this.m.compose(new THREE.Vector3(...pos), this.q.setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...scale));
-    p.applyMatrix4(this.m);
+    this.addMatrix(g, this.m);
+  }
+  /** Teil mit fertiger Matrix (zusammengesetzte Figuren: Pferd, Statue …). */
+  addMatrix(g: THREE.BufferGeometry, m: THREE.Matrix4): void {
+    const p = plain(g.clone(), this.keepUv);
+    p.applyMatrix4(m);
     this.parts.push(p);
   }
   build(b: Builder, mat: THREE.Material, shadow = false): THREE.Mesh | null {
@@ -112,7 +116,7 @@ class Batch {
 }
 
 /** Leuchtendes Material; registriert sich fürs Tag-/Nacht-Glühen. */
-function glow(b: Builder, color: number, emissive: number, day: number, night: number, pulse?: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}): THREE.MeshStandardMaterial {
+export function glow(b: Builder, color: number, emissive: number, day: number, night: number, pulse?: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color, emissive: new THREE.Color(emissive), emissiveIntensity: day, roughness: 0.6, ...extra });
   b.model.glows.push({ material: m, day, night, pulse });
   return m;
@@ -122,7 +126,7 @@ function glow(b: Builder, color: number, emissive: number, day: number, night: n
  * Schwebende Teilchen (Sporen, Gischt, Nebel) – ein Points-Objekt, die Bewegung rechnet der Shader.
  * Jedes Teilchen kreist auf seiner eigenen Bahn und steigt (oder sinkt) in einer Schleife.
  */
-function particles(
+export function particles(
   b: Builder,
   o: {
     count: number;
@@ -138,6 +142,8 @@ function particles(
     additive?: boolean;
     /** Teilchen sammeln sich zur Mitte (Gischt am Aufprall). */
     core?: number;
+    /** Zeichenreihenfolge (2 = nach der Meeresfläche, für Leuchten dicht über dem Wasser). */
+    order?: number;
   },
 ): void {
   const pos = new Float32Array(o.count * 3);
@@ -198,13 +204,14 @@ function particles(
   const pts = new THREE.Points(g, mat);
   pts.position.copy(b.point(o.center));
   pts.frustumCulled = false;
+  pts.renderOrder = o.order ?? 0;
   b.group.add(pts);
   b.model.clocks.push(uTime);
   b.model.fades.push({ uniform: uOpacity, day: o.day, night: o.night });
 }
 
 /** Fließendes Wasser: Schlieren, die über die Fläche laufen (Wasserfall, Bach). */
-function waterMaterial(b: Builder, speed: number, opacity: number): THREE.ShaderMaterial {
+export function waterMaterial(b: Builder, speed: number, opacity: number): THREE.ShaderMaterial {
   const uTime = { value: 0 };
   b.model.clocks.push(uTime);
   return new THREE.ShaderMaterial({
@@ -263,7 +270,7 @@ function veilTexture(): THREE.Texture | null {
 }
 
 /** Runder, zum Rand weich auslaufender Fleck (Alpha-Map für leuchtenden Bodenbewuchs). */
-function softDisc(): THREE.Texture | null {
+export function softDisc(): THREE.Texture | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -278,7 +285,7 @@ function softDisc(): THREE.Texture | null {
 }
 
 /** Schild mit Aufschrift (wie an Wanderwegen). */
-function plaque(text: string[], bg = '#4a3a28', fg = '#e8dcc0'): THREE.Mesh | null {
+export function plaque(text: string[], bg = '#4a3a28', fg = '#e8dcc0'): THREE.Mesh | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas');
   c.width = 512;
@@ -638,7 +645,7 @@ function buildFalls(b: Builder, rng: () => number): void {
 // ---------------------------------------------------------------------------
 
 /** Rumpf eines Schiffes als ausgezogene Silhouette (Bug spitz, Heck rund). */
-function hullGeometry(len: number, beam: number, depth: number): THREE.BufferGeometry {
+export function hullGeometry(len: number, beam: number, depth: number): THREE.BufferGeometry {
   const s = new THREE.Shape();
   // Draufsicht (x quer, y = Länge), dann in die Höhe ausgezogen
   s.moveTo(0, len / 2);

@@ -1637,6 +1637,7 @@ export class Game {
   /** Hinweis am Funkgerät der Station. */
   private usePrompt(id: string): { key: 'E' | null; action: string; label?: string } {
     if (id === 'lookout') return { key: 'E', action: 'Rundblick', label: 'Fernglas' };
+    if (id === 'telescope') return { key: 'E', action: 'Durchschauen', label: 'Teleskop' };
     if (id !== 'transmitter') return { key: null, action: '…' };
     if (this.story.transmitted) return { key: null, action: 'Funkgerät', label: 'Nur noch Rauschen' };
     return { key: 'E', action: 'Funkspruch absetzen', label: 'Funkgerät' };
@@ -1645,6 +1646,7 @@ export class Game {
   /** Funkgerät benutzen: braucht Strom und einen Beweis, dann antwortet das Festland. */
   private useThing(id: string): void {
     if (id === 'lookout') return this.lookout();
+    if (id === 'telescope') return this.telescope();
     if (id !== 'transmitter' || this.story.transmitted) return;
     const inv = this.inventory;
     if (inv.count('battery') < 2) {
@@ -1672,6 +1674,21 @@ export class Game {
     this.exploration.reveal(site.position.x, site.position.z, 560);
     this.audio.play('pickup', { volume: 0.5 });
     this.events.emit('hud:message', { text: 'Durchs Fernglas siehst du die halbe Insel – Dächer, Wege, Rauch über der Zeche. Die Karte (M) zeigt jetzt das Umland.' });
+  }
+
+  /** Sternwarte: nachts zeigt das tief gestellte Teleskop die Lichter aller Orte der Insel. */
+  private telescope(): void {
+    if (!this.dayNight.isNight) {
+      this.events.emit('hud:message', { text: 'Bei Tag zeigt das Teleskop nur Dunst und blassen Himmel. Nachts wiederkommen.' });
+      return;
+    }
+    const n = this.places.sightAll();
+    this.audio.play('pickup', { volume: 0.5 });
+    this.events.emit('hud:message', {
+      text: n
+        ? `Tief gestellt zeigt das Teleskop Lichter über der ganzen Insel. ${n === 1 ? 'Ein neuer Ort ist' : `${n} neue Orte sind`} jetzt auf der Karte (M) eingetragen.`
+        : 'Du kennst jedes Licht da draußen schon. Nur eins bewegt sich – auf dich zu.',
+    });
   }
 
   /** Mit der Möwe ablegen: Abspann. Danach kann man auf der Insel weiterspielen. */

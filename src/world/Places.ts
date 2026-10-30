@@ -41,7 +41,13 @@ export type PlaceKind =
   | 'falls'
   | 'wrecks'
   | 'tower'
-  | 'drowned';
+  | 'drowned'
+  // Meilenstein 54: noch mehr Orte zum Staunen
+  | 'fair'
+  | 'observatory'
+  | 'bog'
+  | 'manor'
+  | 'glowbay';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -70,6 +76,11 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   wrecks: 'Schiffsfriedhof Grauwasser',
   tower: 'Feuerwachturm Hoher Kopf',
   drowned: 'Versunkenes Dorf Tiefensee',
+  fair: 'Rummelplatz Glückauf',
+  observatory: 'Sternwarte Krähenstein',
+  bog: 'Irrlichtmoor',
+  manor: 'Gut Rosenthal',
+  glowbay: 'Bucht der tausend Lichter',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -299,6 +310,7 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: {
     sites.push({ kind: 'smugglers', name: PLACE_NAMES.smugglers, position: new THREE.Vector3(x, y, z), yaw, radius: 24 });
   }
   placeWonders(hm, sites, search, taken, b, n, rng);
+  placeSights(hm, sites, search, taken, b, n, rng);
   return sites;
 }
 
@@ -421,6 +433,112 @@ function placeWonders(
   if (drowned) sites.push({ kind: 'drowned', name: PLACE_NAMES.drowned, position: new THREE.Vector3(drowned.x, water, drowned.z), yaw: drowned.yaw, radius: 30 });
 }
 
+/** Meilenstein 54: Rummelplatz, Sternwarte, Irrlichtmoor, Gutsgarten und Leuchtbucht (wieder ganz hinten). */
+function placeSights(
+  hm: HeightMap,
+  sites: PlaceSite[],
+  search: (step: number, score: (x: number, z: number) => { s: number; yaw: number; y?: number } | null) => { x: number; z: number; s: number; yaw: number; y?: number } | null,
+  taken: (x: number, z: number, r: number) => boolean,
+  b: BiomeWeights,
+  n: [number, number, number],
+  rng: () => number,
+): void {
+  const water = hm.waterLevel;
+  const coastal = (x: number, z: number) => Math.hypot(x, z) / hm.half > 0.6;
+  const push = (kind: PlaceKind, x: number, y: number, z: number, yaw: number, radius: number) =>
+    sites.push({ kind, name: PLACE_NAMES[kind], position: new THREE.Vector3(x, y, z), yaw, radius });
+
+  // Rummelplatz: eine große, ebene Wiese im Wald.
+  const fair = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.15 || b.highland > 0.15 || b.cliffs > 0.2) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 3 || h > 40 || taken(x, z, 42)) return null;
+    const { min, max } = spread(hm, x, z, 22);
+    if (max - min > 3) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (fair) {
+    hm.flatten(fair.x, fair.z, 24, 10, fair.y!);
+    push('fair', fair.x, fair.y!, fair.z, fair.yaw, 26);
+  }
+
+  // Sternwarte: hohe, freie Kuppe – aber nicht neben dem Feuerwachturm.
+  const tower = sites.find((s) => s.kind === 'tower');
+  const observatory = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.2) return null;
+    const h = hm.heightAt(x, z);
+    if (h < 24 || h > 80 || taken(x, z, 30)) return null;
+    if (tower && Math.hypot(x - tower.position.x, z - tower.position.z) < 300) return null;
+    hm.normalAt(x, z, n);
+    if (n[1] < 0.9) return null;
+    let ring = 0;
+    for (let i = 0; i < 8; i++) ring += hm.heightAt(x + Math.cos(i * 0.785) * 36, z + Math.sin(i * 0.785) * 36);
+    const prominence = h - ring / 8;
+    if (prominence < 4) return null;
+    const { min, max } = spread(hm, x, z, 8);
+    if (max - min > 3) return null;
+    return { s: -prominence - h * 0.1 + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (observatory) {
+    hm.flatten(observatory.x, observatory.z, 9, 6, observatory.y!);
+    push('observatory', observatory.x, observatory.y!, observatory.z, observatory.yaw, 20);
+  }
+
+  // Irrlichtmoor: tief im Moor, flach; das Gelände sinkt unter schwarzes Wasser, darüber ein Bohlenweg.
+  const bog = search(14, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp < 0.45) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 0.8 || h > water + 12 || taken(x, z, 38)) return null;
+    const { min, max } = spread(hm, x, z, 22);
+    if (max - min > 3.5) return null;
+    return { s: max - min - b.swamp * 2 + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (bog) {
+    hm.flatten(bog.x, bog.z, 20, 10, bog.y! - 0.5);
+    push('bog', bog.x, bog.y!, bog.z, bog.yaw, 26);
+  }
+
+  // Gut Rosenthal: ebener, geschützter Platz im Laubwald.
+  const manor = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.15 || b.highland > 0.1 || b.cliffs > 0.15) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 4 || h > 45 || taken(x, z, 36)) return null;
+    const { min, max } = spread(hm, x, z, 18);
+    if (max - min > 3) return null;
+    return { s: max - min + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (manor) {
+    hm.flatten(manor.x, manor.z, 20, 10, manor.y!);
+    push('manor', manor.x, manor.y!, manor.z, manor.yaw, 24);
+  }
+
+  // Leuchtbucht: flacher Sandstrand an der Außenküste; +Z zeigt aufs Meer.
+  const glowbay = search(12, (x, z) => {
+    const h = hm.heightAt(x, z);
+    if (h < water + 0.3 || h > water + 1.6 || !coastal(x, z) || taken(x, z, 40)) return null;
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.2 || b.cliffs > 0.5) return null;
+    for (let k = 0; k < 16; k++) {
+      const yaw = (k / 16) * Math.PI * 2;
+      const dx = Math.sin(yaw);
+      const dz = Math.cos(yaw);
+      // Vorn sanft ins Wasser, weiter draußen tief genug für die Felsnadeln, hinten Land.
+      if (hm.heightAt(x + dx * 10, z + dz * 10) > water - 0.3) continue;
+      if (hm.heightAt(x + dx * 26, z + dz * 26) > water - 1.5) continue;
+      if (hm.heightAt(x - dx * 12, z - dz * 12) < water + 0.6) continue;
+      // Beidseits Strand (eine Bucht, keine Landzunge).
+      const side = hm.heightAt(x + dz * 14, z - dx * 14) + hm.heightAt(x - dz * 14, z + dx * 14);
+      return { s: Math.abs(side / 2 - water) + rng(), yaw, y: h };
+    }
+    return null;
+  });
+  if (glowbay) push('glowbay', glowbay.x, glowbay.y!, glowbay.z, glowbay.yaw, 30);
+}
+
 /** Bodenbeschaffenheit der Orte für das Gelände: zertretene Erde, Brandspuren, Schotter (0..1). */
 export function placeGround(sites: PlaceSite[], x: number, z: number): number {
   let u = 0;
@@ -434,6 +552,9 @@ export function placeGround(sites: PlaceSite[], x: number, z: number): number {
     else if (s.kind === 'smugglers') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 3, 7)) * 0.5);
     // Myzel-Hain: dunkler, nackter Boden – das Gespinst hat das Gras erstickt.
     else if (s.kind === 'grove') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 14, 26)) * 0.85);
+    // Rummelplatz: zertrampelte Wiese zwischen den Buden.
+    else if (s.kind === 'fair') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 8, 22)) * 0.5);
+    else if (s.kind === 'observatory') u = Math.max(u, (1 - THREE.MathUtils.smoothstep(d, 5, 9)) * 0.5);
     else if (s.kind === 'mine') {
       const yx = s.position.x - Math.sin(s.yaw) * 12;
       const yz = s.position.z - Math.cos(s.yaw) * 12;

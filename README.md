@@ -61,6 +61,45 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 54 – Noch mehr Orte zum Staunen
+
+Fünf weitere Schauplätze mit eigener Stimmung, Notiz, Fundstück und Tagebuch-Ziel (Kapitel
+„Jenseits der Küste“):
+
+- **Rummelplatz Glückauf** (große Waldlichtung): ein verlassener Jahrmarkt vom Bergfest. Das
+  Riesenrad dreht sich langsam weiter, die Gondeln bleiben dabei aufrecht. Das Karussell mit
+  galoppierenden Holzpferden, Spiegelsäule und gestreiftem Dach dreht sich ebenfalls, nachts spielt
+  ab und zu eine leiernde Spieluhr. Dazu eine Budengasse (Schießbude, Lose mit hängenden Teddys und
+  schaukelnden Ballons, Zuckerwatte, Entenangeln), ein Eingangstor mit Glühbirnen und
+  Lichterketten, die nachts leuchten. Im Wagen der Wahrsagerin „Madame Zora“ glimmt eine
+  Kristallkugel.
+- **Sternwarte Krähenstein** (freie Kuppe, weit vom Feuerwachturm): weiße Kuppel mit offenem
+  Spalt, drinnen rotes Nachtlicht, Sternkarten, Bücher und ein großes Teleskop. **Nachts** zeigt
+  das Teleskop (`E`) die Lichter der ganzen Insel: Alle noch unbekannten Orte erscheinen als hohle
+  Raute mit Fragezeichen auf der Karte. Besucht wird ein Ort erst, wenn man selbst hingeht.
+  Draußen ein Windmesser, der sich dreht, eine Sonnenuhr und eine Bank mit Blick ins Tal.
+- **Irrlichtmoor** (tief im Moor): ein wackliger Bohlenweg mit Pfählen und Seilgeländer über
+  schwarzes, spiegelndes Wasser, tote Birken, Schilf mit Rohrkolben und Entengrütze. Auf halbem
+  Weg steht ein Bildstock mit brennenden Kerzen, am Ende eine Beobachtungshütte. **Irrlichter**
+  schweben über dem Wasser und weichen zurück, wenn man ihnen nahe kommt. Frösche quaken, nachts
+  flüstert es.
+- **Gut Rosenthal** (Laubwald): ein verwilderter Schlossgarten mit Kieswegen und einem Brunnen, an
+  dem ein Engel Wasser aus einem Krug gießt. Dazu Statuen (eine ohne Kopf, eine umgestürzt), Beete
+  mit roten und weißen Rosen, ein Laubengang aus Eisenbögen, hohe Hecken und ein schmiedeeisernes
+  Tor. Im Glashaus wächst ein Dschungel aus Palmen und Hängepflanzen, dazwischen eine Pflanze, die
+  rosa leuchtet. Dahinter steht die ausgebrannte Fassade des Herrenhauses mit Efeu und Ruß. Nachts
+  schweben Glühwürmchen durch den Garten.
+- **Bucht der tausend Lichter** (Sandstrand an der Außenküste): Strandbude mit Veranda,
+  Lichterkette, Surfbrett und Windspiel, eine Feuerstelle mit glimmender Glut, ein umgedrehtes Kanu,
+  Treibholz, Muscheln und Seesterne. Im Meer stehen Felsnadeln und ein Felsentor. **Nachts leuchtet
+  die Brandung blau**: Wellenkämme laufen aufs Ufer zu, der Saum glimmt, im flachen Wasser blitzen
+  Funken.
+- **Technik:** `src/world/SightMeshes.ts`. Drehende Fahrgeschäfte, deren Gondeln sich gegen das
+  Rad drehen und so aufrecht bleiben. Lichterketten mit Birnen in zwei Farben. Irrlichter als neue
+  Laufzeit-Fähigkeit der Orte (sie weichen dem Spieler aus). Das Meeresleuchten ist ein eigener
+  Shader, der die Wassertiefe an jedem Punkt kennt. Neue Klänge: Spieluhr und Frosch. Der Spielstand
+  merkt sich, welche Orte durchs Teleskop gesichtet wurden.
+
 ### Meilenstein 53 – Atemberaubende Orte
 
 Fünf neue Schauplätze, jeder mit eigenem Licht, Klang, Fundstück und Notiz. Sie stehen auf der Karte,

@@ -21,7 +21,7 @@ export interface MapMarkers {
   /** Leuchtturm der Überlebenden (sobald gefunden). */
   harbor?: { x: number; z: number } | null;
   /** Entdeckte besondere Orte (mit Namen). */
-  places?: { x: number; z: number; name: string; kind: PlaceKind }[];
+  places?: { x: number; z: number; name: string; kind: PlaceKind; sighted?: boolean }[];
 }
 
 const RES = 512;
@@ -348,7 +348,7 @@ export class MapUI {
     // Besondere Orte: Raute mit Namen
     for (const pl of m.places ?? []) {
       const [x, y] = this.px(pl.x, pl.z);
-      const color = { crash: '#d9d6cc', mine: '#8a7a62', hut: '#6f8048', radio: '#c2463a', ferry: '#4a6a8a', chapel: '#e6dcc4', lab: '#7ab8b0', stones: '#9a8a7a', lighthouse: '#f2e2a8', smugglers: '#7a5a3a', grove: '#8fe0d0', falls: '#7ac0e8', wrecks: '#8a6a52', tower: '#e8b46a', drowned: '#5a7a9a' }[pl.kind];
+      const color = { crash: '#d9d6cc', mine: '#8a7a62', hut: '#6f8048', radio: '#c2463a', ferry: '#4a6a8a', chapel: '#e6dcc4', lab: '#7ab8b0', stones: '#9a8a7a', lighthouse: '#f2e2a8', smugglers: '#7a5a3a', grove: '#8fe0d0', falls: '#7ac0e8', wrecks: '#8a6a52', tower: '#e8b46a', drowned: '#5a7a9a', fair: '#e05a8a', observatory: '#c8d0ff', bog: '#a8d860', manor: '#d87a8a', glowbay: '#5ad0ff' }[pl.kind];
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#1a1612';
       ctx.fillStyle = color;
@@ -358,15 +358,23 @@ export class MapUI {
       ctx.lineTo(x, y + 6);
       ctx.lineTo(x - 6, y);
       ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.font = '600 12px "Barlow Condensed", system-ui, sans-serif';
+      // Nur durchs Teleskop gesichtet: hohle Raute, Name mit Fragezeichen.
+      if (pl.sighted) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+      } else {
+        ctx.fill();
+        ctx.stroke();
+      }
+      const label = pl.sighted ? `${pl.name} ?` : pl.name;
+      ctx.font = `${pl.sighted ? 'italic 500' : '600'} 12px "Barlow Condensed", system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(20, 16, 12, 0.85)';
-      ctx.strokeText(pl.name, x, y - 10);
-      ctx.fillStyle = '#efe6d2';
-      ctx.fillText(pl.name, x, y - 10);
+      ctx.strokeText(label, x, y - 10);
+      ctx.fillStyle = pl.sighted ? 'rgba(239, 230, 210, 0.7)' : '#efe6d2';
+      ctx.fillText(label, x, y - 10);
     }
     // Aufwachpunkt: Zelt-Symbol
     if (m.respawn) {

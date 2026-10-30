@@ -106,7 +106,7 @@ export class World {
           x: p.position.x,
           z: p.position.z,
           // Hain: keine gesunden Bäume darin; Wasserfall: der Wald reicht bis ans Becken.
-          radius: p.kind === 'mine' ? 10 : p.kind === 'grove' ? 24 : p.kind === 'falls' ? 9 : p.radius * 0.6,
+          radius: p.kind === 'mine' ? 10 : p.kind === 'grove' ? 24 : p.kind === 'falls' ? 9 : p.kind === 'fair' ? 27 : p.kind === 'manor' ? 22 : p.kind === 'bog' ? 12 : p.kind === 'glowbay' ? 14 : p.radius * 0.6,
         })),
         // Zechenhof vor dem Mundloch
         ...places

@@ -426,6 +426,53 @@ export const NOTES: NoteDef[] = [
       'Alle sind gegangen, nur der alte Küster nicht. Er hat gesagt, die Glocke müsse weiterläuten, sonst finden die Toten nicht heim.\n\n' +
       'Heute Nacht hat sie wieder geläutet. Und im Glockenstuhl brannte Licht. Ich nehme das Boot und sehe nach. Wenn ich nicht zurückkomme, weißt du, wo ich bin.',
   },
+  {
+    id: 'rummel',
+    title: 'Zettel im Wahrsagerwagen (Rummelplatz)',
+    style: 'paper',
+    text:
+      'Madame Zora sieht alles! Liebe – Geld – Zukunft. 2 Mark.\n\n' +
+      'Auf der Rückseite, krakelig: „Der Rummel sollte zum Bergfest bleiben, drei Tage. Am zweiten Abend ist der Strom ausgefallen, ' +
+      'und das Riesenrad hat sich trotzdem weitergedreht. Die Leute in den Gondeln haben gewunken. Es waren mehr Gondeln besetzt, als wir Karten verkauft hatten.\n\n' +
+      'Ich habe in die Kugel gesehen, nur aus Spaß. Sie war voller Wald. Und ganz hinten, zwischen den Stämmen, stand ich selbst und habe zurückgeschaut.“',
+  },
+  {
+    id: 'sternwarte',
+    title: 'Beobachtungsprotokoll (Sternwarte)',
+    style: 'paper',
+    text:
+      'Nacht 211. Seeing 2/5, Dunst über der Küste.\nKeine Sterne im Sektor über der Zeche, obwohl der Himmel klar ist. Als ob etwas davorsteht.\n\n' +
+      'Nacht 214. Das Teleskop zeigt nicht nur den Himmel. Wer es tief genug stellt, sieht alle Lichter der Insel – ' +
+      'die Laterne am Leuchtturm, den Glockenstuhl im See, das Feuer am Steinkreis. Ich habe sie in die Karte eingetragen.\n\n' +
+      'Nacht 215. Ein Licht mehr als gestern. Es steht hier auf dem Gipfel, direkt unter der Kuppel.',
+  },
+  {
+    id: 'irrlicht',
+    title: 'Gebet am Bildstock (Irrlichtmoor)',
+    style: 'paper',
+    text:
+      'Für Hannes, Marie und den kleinen Paul, die dem Licht gefolgt sind. 1891.\n\n' +
+      'Darunter, viel jünger, auf einem Zettel: „Die Großmutter hat gesagt, die Irrlichter sind die Seelen der Ertrunkenen, und sie wollen nur Gesellschaft. ' +
+      'Bleib auf den Bohlen, egal was sie dir zeigen. Wenn sie zurückweichen, ist das keine Angst. Sie wollen, dass du ihnen nachgehst.“',
+  },
+  {
+    id: 'rosenthal',
+    title: 'Gärtnerbuch (Gut Rosenthal)',
+    style: 'paper',
+    text:
+      'März. Rosen geschnitten, Orangerie geheizt. Die gnädige Frau wünscht zum Sommerfest weiße Rosen am Brunnen.\n\n' +
+      'Juni. Die weißen Rosen blühen rot. Ich habe sie dreimal ausgetauscht. Unter dem Brunnen ist die Erde warm.\n\n' +
+      'August. Die Herrschaft ist abgereist, Hals über Kopf. Im Glashaus wächst etwas, das ich nicht gepflanzt habe. Es dreht sich nach mir um, wenn ich gieße.',
+  },
+  {
+    id: 'leuchtbucht',
+    title: 'Tagebuch eines Surfers (Leuchtbucht)',
+    style: 'paper',
+    text:
+      'Tag 3. Endlich die Bucht gefunden, von der der Fischer erzählt hat. Nachts leuchtet die Brandung blau, jede Welle, jeder Schritt im nassen Sand. Algen, sagt er. Meerleuchten.\n\n' +
+      'Tag 5. Habe heute Nacht gebadet. Unter Wasser leuchtet es auch, nur tiefer, weiter draußen. Als würde da unten jemand Lampen tragen.\n\n' +
+      'Tag 6. Die Lichter draußen kommen jede Nacht ein Stück näher an den Strand.',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -459,6 +506,11 @@ export const PLACE_NOTES = [
   'kutter',
   'turm',
   'tiefensee',
+  'rummel',
+  'sternwarte',
+  'irrlicht',
+  'rosenthal',
+  'leuchtbucht',
 ] as const;
 
 /** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */

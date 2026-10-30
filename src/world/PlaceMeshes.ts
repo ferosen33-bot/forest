@@ -6,6 +6,7 @@ import type { PlaceKind } from './Places';
 import type { HeightMap } from './HeightMap';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import { buildWonder } from './WonderMeshes';
+import { buildSight, SIGHTS } from './SightMeshes';
 
 /**
  * Modelle der besonderen Orte (Absturzstelle, Zeche, Hütte im Moor, Funkstation) aus einfachen Körpern
@@ -75,6 +76,8 @@ export interface PlaceModel {
   bobbers: { object: THREE.Object3D; base: THREE.Vector3; amp: number; speed: number; roll: number }[];
   /** Geräuschquellen: gelegentlich (`every`) oder als Dauerrauschen (`loop`). */
   sounds: PlaceSound[];
+  /** Irrlichter: schweben um ihren Platz und weichen zurück, wenn man ihnen nahe kommt. */
+  wisps: { object: THREE.Object3D; home: THREE.Vector3; range: number; phase: number }[];
 }
 
 export interface PlaceSound {
@@ -182,6 +185,7 @@ export class Builder {
       fades: [],
       bobbers: [],
       sounds: [],
+      wisps: [],
     };
   }
 
@@ -1142,6 +1146,7 @@ export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3,
   else if (kind === 'lighthouse') buildLighthouse(b, rng);
   else if (kind === 'smugglers') buildSmugglers(b, rng);
   else if (kind === 'stones') buildStones(b, rng);
+  else if (SIGHTS.has(kind)) buildSight(kind, b, rng, hm.waterLevel - origin.y);
   else buildWonder(kind, b, rng);
   return b.model;
 }

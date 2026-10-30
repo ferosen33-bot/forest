@@ -69,6 +69,8 @@ interface PlaceRuntime {
   site: PlaceSite;
   group: THREE.Group;
   discovered: boolean;
+  /** Durchs Teleskop gesichtet: steht auf der Karte, gilt aber noch nicht als besucht. */
+  known: boolean;
   fires: FireEffect[];
   lights: (LightRequest & { base: number; mode: PlaceLight['mode']; phase: number })[];
   beacons: THREE.Mesh[];
@@ -81,6 +83,8 @@ interface PlaceRuntime {
 
 export interface PlacesSave {
   discovered: PlaceKind[];
+  /** Seit Meilenstein 54: durchs Teleskop gesichtete Orte. */
+  known?: PlaceKind[];
   searched: number[];
   biomes: BiomeName[];
 }
@@ -110,6 +114,7 @@ export class Places {
   private time = 0;
   /** Weicher Übergang Tag → Nacht für leuchtende Materialien (0..1). */
   private night = 0;
+  private readonly tmp = new THREE.Vector3();
 
   constructor(private readonly d: PlacesDeps) {
     this.group.name = 'Places';
@@ -191,7 +196,7 @@ export class Places {
         phase: i * 1.7,
       }));
       const sounds = model.sounds.map((snd) => ({ ...snd, position: toWorld(snd.position), timer: Math.random() * (snd.every?.[0] ?? 1), handle: null }));
-      this.places.push({ site, group: g, discovered: false, fires, lights, beacons: model.beacons, spinners: model.spinners, beams: model.beams, model, sounds });
+      this.places.push({ site, group: g, discovered: false, known: false, fires, lights, beacons: model.beacons, spinners: model.spinners, beams: model.beams, model, sounds });
     }
     console.info(`[Orte] ${this.places.map((p) => p.site.name).join(', ')} · ${this.containers.length} Behälter`);
   }
@@ -248,9 +253,22 @@ export class Places {
     this.d.events.emit('loot:searched', { kind: c.kind, items: loot.map(([i]) => i) });
   }
 
-  /** Entdeckte Orte für die Karte. */
-  get markers(): { x: number; z: number; name: string; kind: PlaceKind }[] {
-    return this.places.filter((p) => p.discovered).map((p) => ({ x: p.site.position.x, z: p.site.position.z, name: p.site.name, kind: p.site.kind }));
+  /** Entdeckte (und gesichtete) Orte für die Karte. */
+  get markers(): { x: number; z: number; name: string; kind: PlaceKind; sighted?: boolean }[] {
+    return this.places
+      .filter((p) => p.discovered || p.known)
+      .map((p) => ({ x: p.site.position.x, z: p.site.position.z, name: p.site.name, kind: p.site.kind, sighted: !p.discovered || undefined }));
+  }
+
+  /** Teleskop: alle noch unbekannten Orte auf die Karte setzen. Liefert die Zahl der neu gesichteten. */
+  sightAll(): number {
+    let n = 0;
+    for (const p of this.places) {
+      if (p.discovered || p.known) continue;
+      p.known = true;
+      n++;
+    }
+    return n;
   }
 
   /** Bereiche, in denen keine Zufallsereignisse oder Lager entstehen sollen. */
@@ -333,6 +351,33 @@ export class Places {
       b.object.rotation.z = Math.sin(t * 0.8 + 1) * b.roll;
       b.object.rotation.x = Math.cos(t * 0.6) * b.roll * 0.6;
     }
+    if (m.wisps.length) {
+      // Irrlichter: langsame Achten um ihren Platz; wer näher als 7 m kommt, vor dem weichen sie zurück.
+      const local = p.group.worldToLocal(this.tmp.copy(player));
+      const k = 1 - Math.exp(-dt * 1.4);
+      for (const w of m.wisps) {
+        const t = this.time + w.phase;
+        const tx = w.home.x + Math.sin(t * 0.31) * w.range;
+        const tz = w.home.z + Math.sin(t * 0.17 + 1) * Math.cos(t * 0.23) * w.range;
+        let ty = w.home.y + Math.sin(t * 0.9) * 0.25;
+        let ax = tx - local.x;
+        let az = tz - local.z;
+        const d = Math.hypot(ax, az);
+        let fx = tx;
+        let fz = tz;
+        if (d < 7) {
+          const push = (7 - d) * 1.3;
+          ax /= d || 1;
+          az /= d || 1;
+          fx += ax * push;
+          fz += az * push;
+          ty += (7 - d) * 0.08;
+        }
+        w.object.position.x += (fx - w.object.position.x) * k;
+        w.object.position.y += (ty - w.object.position.y) * k;
+        w.object.position.z += (fz - w.object.position.z) * k;
+      }
+    }
   }
 
   private updateDiscovery(player: THREE.Vector3): void {
@@ -356,6 +401,11 @@ export class Places {
         wrecks: 'Rostige Rümpfe im flachen Wasser, so weit der Nebel reicht. Irgendwo läutet eine Boje.',
         tower: 'Ein Feuerwachturm auf dem Gipfel. Von oben muss man die ganze Insel sehen.',
         drowned: 'Ein Kirchturm ragt aus dem See. Darunter, unter dem Wasser, Dächer und Gassen.',
+        fair: 'Ein Rummelplatz mitten im Wald. Das Riesenrad dreht sich noch – ganz langsam, ohne Strom.',
+        observatory: 'Eine Sternwarte auf dem Gipfel. Die Kuppel steht offen, als hätte jemand mitten in der Nacht aufgehört zu schauen.',
+        bog: 'Ein Bohlenweg führt ins schwarze Wasser. Zwischen den Birken schweben kleine Lichter – und weichen zurück.',
+        manor: 'Ein verwilderter Gutsgarten. Rosen klettern über Statuen, im Glashaus wächst ein Dschungel.',
+        glowbay: 'Eine stille Bucht mit hellem Sand. Die Brandung riecht nach Salz – und nachts, heißt es, leuchtet sie.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });
@@ -382,13 +432,17 @@ export class Places {
   serialize(): PlacesSave {
     return {
       discovered: this.places.filter((p) => p.discovered).map((p) => p.site.kind),
+      known: this.places.filter((p) => p.known && !p.discovered).map((p) => p.site.kind),
       searched: this.containers.filter((c) => c.searched).map((c) => c.id),
       biomes: [...this.biomesSeen],
     };
   }
 
   load(data: PlacesSave): void {
-    for (const p of this.places) p.discovered = data.discovered?.includes(p.site.kind) ?? false;
+    for (const p of this.places) {
+      p.discovered = data.discovered?.includes(p.site.kind) ?? false;
+      p.known = data.known?.includes(p.site.kind) ?? false;
+    }
     for (const id of data.searched ?? []) if (this.containers[id]) this.containers[id].searched = true;
     for (const b of data.biomes ?? []) this.biomesSeen.add(b);
   }

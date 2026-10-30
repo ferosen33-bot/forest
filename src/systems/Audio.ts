@@ -91,7 +91,9 @@ export type SoundId =
   | 'creak'
   | 'buzz'
   | 'bell'
-  | 'buoy';
+  | 'buoy'
+  | 'musicbox'
+  | 'frog';
 
 export interface PlayOptions {
   volume?: number;
@@ -708,6 +710,25 @@ export class Audio {
           this.tone(t, 'sine', f * pitch, f * pitch * 0.99, 2.2, g);
         }
         break;
+      // Spieluhr des Karussells: kleine Walzer-Phrase in Moll, die beim Ablaufen langsamer und tiefer wird.
+      case 'musicbox': {
+        const tune = [76, 72, 69, 72, 76, 79, 77, 76, 74, 71, 67, 71, 74, 77, 76, 69];
+        let at = t;
+        tune.forEach((midi, i) => {
+          const slow = 1 + i * 0.035;
+          const f = 440 * Math.pow(2, (midi - 69) / 12) * pitch * (1 - i * 0.004);
+          this.tone(at, 'sine', f, f * 0.997, 1.1, 0.16);
+          this.tone(at, 'triangle', f * 4.02, f * 4, 0.25, 0.025);
+          at += (i % 3 === 0 ? 0.42 : 0.3) * slow;
+        });
+        break;
+      }
+      // Frosch im Moor: ein paar kurze, knarrende Stöße.
+      case 'frog': {
+        const n = 3 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) this.tone(t + i * 0.11, 'sawtooth', 210 * pitch, 150 * pitch, 0.07, 0.12, 700);
+        break;
+      }
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':
         this.tone(t, 'sawtooth', 150 * pitch, 95, 0.45, 0.16, 700);
