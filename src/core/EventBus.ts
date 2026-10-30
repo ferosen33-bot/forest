@@ -72,6 +72,8 @@ export type GameEvents = {
   'story:ended': Record<string, never>;
   /** Zufallsereignis begonnen bzw. geplündert. */
   'world:event': { kind: string; phase: 'start' | 'looted' };
+  /** Nachtereignis begonnen (oder `lightpath-end`: Gabe am Ende des Lichterpfads gefunden). */
+  'night:event': { kind: string };
   /** Die Überlebenden in der Nordbucht wurden gefunden. */
   'harbor:found': Record<string, never>;
   'npc:met': { id: string };

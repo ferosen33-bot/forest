@@ -61,6 +61,46 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 59 – Was die Nacht bringt
+
+Die Nacht ist jetzt nicht nur unheimlich, sondern manchmal auch wunderschön. Sechs neue
+Nachtereignisse und Blumen, die nur im Dunkeln blühen. Wieder ohne Jumpscares.
+
+**Zum Staunen**
+- **Nordlicht**: Grüne und violette Schleier wogen über den Himmel, mit feinen Strahlen, die
+  langsam wandern. Fast zwei Minuten lang. Wer hinsieht, wird ruhiger (die Furcht sinkt).
+- **Sternschnuppen**: Eine Minute lang ziehen Meteore mit leuchtendem Schweif über den Himmel,
+  manchmal zwei auf einmal.
+- **Mondblüten**: Nachts öffnen sich auf Lichtungen kleine Felder bleich schimmernder Blumen, von weitem
+  als kühler, bläulicher Schein zwischen den Bäumen zu sehen. Ein paar davon lassen sich pflücken
+  (neues Item **Mondblüte**). Isst man eine, wird das Herz ruhiger (die Furcht sinkt deutlich).
+  Bei Tagesanbruch schließen sie sich und vergehen.
+
+**Zum Gruseln** (ohne Schreck)
+- **Lichterpfad**: Vor dir entzünden sich Kerzen auf Holzpflöcken, eine nach der anderen. Sie weisen
+  einen gewundenen Weg. Hinter dir verlöschen sie, sobald du vorbei bist. Am Ende liegt auf einer
+  Steinplatte ein verschnürtes Bündel mit einer Gabe (Konserve, Verband, Lampenöl, Batterie, Munition …).
+  Dann gehen alle Kerzen aus, vom Anfang her.
+- **Reigen**: Auf einer mondhellen Lichtung tanzen kleine, bleiche Gestalten Hand in Hand im Kreis,
+  jemand summt. Kommt man näher, halten sie inne und drehen sich langsam zu dir um. Dann sind sie fort,
+  und wo sie tanzten, wachsen Leuchtpilze.
+- **Schaukelstuhl**: Neben einer Laterne schaukelt knarrend ein leerer Stuhl, eine Decke über der
+  Lehne. Kommt man heran, kommt er langsam zur Ruhe, als wäre gerade jemand aufgestanden. Er bleibt
+  dort stehen.
+- **Motten**: Nur wer Licht trägt: Ein Schwarm bleicher Motten kommt aus dem Dunkel und tanzt eine halbe
+  Minute um Fackel oder Lampe. Löscht man das Licht, sind sie fort.
+
+**Tagebuch**: neues Kapitel „Was die Nacht bringt“ (Mondblüten pflücken und essen, ein Nordlicht
+sehen, Sternschnuppen zählen, einem Lichterpfad bis ans Ende folgen, acht Nachtereignisse erleben).
+
+**Technik**
+- Nordlicht als eigener Shader (gefaltete Schleier, zwei Ebenen, additiv). Sternschnuppen als zur
+  Kamera gedrehte Bänder mit Lichtkopf.
+- Neues System `NightBloom` (Mondblüten-Felder um den Spieler, mit Tests). Neues Item `moonflower`
+  mit Beruhigung (`FoodStats.calm`, `Fear.calm`).
+- `NightEvents` kann echte Items in die Welt legen (`onItem`) und meldet Ereignisse fürs Tagebuch
+  (`night:event`). Braucht ein Ereignis Platz oder Licht, das fehlt, wird ein anderes gewählt.
+
 ### Meilenstein 58 – Nachtereignisse
 
 Lange, langsame Begebenheiten in der Nacht, zum Gruseln statt zum Erschrecken. Nichts springt einen an,

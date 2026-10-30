@@ -22,6 +22,7 @@ export type Trigger =
   | { on: 'note'; id?: string }
   | { on: 'fever' }
   | { on: 'event'; kind?: string }
+  | { on: 'night'; kind?: string }
   | { on: 'sleep' }
   | { on: 'camp' }
   | { on: 'harbor' }
@@ -215,6 +216,18 @@ export const CHAPTERS: Chapter[] = [
       { id: 'shadows', text: 'Schatten des Geisterzugs vertreiben', trigger: { on: 'kill', name: 'Schatten' }, count: 3 },
     ],
   },
+  {
+    title: 'Was die Nacht bringt',
+    intro: 'Nachts ist die Insel eine andere. Manches darin macht Angst. Manches ist einfach nur schön.',
+    objectives: [
+      { id: 'moonflowers', text: 'Mondblüten pflücken', trigger: { on: 'collect', item: 'moonflower' }, count: 3 },
+      { id: 'moonEat', text: 'Eine Mondblüte essen', trigger: { on: 'eat', item: 'moonflower' } },
+      { id: 'aurora', text: 'Ein Nordlicht sehen', trigger: { on: 'night', kind: 'aurora' } },
+      { id: 'meteors', text: 'Sternschnuppen zählen', trigger: { on: 'night', kind: 'meteors' } },
+      { id: 'lightpath', text: 'Einem Lichterpfad bis zu seinem Ende folgen', trigger: { on: 'night', kind: 'lightpath-end' } },
+      { id: 'nights', text: 'Nachtereignisse erleben', trigger: { on: 'night' }, count: 8 },
+    ],
+  },
 ];
 
 export interface JournalSave {
@@ -257,6 +270,7 @@ export class Journal {
     events.on('world:event', ({ kind, phase }) => {
       if (phase === 'looted') this.advance((t) => t.on === 'event' && (!t.kind || t.kind === kind));
     });
+    events.on('night:event', ({ kind }) => this.advance((t) => t.on === 'night' && (!t.kind || t.kind === kind)));
     events.on('note:read', ({ id, first }) => {
       if (!first) return;
       this.notes.add(id);

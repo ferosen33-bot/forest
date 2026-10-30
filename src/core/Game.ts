@@ -56,6 +56,7 @@ import { SkillsUI } from '../ui/SkillsUI';
 import { getPerk, getSkill, PERK_LEVELS, Skills, wireSkillEvents, type PerkId } from '../systems/Skills';
 import { Fear } from '../systems/Fear';
 import { NightEvents } from '../systems/NightEvents';
+import { NightBloom } from '../systems/NightBloom';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemCost, ItemId } from '../entities/items/ItemDefs';
@@ -181,6 +182,7 @@ export class Game {
   readonly fear = new Fear();
   horror!: Horror;
   nightEvents!: NightEvents;
+  nightBloom!: NightBloom;
   worldEvents!: WorldEvents;
   /** Die Überlebenden in der Nordbucht (fehlt, wenn die Insel keinen Platz dafür hat). */
   survivors: Survivors | null = null;
@@ -960,6 +962,17 @@ export class Game {
     this.nightEvents = new NightEvents(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.nightEvents.group);
     this.nightEvents.onMessage = (text) => this.events.emit('hud:message', { text });
+    this.nightEvents.onItem = (id, at) => this.items.drop(id, 1, at);
+    this.nightEvents.onEvent = (kind) => this.events.emit('night:event', { kind });
+    this.nightBloom = new NightBloom(this.worldItems, this.world.heightMap);
+    this.scene.add(this.nightBloom.group);
+    // Mondblüten (und was sonst beruhigt) nehmen die Angst.
+    this.events.on('player:ate', ({ item }) => {
+      const calm = getItem(item).food?.calm;
+      if (!calm) return;
+      this.fear.calm(calm);
+      this.events.emit('hud:message', { text: 'Ein kühler, süßer Duft. Dein Herz wird ruhiger.' });
+    });
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
     // Erlegte Schrate lassen ab und zu eine Waffe fallen; Bosse immer eine gute.
     this.events.on('enemy:killed', ({ position, boss }) => {
@@ -1590,6 +1603,7 @@ export class Game {
     // Die Nachtereignisse rechnen mit der echten Dunkelheit (mit Licht in der Hand bleibt es Nacht).
     this.nightEvents.update({ ...frame, darkness: inCave ? 1 : this.dayNight.isNight ? 1 : darkness });
     this.dayNight.extraFog = this.nightEvents.fog;
+    this.nightBloom.update({ dt, night: this.dayNight.isNight && !inCave, player: p.position });
 
     // Herzschlag ab spürbarer Angst – je größer, desto schneller und lauter.
     this.heartbeatTimer -= dt;

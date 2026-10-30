@@ -55,6 +55,9 @@ const MATERIALS = {
   flint: mat(0x2a2c33, { roughness: 0.22, metalness: 0.25 }),
   flintEdge: mat(0x5a5f6b, { roughness: 0.3, metalness: 0.2 }),
   mushroomCap: mat(0x2fc8b4, { roughness: 0.5, emissive: 0x138a7c, emissiveIntensity: 1.2 }),
+  moonPetal: mat(0xe8f0ff, { roughness: 0.5, emissive: 0x9ab8ff, emissiveIntensity: 1.1, side: THREE.DoubleSide }),
+  moonHeart: mat(0xfff4c0, { roughness: 0.6, emissive: 0xffe08a, emissiveIntensity: 1.4 }),
+  moonStem: mat(0x3a6a3e, { roughness: 0.8 }),
   mushroomStem: mat(0xd6e8e0, { roughness: 0.8, emissive: 0x2a5a52, emissiveIntensity: 0.5 }),
   linen: mat(0xe8e2d0, { roughness: 1 }),
   tin: mat(0xa9aba6, { roughness: 0.4, metalness: 0.4 }),
@@ -122,6 +125,38 @@ export function createMushroomCluster(rng: () => number, count: number): THREE.G
     cap.position.set(stem.position.x, h, stem.position.z);
     g.add(cap);
   }
+  return g;
+}
+
+/** Mondblüte: Stiel mit zwei Blättern und einer offenen, schimmernden Blüte (Spitze bei `height`). */
+export function createMoonflower(height: number, open = 1, bloom = 1): THREE.Group {
+  const g = new THREE.Group();
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.009, height, 5), MATERIALS.moonStem);
+  stem.position.y = height / 2;
+  g.add(stem);
+  for (const s of [-1, 1]) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), MATERIALS.moonStem);
+    leaf.scale.set(0.35, 0.12, 1);
+    leaf.position.set(s * 0.025, height * 0.35, 0);
+    leaf.rotation.set(0, s * 0.6, s * 0.5);
+    g.add(leaf);
+  }
+  const head = new THREE.Group();
+  head.position.y = height;
+  head.rotation.x = 0.35;
+  head.scale.setScalar(bloom);
+  for (let i = 0; i < 6; i++) {
+    const petal = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 4), MATERIALS.moonPetal);
+    const a = (i / 6) * Math.PI * 2;
+    petal.scale.set(0.45, 0.12, 1);
+    petal.position.set(Math.sin(a) * 0.03, 0.006, Math.cos(a) * 0.03);
+    petal.rotation.set(-0.5 * open - 0.15, a, 0, 'YXZ');
+    head.add(petal);
+  }
+  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), MATERIALS.moonHeart);
+  heart.position.y = 0.01;
+  head.add(heart);
+  g.add(head);
   return g;
 }
 
@@ -385,6 +420,9 @@ function build(id: ItemId): THREE.Object3D {
       g.add(wrap);
       break;
     }
+    case 'moonflower':
+      g.add(createMoonflower(0.28, 1, 1.5));
+      break;
     case 'mushroom': {
       let seed = 5;
       const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -1164,6 +1202,8 @@ export function createItemCollider(id: ItemId): RAPIER.ColliderDesc {
       return RAPIER.ColliderDesc.cuboid(0.1, 0.32, 0.03).setDensity(900);
     case 'mushroom':
       return RAPIER.ColliderDesc.ball(0.07).setDensity(600);
+    case 'moonflower':
+      return RAPIER.ColliderDesc.cylinder(0.14, 0.05).setTranslation(0, 0.14, 0).setDensity(300);
     case 'medkit':
       return RAPIER.ColliderDesc.cylinder(0.05, 0.05).setDensity(400);
     case 'cannedFood':

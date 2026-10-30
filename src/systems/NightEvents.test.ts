@@ -17,6 +17,10 @@ function setup() {
   const events = new NightEvents(audio, hm, fear, mulberry32(11));
   const lines: string[] = [];
   events.onMessage = (t) => lines.push(t);
+  const items: { id: string; at: THREE.Vector3 }[] = [];
+  events.onItem = (id, at) => void items.push({ id, at: at.clone() });
+  const kinds: string[] = [];
+  events.onEvent = (k) => void kinds.push(k);
   const player = new THREE.Vector3(0, hm.heightAt(0, 0), 0);
   const frame = (over: Partial<HorrorFrame> = {}): HorrorFrame => ({
     dt: 0.1,
@@ -33,14 +37,15 @@ function setup() {
   const run = (seconds: number, over: Partial<HorrorFrame> = {}) => {
     for (let i = 0; i < seconds * 10; i++) events.update(frame(over));
   };
-  return { events, fear, played, lines, frame, run, hm, player };
+  return { events, fear, played, lines, frame, run, hm, player, items, kinds };
 }
 
 describe('Nachtereignisse', () => {
   it('jedes Ereignis startet, erzählt beim ersten Mal und endet von selbst', () => {
     for (const kind of NIGHT_EVENTS) {
       const { events, lines, frame, run } = setup();
-      events.start(kind, frame());
+      // Motten kommen nur zu dem, der Licht trägt.
+      events.start(kind, frame({ lit: kind === 'moths' }));
       expect(events.current).toBe(kind);
       expect(lines.length).toBe(1);
       // Der Spieler wartet an Ort und Stelle (Ereignisse mit Annäherung laufen höchstens ihre Zeit ab);
@@ -120,5 +125,84 @@ describe('Nachtereignisse', () => {
       seen = events.current !== null;
     }
     expect(seen).toBe(true);
+  });
+
+  it('Nordlicht: wogt eine Weile über dem Himmel und beruhigt', () => {
+    const { events, frame, run, fear } = setup();
+    fear.value = 0.8;
+    events.start('aurora', frame());
+    run(60, { paused: true });
+    expect(events.current).toBe('aurora');
+    expect(fear.value).toBeLessThan(0.8);
+    run(60, { paused: true });
+    expect(events.current).toBeNull();
+  });
+
+  it('Lichterpfad: wer ihm folgt, findet an seinem Ende eine Gabe', () => {
+    const { events, frame, run, items, kinds, player } = setup();
+    events.start('lightpath', frame());
+    // Erst alle Kerzen aufleuchten lassen, dann die Kerzenreihe entlang bis ans Ende gehen.
+    run(20);
+    const candles = events.group.children.filter((c) => c.getObjectByName('flame'));
+    expect(candles.length).toBeGreaterThanOrEqual(5);
+    const ends = candles.slice(-2).map((c) => c.position);
+    const end = ends[0].clone().add(ends[1]).multiplyScalar(0.5);
+    for (const c of candles.slice(0, -2)) run(0.2, { player: c.position.clone(), eye: c.position.clone().setY(c.position.y + 1.6) });
+    // Hinter dem Spieler sind die Kerzen aus.
+    expect(candles[0].getObjectByName('flame')!.visible).toBe(false);
+    run(0.2, { player: end, eye: end.clone().setY(end.y + 1.6) });
+    expect(kinds).toContain('lightpath-end');
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    run(10, { player: end, paused: true });
+    expect(events.current).toBeNull();
+    // Der Stein mit dem Bündel bleibt.
+    expect(events.leftoverCount).toBe(1);
+    expect(player).toBeDefined();
+  });
+
+  it('Reigen: hält inne, wenn man kommt – dann wachsen Leuchtpilze', () => {
+    const { events, frame, run, items, fear } = setup();
+    events.start('reigen', frame());
+    run(5);
+    const ring = events.group.children[events.group.children.length - 1];
+    const near = ring.position.clone().add(new THREE.Vector3(10, 0, 0));
+    run(5, { player: near, eye: near.clone().setY(near.y + 1.6), paused: true });
+    expect(events.current).toBeNull();
+    expect(items.filter((i) => i.id === 'mushroom').length).toBe(3);
+    expect(fear.value).toBeGreaterThan(0);
+  });
+
+  it('Schaukelstuhl: kommt zur Ruhe, wenn man herantritt, und bleibt stehen', () => {
+    const { events, frame, run, played } = setup();
+    events.start('rocking', frame());
+    run(10);
+    expect(played.some((p) => p.id === 'creak')).toBe(true);
+    const chair = events.group.children[events.group.children.length - 1];
+    const near = chair.position.clone().add(new THREE.Vector3(3, 0, 0));
+    run(5, { player: near, eye: near.clone().setY(near.y + 1.6), paused: true });
+    expect(events.current).toBeNull();
+    expect(events.leftoverCount).toBe(1);
+  });
+
+  it('Motten: nur mit Licht – und fort, wenn es ausgeht', () => {
+    const { events, frame, run } = setup();
+    events.start('moths', frame({ lit: false }));
+    expect(events.current).toBeNull();
+    events.start('moths', frame({ lit: true }));
+    expect(events.current).toBe('moths');
+    run(10, { lit: true, paused: true });
+    expect(events.current).toBe('moths');
+    run(1, { lit: false, paused: true });
+    expect(events.current).toBeNull();
+  });
+
+  it('Sternschnuppen: eine Minute lang, dann ist der Himmel wieder still', () => {
+    const { events, frame, run } = setup();
+    events.start('meteors', frame());
+    run(30, { paused: true });
+    expect(events.current).toBe('meteors');
+    run(40, { paused: true });
+    expect(events.current).toBeNull();
+    expect(events.group.children.length).toBe(0);
   });
 });

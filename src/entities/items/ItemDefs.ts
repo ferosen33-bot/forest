@@ -75,7 +75,8 @@ export type ItemId =
   | 'nailBat'
   | 'shockBar'
   | 'nails'
-  | 'pipeBomb';
+  | 'pipeBomb'
+  | 'moonflower';
 
 export type ItemCategory = 'resource' | 'tool' | 'food';
 
@@ -126,6 +127,8 @@ export interface FoodStats {
   leftover?: ItemId;
   /** Arznei statt Essen (eigener Klang und Hinweis). */
   medicine?: boolean;
+  /** Beruhigt: senkt die Furcht um diesen Betrag (0..1). */
+  calm?: number;
 }
 
 export interface RangedStats {
@@ -280,6 +283,14 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     category: 'food',
     maxStack: 20,
     food: { hunger: 6, thirst: 2, health: 2 },
+  },
+  moonflower: {
+    id: 'moonflower',
+    name: 'Mondblüte',
+    description: 'Blüht nur nachts und schimmert wie Mondlicht. Duftet kühl – wer sie isst, wird ruhiger.',
+    category: 'food',
+    maxStack: 10,
+    food: { hunger: 2, thirst: 2, health: 4, calm: 0.35 },
   },
   medkit: {
     id: 'medkit',

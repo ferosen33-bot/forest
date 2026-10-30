@@ -28,6 +28,7 @@ const ICON_ROTATION: Record<ItemId, THREE.Euler> = {
   flint: new THREE.Euler(0.4, 0.6, 0.2),
   flintAxe: new THREE.Euler(0, 0.35, -0.65),
   mushroom: new THREE.Euler(0.35, 0.3, 0),
+  moonflower: new THREE.Euler(0.3, 0.3, 0.5),
   medkit: new THREE.Euler(0.5, 0.6, 0),
   cannedFood: new THREE.Euler(0.35, 0.4, 0),
   waterBottle: new THREE.Euler(0.2, 0.3, -0.4),

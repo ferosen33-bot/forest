@@ -32,6 +32,12 @@ export class Fear {
     this.value = Math.min(1, this.value + amount * 0.6);
   }
 
+  /** Beruhigung (Mondblüte, Nordlicht): senkt Furcht und Schreck. */
+  calm(amount: number): void {
+    this.value = Math.max(0, this.value - amount);
+    this.shock = Math.max(0, this.shock - amount);
+  }
+
   /** Worauf die Furcht gerade zustrebt. */
   target(f: FearInput): number {
     if (f.resting) return 0;
