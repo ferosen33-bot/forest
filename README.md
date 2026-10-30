@@ -61,6 +61,37 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 53 – Atemberaubende Orte
+
+Fünf neue Schauplätze, jeder mit eigenem Licht, Klang, Fundstück und Notiz. Sie stehen auf der Karte,
+im Tagebuch (Kapitel „Jenseits der Küste“) und melden sich beim ersten Betreten mit einem Untertitel.
+
+- **Myzel-Hain** (am Rand des Sumpfs): tote, weiß eingesponnene Bäume mit Baumpilzen, Hunderte
+  türkis leuchtender Pilze, durchhängende Gespinstfäden und feine Ausläufer, die alle zu einem
+  pulsierenden, fleischigen Herz in der Mitte führen. Schwebende Sporen, ein tiefes Brummen und
+  nachts Flüstern. Das eingesponnene Lager einer Forschergruppe mit Feldbericht P-M/7.
+- **Der Weiße Schleier** (Wasserfall): an einer Geländestufe stürzt ein Bach über nasse, bemooste
+  Felsen in ein klares Becken. Animiertes Wasser, Gischt, Nebel und bei Sonne ein Regenbogen.
+  Trittsteine, eine Bank, ein Wanderschild mit der Fallhöhe und eine Postkarte von 1971. Das
+  Rauschen hört man schon von weitem.
+- **Schiffsfriedhof Grauwasser** (flache Bucht an der Küste): ein schräg liegender Fischkutter
+  mit Netzen, Mastlaterne und Logbuch, der Bug des Frachters NORDSTERN ragt aus dem Wasser, dazu ein
+  gekentertes Segelboot, Reste eines Stegs und ein Ruderboot am Strand. Eine Glockenboje schaukelt
+  und schlägt an, über allem liegt Seenebel.
+- **Feuerwachturm Hoher Kopf** (höchster freier Gipfel): 14 m Stahlgerüst mit begehbarer
+  Zickzack-Treppe, Umlauf und verglaster Kanzel. Darin Funkgerät, Brandwachbuch, Schrank und ein
+  **Fernglas**: `E` daran deckt die Karte im weiten Umkreis auf (Rundblick). Die Fahne flattert,
+  das Gerüst knarzt im Wind.
+- **Versunkenes Dorf Tiefensee** (Binnensee): der Kirchturm ragt bis zur Glockenstube aus dem
+  Wasser, unter der Oberfläche liegen Häuser, in denen nachts noch Fenster schimmern. Tote Bäume,
+  Seerosen, ein Steg, ein treibendes Ruderboot mit dem Brief einer Enkelin und ein Schild
+  „Baden verboten“. Nachts läutet manchmal die Glocke.
+- **Technik:** neue Bausteine für Orte (`src/world/WonderMeshes.ts`): Teilchenwolken, deren
+  Bewegung der Shader rechnet (Sporen, Gischt, Nebel), fließendes Wasser als Shader, Material-Glühen
+  nach Tageszeit mit Pulsieren, schaukelnde Objekte, pulsierende Lichter und Geräuschquellen im Raum
+  (Dauerrauschen als gefiltertes Rauschen mit Raumklang, einzelne Klänge in Abständen). Viele kleine
+  Teile werden zu wenigen Meshes zusammengefasst.
+
 ### Meilenstein 52 – Welt & Atmosphäre (Teil C: Neue Oberfläche)
 
 - **Neuer Look** im rauen Survival-Horror-Stil:

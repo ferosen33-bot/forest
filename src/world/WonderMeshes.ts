@@ -63,9 +63,9 @@ const W = {
 };
 
 /** Nur Position und Normale, nicht indiziert – damit sich verschiedene Formen verschmelzen lassen. */
-function plain(g: THREE.BufferGeometry): THREE.BufferGeometry {
+function plain(g: THREE.BufferGeometry, keepUv = false): THREE.BufferGeometry {
   const n = g.index ? g.toNonIndexed() : g;
-  for (const key of Object.keys(n.attributes)) if (key !== 'position' && key !== 'normal') n.deleteAttribute(key);
+  for (const key of Object.keys(n.attributes)) if (key !== 'position' && key !== 'normal' && !(keepUv && key === 'uv')) n.deleteAttribute(key);
   if (!n.getAttribute('normal')) n.computeVertexNormals();
   return n;
 }
@@ -91,8 +91,10 @@ class Batch {
   private readonly parts: THREE.BufferGeometry[] = [];
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
+  /** keepUv: Texturkoordinaten behalten (für Alpha-Maps), dann müssen alle Teile welche haben. */
+  constructor(private readonly keepUv = false) {}
   add(g: THREE.BufferGeometry, pos: V3, rot: V3 = [0, 0, 0], scale: V3 = [1, 1, 1]): void {
-    const p = plain(g.clone());
+    const p = plain(g.clone(), this.keepUv);
     this.m.compose(new THREE.Vector3(...pos), this.q.setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...scale));
     p.applyMatrix4(this.m);
     this.parts.push(p);
@@ -242,6 +244,9 @@ function veilTexture(): THREE.Texture | null {
   c.width = 128;
   c.height = 256;
   const g = c.getContext('2d')!;
+  // Alpha-Maps lesen den Grünkanal: hell auf Schwarz zeichnen, nicht über Transparenz.
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 128, 256);
   for (let i = 0; i < 70; i++) {
     const x = Math.random() * 128;
     const w = 1 + Math.random() * 4;
@@ -254,6 +259,21 @@ function veilTexture(): THREE.Texture | null {
     g.fillStyle = grad;
     g.fillRect(x, top, w, len);
   }
+  return new THREE.CanvasTexture(c);
+}
+
+/** Runder, zum Rand weich auslaufender Fleck (Alpha-Map für leuchtenden Bodenbewuchs). */
+function softDisc(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, '#e6e6e6');
+  grad.addColorStop(0.5, '#737373');
+  grad.addColorStop(1, '#000');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
 }
 
@@ -292,7 +312,7 @@ function buildGrove(b: Builder, rng: () => number): void {
   const caps = new Batch();
   const stems = new Batch();
   const brackets = new Batch();
-  const patches = new Batch();
+  const patches = new Batch(true);
   const fuzz = new THREE.MeshStandardMaterial({
     color: 0xf0eee6,
     roughness: 1,
@@ -308,9 +328,9 @@ function buildGrove(b: Builder, rng: () => number): void {
   // Auch die Rinde unter dem Gespinst glimmt nachts schwach.
   b.model.glows.push({ material: W.myceliumBark, day: 0.03, night: 0.4, pulse: 0.45 });
   const capMat = glow(b, 0x9ff0e0, 0x3fe6d0, 0.35, 5.5, 0.9);
-  const patchMat = glow(b, 0xcfe8e0, 0x2fb8a8, 0.06, 1.8, 0.6, { transparent: true, opacity: 0.5, depthWrite: false });
+  const patchMat = glow(b, 0x3c5a52, 0x2fb8a8, 0.04, 1.4, 0.6, { transparent: true, opacity: 0.8, depthWrite: false, alphaMap: softDisc(), roughness: 1 });
   const fleshMat = glow(b, 0x5a2e2c, 0xff5a42, 0.08, 1.1, 1.15, { roughness: 0.35 });
-  const strandMat = glow(b, 0xe8f2ee, 0x6fe8d8, 0.12, 1.6, 0.8, { roughness: 0.7 });
+  const strandMat = glow(b, 0xa8b8b0, 0x6fe8d8, 0.08, 1.6, 0.8, { roughness: 0.8 });
 
   const capGeo = new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
   const stemGeo = new THREE.CylinderGeometry(0.25, 0.32, 1, 6);
@@ -353,15 +373,24 @@ function buildGrove(b: Builder, rng: () => number): void {
       mushroom(x + Math.cos(ma) * mr, z + Math.sin(ma) * mr, 0.07 + rng() * 0.14);
     }
   }
-  // Schleier zwischen benachbarten Stämmen
+  // Durchhängende Gespinstfäden zwischen benachbarten Stämmen (wie Spinnweben, nur dicker)
+  const webs = new Batch();
   for (let i = 0; i < trees.length; i++) {
     const a = trees[i];
-    const c = trees[(i + 1) % trees.length];
+    const c = trees[(i + 1 + Math.floor(rng() * 2)) % trees.length];
     const d = Math.hypot(c[0] - a[0], c[2] - a[2]);
-    if (d > 12 || rng() < 0.5) continue;
-    const top = Math.min(a[1], c[1]) + 4 + rng() * 2.5;
-    const h = 1.5 + rng() * 1.2;
-    b.add(new THREE.PlaneGeometry(d, h), fuzz, [(a[0] + c[0]) / 2, top - h / 2, (a[2] + c[2]) / 2], [0, Math.atan2(c[0] - a[0], c[2] - a[2]) + Math.PI / 2, 0], false);
+    if (d > 13) continue;
+    for (let k = 0; k < 1 + Math.floor(rng() * 3); k++) {
+      const ha = 2.5 + rng() * 4;
+      const hc = 2.5 + rng() * 4;
+      const sag = 0.8 + rng() * 1.8;
+      const pts: THREE.Vector3[] = [];
+      for (let j = 0; j <= 8; j++) {
+        const u = j / 8;
+        pts.push(new THREE.Vector3(a[0] + (c[0] - a[0]) * u, a[1] + ha + (c[1] + hc - a[1] - ha) * u - Math.sin(u * Math.PI) * sag, a[2] + (c[2] - a[2]) * u));
+      }
+      webs.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.012 + rng() * 0.02, 3), [0, 0, 0]);
+    }
   }
   // Pilzteppich und leuchtende Flecken überall im Hain
   for (let i = 0; i < 170; i++) {
@@ -428,9 +457,10 @@ function buildGrove(b: Builder, rng: () => number): void {
       const z = t[2] * u + (t[0] / Math.hypot(t[0], t[2])) * wig;
       pts.push(new THREE.Vector3(x, g(x, z) + 0.05 + Math.max(0, 1 - u * 3) * 0.7, z));
     }
-    tendrils.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.03 + rng() * 0.03, 4), [0, 0, 0]);
+    tendrils.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.02 + rng() * 0.025, 4), [0, 0, 0]);
   }
   tendrils.build(b, strandMat);
+  webs.build(b, strandMat);
   caps.build(b, capMat);
   b.light([0, y0 + 2.6, 0], 0xff7a60, 14, 16, 'pulse');
   for (let i = 0; i < 6; i++) {

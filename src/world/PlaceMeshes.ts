@@ -97,6 +97,9 @@ function scorchTexture(): THREE.Texture | null {
   const g = c.getContext('2d')!;
   let seed = 5;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // Alpha-Maps lesen den Grünkanal: hell auf Schwarz zeichnen, nicht über Transparenz.
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, S, S);
   for (let i = 0; i < 60; i++) {
     const a = rnd() * Math.PI * 2;
     const d = rnd() * S * 0.32;
