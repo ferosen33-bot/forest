@@ -47,7 +47,7 @@ export class Compass {
       ctx.globalAlpha = 0.25 + 0.75 * fade;
       ctx.fillStyle = deg === 0 ? '#ff8a6a' : '#e9e2cf';
       if (label) {
-        ctx.font = label.length === 1 ? '600 14px system-ui, sans-serif' : '500 11px system-ui, sans-serif';
+        ctx.font = label.length === 1 ? '600 16px Oswald, system-ui, sans-serif' : '500 13px "Barlow Condensed", system-ui, sans-serif';
         ctx.fillText(label, x, 19);
       } else {
         ctx.fillRect(x - 0.5, 9, 1, 7);

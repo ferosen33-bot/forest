@@ -25,7 +25,13 @@ const byId = (id: string) => {
   return el;
 };
 
-Game.create({
+// Schriften vorladen (Karte und Kompass zeichnen damit auf Canvas); nach spätestens 3 s geht es ohne weiter.
+const fonts = Promise.race([
+  Promise.all(['600 16px Oswald', '500 13px "Barlow Condensed"', '14px "Special Elite"'].map((f) => document.fonts.load(f))),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]).catch(() => undefined);
+
+fonts.then(() => Game.create({
   container: byId('game'),
   hudRoot: byId('hud'),
   menuRoot: byId('menu'),
@@ -33,7 +39,7 @@ Game.create({
   config,
   autostart: params.has('autostart'),
   loadSave: !params.has('autostart') || params.has('load'),
-})
+}))
   .then((game) => {
     game.start();
     // Dev-Hilfen für die Konsole: Spielinstanz und Rapier (z. B. für eigene Physik-Abfragen).

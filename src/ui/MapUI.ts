@@ -134,7 +134,7 @@ export class MapUI {
       ctx.stroke();
     }
     const [lx, ly] = pt(0, 0);
-    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.font = '14px "Special Elite", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(30, 26, 18, 0.85)';
     ctx.fillText(t.name, lx, ly - 26);
@@ -360,7 +360,7 @@ export class MapUI {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      ctx.font = '600 11px system-ui, sans-serif';
+      ctx.font = '600 12px "Barlow Condensed", system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(20, 16, 12, 0.85)';
@@ -401,7 +401,7 @@ export class MapUI {
 
     // Nordpfeil
     ctx.fillStyle = 'rgba(30, 26, 18, 0.8)';
-    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.font = '600 17px Oswald, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('N', RES - 22, 26);
     ctx.beginPath();

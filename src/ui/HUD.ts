@@ -37,6 +37,8 @@ const REFS = [
   'compass',
   'objectives',
   'toasts',
+  'notices',
+  'healthLag',
   'hotbar',
   'hotbarName',
   'build',
@@ -65,6 +67,7 @@ export interface BuildHint {
 
 const KEY_LABEL: Record<NonNullable<Prompt['key']>, string> = { E: 'E', R: 'R', LMB: 'Linksklick' };
 const TOAST_TIME = 2.8;
+const NOTICE_TIME = 3.2;
 
 interface Toast {
   el: HTMLElement;
@@ -94,6 +97,9 @@ export class HUD {
   private readonly cache = new Map<string, string | number | boolean>();
   private readonly hotbarSlots: HTMLElement[] = [];
   private readonly toasts: Toast[] = [];
+  private readonly notices: Toast[] = [];
+  /** Nachlaufender Lebensbalken (zeigt kurz, wie viel ein Treffer gekostet hat). */
+  private healthLag = -1;
   private damageFlash = 0;
   readonly screenBlood: ScreenBlood;
   private hitTimer = 0;
@@ -175,7 +181,7 @@ export class HUD {
       const drink = !!food && food.hunger === 0 && food.thirst > 0;
       this.toast(drink ? 'Wasser getrunken' : `${getItem(item).name} gegessen`, item);
     });
-    events.on('hud:message', ({ text }) => this.toast(text));
+    events.on('hud:message', ({ text }) => this.notice(text));
   }
 
   /** Munitionsanzeige der Schusswaffe in der Hand (null = ausblenden). */
@@ -239,6 +245,14 @@ export class HUD {
   ): void {
     const s = player.stats;
     this.bar('health', s.health / s.max, 0.25);
+    // Der helle Nachlauf hält kurz und schrumpft dann zum aktuellen Wert; Heilung springt sofort.
+    const hp = Math.max(0, Math.min(1, s.health / s.max));
+    this.healthLag = hp > this.healthLag || this.healthLag < 0 ? hp : Math.max(hp, this.healthLag - dt * 0.35);
+    const lag = Math.round(this.healthLag * 300) / 300;
+    if (this.cache.get('healthLag') !== lag) {
+      this.cache.set('healthLag', lag);
+      this.el.healthLag.style.transform = `scaleX(${lag})`;
+    }
     this.bar('stamina', s.stamina / s.max, s.exhausted ? 1.01 : 0);
     this.bar('hunger', s.hunger / s.max, 0.2);
     this.bar('thirst', s.thirst / s.max, 0.2);
@@ -251,7 +265,7 @@ export class HUD {
     this.toggle('mudRow', 'hidden', player.mud <= 0);
 
     this.updatePrompt(prompt);
-    this.text('clock', clockText);
+    this.updateClock(clockText);
     this.toggle('underwater', 'is-visible', player.headUnderwater);
 
     this.hitTimer -= dt;
@@ -362,6 +376,38 @@ export class HUD {
     this.toggle('hotbarName', 'is-visible', this.nameTimer > 0);
   }
 
+  /** „Tag 3 · Herbst · 17:31“ → großer Tag, darunter Uhrzeit und Jahreszeit. */
+  private updateClock(text: string): void {
+    if (this.cache.get('clock:text') === text) return;
+    this.cache.set('clock:text', text);
+    const [day, ...rest] = text.split(' · ');
+    const big = document.createElement('span');
+    big.className = 'clock__day';
+    big.textContent = day;
+    const small = document.createElement('span');
+    small.className = 'clock__time';
+    small.textContent = rest.reverse().join(' · ');
+    this.el.clock.replaceChildren(big, small);
+  }
+
+  /** Erzählende Meldung: als Untertitel über der Schnellzugriffsleiste (höchstens drei). */
+  private notice(text: string): void {
+    // Dieselbe Meldung nicht doppelt stapeln.
+    const same = this.notices.find((n) => n.text.textContent === text);
+    if (same) {
+      same.age = 0;
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'notice';
+    const span = document.createElement('span');
+    span.textContent = text;
+    el.appendChild(span);
+    this.el.notices.appendChild(el);
+    this.notices.push({ el, text: span, age: 0, count: 0 });
+    while (this.notices.length > 3) this.notices.shift()!.el.remove();
+  }
+
   private itemToast(item: ItemId, count: number): void {
     // Gleiche Items hintereinander zusammenfassen ("+3 Stock" statt drei Meldungen).
     const recent = this.toasts.find((t) => t.item === item && t.age < TOAST_TIME * 0.7 && t.count > 0);
@@ -396,13 +442,20 @@ export class HUD {
   }
 
   private updateToasts(dt: number): void {
-    for (let i = this.toasts.length - 1; i >= 0; i--) {
-      const t = this.toasts[i];
-      t.age += dt;
-      t.el.classList.toggle('is-leaving', t.age > TOAST_TIME - 0.4);
-      if (t.age > TOAST_TIME) {
-        t.el.remove();
-        this.toasts.splice(i, 1);
+    for (const [list, life] of [
+      [this.toasts, TOAST_TIME],
+      [this.notices, NOTICE_TIME],
+    ] as [Toast[], number][]) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const t = list[i];
+        // Lange Meldungen bleiben länger stehen (Lesezeit).
+        const time = list === this.notices ? life + t.text.textContent!.length * 0.035 : life;
+        t.age += dt;
+        t.el.classList.toggle('is-leaving', t.age > time - 0.5);
+        if (t.age > time) {
+          t.el.remove();
+          list.splice(i, 1);
+        }
       }
     }
   }

@@ -17,6 +17,15 @@ const DEATH_TEXT: Record<DamageSource, string> = {
   world: 'Du bist gestorben.',
 };
 
+/** Zeile über dem Titel je Zustand. */
+const KICKER: Record<MenuState, string> = {
+  loading: 'Ein Survival-Horror',
+  start: 'Ein Survival-Horror',
+  paused: 'Pause',
+  dead: 'Die Insel hat dich geholt',
+  hidden: '',
+};
+
 /** Vollbild-Menü für Ladebildschirm, Start, Pause und Tod. */
 export class Menu {
   private readonly el;
@@ -41,6 +50,8 @@ export class Menu {
       'settingsForm',
       'settingsBack',
       'mainPanel',
+      'title',
+      'kicker',
     ] as const);
     this.el.settingsButton.addEventListener('click', () => this.toggleSettings(true));
     this.el.settingsBack.addEventListener('click', () => this.toggleSettings(false));
@@ -58,6 +69,7 @@ export class Menu {
   private toggleSettings(open: boolean): void {
     this.el.settings.classList.toggle('hidden', !open);
     this.el.mainPanel.classList.toggle('hidden', open);
+    this.root.classList.toggle('is-settings', open);
   }
 
   get current(): MenuState {
@@ -105,6 +117,10 @@ export class Menu {
 
   private show(subtitle: string, button: string | null, saveInfo: string | null = null): void {
     this.root.classList.remove('hidden');
+    // Zustand fürs Stylesheet (Tod: rot, Pause: ruhiger) und passende Überschrift.
+    this.root.dataset.state = this.state;
+    this.el.title.textContent = this.state === 'dead' ? 'Gestorben' : 'Wildwood';
+    this.el.kicker.textContent = KICKER[this.state];
     this.el.newGame.classList.add('hidden');
     this.el.saveInfo.classList.toggle('hidden', !saveInfo);
     this.el.saveInfo.textContent = saveInfo ?? '';

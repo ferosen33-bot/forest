@@ -61,6 +61,39 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 52 – Welt & Atmosphäre (Teil C: Neue Oberfläche)
+
+- **Neuer Look** im rauen Survival-Horror-Stil:
+  - Über allem liegt leichtes Filmkorn, die Bildränder sind abgedunkelt.
+  - Schriften: Oswald für Überschriften, Barlow Condensed für die Bedienung und Special Elite
+    (Schreibmaschine) für alles Gefundene und Erzählte. Alle drei liegen lokal in `public/fonts`
+    (OFL) und funktionieren auch offline.
+  - Farben: Knochenweiß auf Fast-Schwarz, Akzente in getrocknetem Blut und Rost. Leisten und
+    Kacheln haben abgeschrägte Ecken.
+- **HUD:**
+  - Werte unten links mit eigenen Symbolen statt Emojis und schrägen, gekerbten Balken. Der
+    Lebensbalken ist größer, zeigt einen hellen Nachlauf (wie viel der Treffer gekostet hat) und
+    pocht bei wenig Leben.
+  - Uhr: großer Tageszähler, darunter Uhrzeit und Jahreszeit. Ziele in Schreibmaschinenschrift mit
+    Kästchen.
+  - Funde rechts als kompakte Zeilen mit Rostkante. **Erzählende Meldungen** („Hof Hollmann – ein
+    verlassener Hof …“) erscheinen als Untertitel über der Leiste und lösen sich unscharf auf.
+  - Fadenkreuz mit Ring, wenn eine Aktion möglich ist. Hinweise mit hellem Tastenschild.
+    Schnellzugriff mit gehobenem, gerahmtem Slot.
+- **Menü:**
+  - Großer Titel mit Pinselstrich, ziehende Nebelbänke, flackerndes Licht und ein Ladebalken.
+  - Die Steuerung steht als Karte daneben.
+  - Pause beruhigt und unscharf. Beim Tod färbt sich alles rot („Gestorben – Die Insel hat dich
+    geholt“).
+- **Inventar** auf rauer Stoffoptik, Rezepte mit farbiger Kante (herstellbar = moosgrün),
+  Beschreibungen in Schreibmaschinenschrift.
+- **Papier:**
+  - Karte, Tagebuch, Notizen und Fertigkeiten liegen auf altem Papier mit Flecken, dunklen Rändern
+    und ausgefranster Kante.
+  - Das Tagebuch ist liniert, erledigte Ziele sind rot durchgestrichen.
+  - Notizen flattern schräg ins Bild.
+- Gespräche mit Rostkante, Einstellungen im selben Stil. Kompass und Karte nutzen die neuen Schriften.
+
 ### Meilenstein 52 – Welt & Atmosphäre (Teil B: Fundorte und Stimmung)
 
 - **Rund 45 Fundorte im Wald**, jeder mit einer kleinen Geschichte und oft mit Beute:

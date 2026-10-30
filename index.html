@@ -11,12 +11,13 @@
 
     <!-- HUD: reines HTML/CSS-Overlay über dem WebGL-Canvas -->
     <div id="hud" class="hidden">
+      <div class="grain"></div>
       <div class="vignette" data-ref="damage"></div>
       <div class="fade" data-ref="fade"></div>
       <div class="underwater" data-ref="underwater"></div>
 
       <div class="scope" data-ref="scope"></div>
-      <div class="crosshair" data-ref="crosshair"></div>
+      <div class="crosshair" data-ref="crosshair"><i></i></div>
       <div class="hitmarker" data-ref="hitmarker"></div>
       <div class="element-tag" data-ref="elementTag"></div>
       <div class="damage-dir" data-ref="damageDir"></div>
@@ -30,6 +31,7 @@
         <span class="prompt__label" data-ref="promptLabel"></span>
       </div>
       <div class="toasts" data-ref="toasts"></div>
+      <div class="notices" data-ref="notices"></div>
       <div class="ammo" data-ref="ammo"><span class="ammo__loaded" data-ref="ammoLoaded"></span><span class="ammo__reserve" data-ref="ammoReserve"></span></div>
 
       <div class="clock" data-ref="clock"></div>
@@ -37,13 +39,13 @@
       <div class="objectives" data-ref="objectives"></div>
 
       <div class="stats">
-        <div class="stat stat--health"><span class="stat__icon">❤</span><div class="stat__bar"><div class="stat__fill" data-ref="health"></div></div></div>
-        <div class="stat stat--stamina"><span class="stat__icon">⚡</span><div class="stat__bar"><div class="stat__fill" data-ref="stamina"></div></div></div>
-        <div class="stat stat--hunger"><span class="stat__icon">🍖</span><div class="stat__bar"><div class="stat__fill" data-ref="hunger"></div></div></div>
-        <div class="stat stat--thirst"><span class="stat__icon">💧</span><div class="stat__bar"><div class="stat__fill" data-ref="thirst"></div></div></div>
-        <div class="stat stat--wet hidden" data-ref="wetRow" title="Nässe"><span class="stat__icon">☔</span><div class="stat__bar"><div class="stat__fill" data-ref="wet"></div></div></div>
-        <div class="stat stat--mud hidden" data-ref="mudRow" title="Schlammtarnung"><span class="stat__icon">🌿</span><div class="stat__bar"><div class="stat__fill" data-ref="mud"></div></div></div>
-        <div class="stat stat--oxygen" data-ref="oxygenRow"><span class="stat__icon">○</span><div class="stat__bar"><div class="stat__fill" data-ref="oxygen"></div></div></div>
+        <div class="stat stat--health"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.8 4.5c2.2 0 3.6 1.2 5.2 3.1 1.6-1.9 3-3.1 5.2-3.1 3.8 0 5.9 3.8 4.4 7.2C19.5 16.4 12 21 12 21z"/></svg></span><div class="stat__bar"><div class="stat__lag" data-ref="healthLag"></div><div class="stat__fill" data-ref="health"></div></div></div>
+        <div class="stat stat--stamina"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M13.5 2 4 13.5h6.5L9 22l11-12.5h-6.8z"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="stamina"></div></div></div>
+        <div class="stat stat--hunger"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M15.5 3c3 0 5.5 2.4 5.5 5.4 0 2.6-1.8 4.8-4.3 5.3l-4.6 4.6a2.5 2.5 0 1 1-3.7 3.2 2.5 2.5 0 1 1-2.6-4.2 2.5 2.5 0 1 1 3.4-3.6l4.6-4.6A5.4 5.4 0 0 1 15.5 3z"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="hunger"></div></div></div>
+        <div class="stat stat--thirst"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M12 2.5s7 7.6 7 12.2a7 7 0 0 1-14 0C5 10.1 12 2.5 12 2.5z"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="thirst"></div></div></div>
+        <div class="stat stat--wet hidden" data-ref="wetRow" title="Nässe"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5h7.5V19a2 2 0 0 1-4 0h-2a4 4 0 0 0 8 0v-7.5h7.5A8.5 8.5 0 0 0 12 3z"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="wet"></div></div></div>
+        <div class="stat stat--mud hidden" data-ref="mudRow" title="Schlammtarnung"><span class="stat__icon"><svg viewBox="0 0 24 24"><path d="M12 2c4 3.5 6 7.2 6 10.6A6 6 0 0 1 13 18.5V22h-2v-3.5a6 6 0 0 1-5-5.9C6 9.2 8 5.5 12 2z"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="mud"></div></div></div>
+        <div class="stat stat--oxygen" data-ref="oxygenRow"><span class="stat__icon"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.2" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="16.5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="17" cy="17.5" r="1.8" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="stat__bar"><div class="stat__fill" data-ref="oxygen"></div></div></div>
       </div>
 
       <div class="build-hint hidden" data-ref="build">
@@ -102,6 +104,7 @@
     <!-- Inselkarte (M) -->
     <div id="map" class="hidden">
       <div class="map__frame">
+        <h2 class="map__title">Inselkarte</h2>
         <canvas class="map__canvas"></canvas>
         <p class="map__hint"><kbd>M</kbd> Karte schließen · <span data-ref="mapExplored"></span></p>
       </div>
@@ -145,18 +148,28 @@
     </div>
 
     <!-- Menü-Overlay: Laden, Start, Pause, Tod -->
-    <div id="menu">
-      <div class="menu__panel" data-ref="mainPanel">
-        <h1 class="menu__title">WILDWOOD</h1>
-        <p class="menu__subtitle" data-ref="subtitle">Welt wird generiert …</p>
-        <button class="menu__button hidden" data-ref="play">Spielen</button>
-        <button class="menu__button menu__button--secondary hidden" data-ref="newGame">Neues Spiel</button>
-        <button class="menu__button menu__button--secondary hidden" data-ref="settingsButton">Einstellungen</button>
-        <p class="menu__save hidden" data-ref="saveInfo"></p>
-        <label class="menu__option hidden" data-ref="fullscreenOption">
-          <input type="checkbox" data-ref="fullscreen" /> Vollbild (erlaubt Strg zum Ducken)
-        </label>
-        <div class="menu__controls hidden" data-ref="controls">
+    <div id="menu" data-state="loading">
+      <div class="menu__fog"><i></i><i></i><i></i></div>
+      <div class="grain"></div>
+      <div class="menu__layout">
+        <div class="menu__panel" data-ref="mainPanel">
+          <p class="menu__kicker" data-ref="kicker">Ein Survival-Horror</p>
+          <h1 class="menu__title" data-ref="title">Wildwood</h1>
+          <p class="menu__tagline">Die Insel hört zu.</p>
+          <p class="menu__subtitle" data-ref="subtitle">Welt wird generiert …</p>
+          <div class="menu__loader" aria-hidden="true"><i></i></div>
+          <nav class="menu__nav">
+            <button class="menu__button hidden" data-ref="play">Spielen</button>
+            <button class="menu__button menu__button--secondary hidden" data-ref="newGame">Neues Spiel</button>
+            <button class="menu__button menu__button--secondary hidden" data-ref="settingsButton">Einstellungen</button>
+          </nav>
+          <p class="menu__save hidden" data-ref="saveInfo"></p>
+          <label class="menu__option hidden" data-ref="fullscreenOption">
+            <input type="checkbox" data-ref="fullscreen" /> <span>Vollbild (erlaubt Strg zum Ducken)</span>
+          </label>
+        </div>
+        <aside class="menu__controls hidden" data-ref="controls">
+          <h2 class="menu__controls-title">Steuerung</h2>
           <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Bewegen</div>
           <div><kbd>Maus</kbd> Umsehen</div>
           <div><kbd>Shift</kbd> Rennen</div>
@@ -164,24 +177,27 @@
           <div><kbd>Strg</kbd>/<kbd>C</kbd> Ducken / Tauchen</div>
           <div><kbd>E</kbd> Aufheben / Interagieren</div>
           <div><kbd>Linksklick</kbd> Schlagen / Essen / Werfen</div>
+          <div><kbd>Linksklick</kbd> halten: schwerer Schlag</div>
+          <div><kbd>Rechtsklick</kbd> Blocken / Zielen</div>
+          <div><kbd>Q</kbd> Ausweichen</div>
+          <div><kbd>F</kbd> Treten (im Sprung: Sprungtritt)</div>
+          <div><kbd>R</kbd> Nachladen / Reparieren</div>
           <div><kbd>1</kbd>–<kbd>6</kbd>/<kbd>Mausrad</kbd> Ausrüsten</div>
           <div><kbd>Tab</kbd>/<kbd>I</kbd> Inventar</div>
           <div><kbd>B</kbd> Herstellen &amp; Bauen</div>
           <div><kbd>M</kbd> Karte</div>
           <div><kbd>J</kbd> Tagebuch &amp; Ziele</div>
-          <div><kbd>Rechtsklick</kbd> Blocken / Speer anlegen</div>
-          <div><kbd>Linksklick</kbd> halten: schwerer Schlag</div>
-          <div><kbd>Q</kbd> Ausweichen</div>
-          <div><kbd>F</kbd> Treten (Sprung: Sprungtritt)</div>
+          <div><kbd>K</kbd> Fertigkeiten</div>
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>
+        </aside>
+        <div class="menu__panel settings hidden" data-ref="settings">
+          <h2 class="settings__title">Einstellungen</h2>
+          <div class="settings__grid" data-ref="settingsForm"></div>
+          <button class="menu__button" data-ref="settingsBack">Zurück</button>
         </div>
       </div>
-      <div class="menu__panel settings hidden" data-ref="settings">
-        <h2 class="settings__title">Einstellungen</h2>
-        <div class="settings__grid" data-ref="settingsForm"></div>
-        <button class="menu__button" data-ref="settingsBack">Zurück</button>
-      </div>
+      <p class="menu__footer">Kopfhörer empfohlen · Die Insel speichert automatisch</p>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
