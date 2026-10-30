@@ -1,5 +1,6 @@
 import type { InventoryData } from './Inventory';
 import type { PlacesSave } from './Places';
+import type { WeaponSpotsSave } from './WeaponSpots';
 import type { CaveSave } from './Caves';
 import type { SettlementSave } from './Settlement';
 import type { SkillsSave } from './Skills';
@@ -69,6 +70,8 @@ export interface SaveData {
   town?: SettlementSave;
   /** Seit Meilenstein 45: entdeckte Orte und Gebiete, durchsuchte Behälter dort. */
   places?: PlacesSave;
+  /** Seit Meilenstein 60: genommene Waffen an den Fundstellen. */
+  weaponSpots?: WeaponSpotsSave;
   /** Seit Meilenstein 46: Hauptgeschichte (Funkspruch, Abfahrt) und Bilanz. */
   story?: { transmitted: boolean; ended: boolean; kills: number; hansen: boolean };
   /** Seit Meilenstein 24: Erfahrung je Fertigkeit. */

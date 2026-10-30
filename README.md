@@ -61,6 +61,37 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 60 – Waffen auf der Insel
+
+Man soll nicht ewig nach einer Waffe suchen müssen. Überall liegen jetzt welche, aber nicht an jeder Ecke.
+
+**Waffenfundstellen**: 46 neue kleine Fundorte über die ganze Insel, gern in Sichtweite der Wege. Von
+fast überall ist die nächste keine zwei Minuten Fußweg entfernt (im Mittel unter 200 m). Die Waffen
+liegen sichtbar da und werden mit `E` aufgehoben:
+- **Hackklotz**: Spaltklotz mit Spänen und einem Stapel Scheite. Darin steckt eine Axt, Feueraxt oder
+  ein Hackbeil (mit der Schneide im Holz), eine Machete oder ein Vorschlaghammer.
+- **Überreste**: Jemand hat es nicht geschafft. Knochen in zerrissener Kleidung, daneben die Waffe
+  (Baseballschläger, Brechstange, Machete, Rohrzange, Pistole oder Revolver mit Patronen, selten eine
+  Schrotflinte oder ein Katana) und ein Rucksack zum Durchsuchen.
+- **Jagdversteck**: Unterstand aus Pfosten, Plane und Zweigen. Auf der Munitionskiste liegt ein Bogen
+  mit Pfeilen, ein Jagdgewehr mit Patronen, ein Speer, eine Schrotflinte oder eine Mistgabel.
+- Ein Hackklotz mit Machete oder Feueraxt steht immer gleich in der Nähe des Erwachens.
+- Bei Tag blitzt eine liegende Klinge ab und zu in der Sonne auf. So findet man sie auch im hohen Gras.
+- Seltenheit und Eigenschaften werden wie bei anderen Waffen ausgewürfelt. Was man genommen hat, bleibt
+  genommen (wird im Spielstand gemerkt).
+
+**Mehr Waffen in Behältern**: Küchenschränke haben manchmal ein Messer, Kleiderschränke öfter einen
+Revolver und selten eine Schrotflinte, Autos öfter eine Pistole oder eine Machete, Munitionskisten
+öfter ein Jagdgewehr oder einen Bogen. Kisten haben Brechstange oder Machete, Truhen Bogen oder Speer.
+Erlegte Gegner lassen öfter eine Waffe fallen (16 statt 10 Prozent).
+
+**Technik**
+- `placeWeaponSpots` (eigener Zufallsstrom; die übrigen Fundorte und ihre Behälter bleiben unverändert),
+  neue Requisiten `chopblock`, `remains`, `blind`.
+- Neues System `WeaponSpots`: legt die Waffen erst in der Nähe als feste Items hin und räumt sie in
+  der Ferne wieder weg. `WorldItem.transient` sind Items, die nicht gespeichert und nie verdrängt werden.
+  Tests für Verteilung, Erscheinen und Verschwinden, Aufheben und Speichern.
+
 ### Meilenstein 59 – Was die Nacht bringt
 
 Die Nacht ist jetzt nicht nur unheimlich, sondern manchmal auch wunderschön. Sechs neue

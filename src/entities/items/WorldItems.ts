@@ -16,6 +16,8 @@ export interface WorldItem {
   readonly mesh: THREE.Object3D;
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
+  /** Von einem System verwaltet (z. B. Waffenfundstellen): wird nicht gespeichert und nie verdrängt. */
+  readonly transient?: boolean;
 }
 
 export interface WorldItemSave {
@@ -36,6 +38,8 @@ export interface SpawnOptions {
   angularVelocity?: THREE.Vector3;
   /** Steckt fest (z. B. Speer im Boden/Baum) – fällt nicht um, bis er aufgehoben wird. */
   fixed?: boolean;
+  /** Siehe `WorldItem.transient`. */
+  transient?: boolean;
 }
 
 /** Obergrenze für gleichzeitig liegende Items; die ältesten verschwinden zuerst. */
@@ -88,13 +92,26 @@ export class WorldItems {
     mesh.quaternion.copy(rot);
     this.group.add(mesh);
 
-    const item: WorldItem = { id: this.nextId++, itemId, count, durability: opts.durability, weapon: cloneWeapon(opts.weapon), mesh, body, collider };
+    const item: WorldItem = {
+      id: this.nextId++,
+      itemId,
+      count,
+      durability: opts.durability,
+      weapon: cloneWeapon(opts.weapon),
+      mesh,
+      body,
+      collider,
+      transient: opts.transient,
+    };
     this.items.set(item.id, item);
     this.byCollider.set(collider.handle, item);
 
     if (this.items.size > MAX_ITEMS) {
-      const oldest = this.items.values().next().value;
-      if (oldest) this.remove(oldest);
+      for (const oldest of this.items.values()) {
+        if (oldest.transient) continue;
+        this.remove(oldest);
+        break;
+      }
     }
     return item;
   }
@@ -105,7 +122,7 @@ export class WorldItems {
   }
 
   serialize(): WorldItemSave[] {
-    return [...this.items.values()].map((item) => {
+    return [...this.items.values()].filter((item) => !item.transient).map((item) => {
       const t = item.body.translation();
       const r = item.body.rotation();
       const save: WorldItemSave = { id: item.itemId, count: item.count, p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] };

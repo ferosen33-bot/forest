@@ -777,6 +777,49 @@ export function ruralProp(b: Builder, p: TownProp, rng: RandomFn, signs: THREE.G
     case 'note':
       b.note((p.text ?? [''])[0], 0, 0.01, 0, 0);
       return true;
+    case 'chopblock': {
+      // Hackklotz mit Spänen und gespaltenen Scheiten; die Waffe darin legt `WeaponSpots` hinein.
+      b.mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.62, 10), 0, 0.31, 0, R.bark, 'out', 0, 0, 0, 'bark');
+      b.mesh(new THREE.CylinderGeometry(0.39, 0.39, 0.02, 10), 0, 0.62, 0, R.logEnd, 'out');
+      b.box(0.8, 0.62, 0.8, 0, 0.31, 0, { color: R.bark, invisible: true, collide: true });
+      for (let i = 0; i < 10; i++) b.box(0.08, 0.015, 0.05 + rng() * 0.05, (rng() - 0.5) * 1.8, 0.01, (rng() - 0.5) * 1.8, { color: R.logEnd, ry: rng() * 3 });
+      for (let i = 0; i < 3; i++) b.box(0.13, 0.12, 0.42, 0.75 + i * 0.06, i === 2 ? 0.17 : 0.06, 0.25 + (i % 2) * 0.15, { color: i % 2 ? R.logEnd : R.plank, ry: 0.3 + rng() * 0.4 });
+      // Ein kleiner Stapel gespaltener Scheite daneben.
+      for (let row = 0; row < 3; row++)
+        for (let i = 0; i < 4 - row; i++) b.box(0.14, 0.13, 0.5, -1.25 + i * 0.15 + row * 0.075, 0.065 + row * 0.13, -0.5, { color: (i + row) % 2 ? R.logEnd : 0x8a6a46, ry: (rng() - 0.5) * 0.1 });
+      return true;
+    }
+    case 'remains': {
+      // Jemand hat es nicht geschafft: Knochen in zerrissener Kleidung, ein dunkler Fleck im Gras.
+      const bone = 0xd6ccb4;
+      const cloth = [0x3a4a5a, 0x5a4a32, 0x4a2a2a][Math.floor(rng() * 3)];
+      b.box(1.2, 0.005, 1.9, 0, 0.004, 0.05, { color: 0x2a221a });
+      b.mesh(new THREE.SphereGeometry(0.11, 10, 8).scale(0.9, 0.85, 1.1), 0.03, 0.1, 0.8, bone, 'out', 0, 0, 0.4);
+      b.box(0.1, 0.05, 0.08, 0.03, 0.05, 0.88, { color: bone, rz: 0.4 });
+      for (const sx of [-1, 1]) b.box(0.035, 0.03, 0.02, 0.03 + sx * 0.035, 0.13, 0.9, { color: 0x1a1612 });
+      b.box(0.46, 0.14, 0.5, 0, 0.08, 0.38, { color: cloth });
+      for (let i = 0; i < 4; i++) b.mesh(new THREE.TorusGeometry(0.16, 0.014, 4, 10, Math.PI), 0, 0.1, 0.24 + i * 0.08, bone, 'out');
+      b.box(0.3, 0.08, 0.16, 0, 0.05, 0.05, { color: bone });
+      for (const sx of [-1, 1]) {
+        b.box(0.13, 0.1, 0.8, sx * 0.11, 0.06, -0.4, { color: 0x2a2a30, ry: sx * 0.08 });
+        b.box(0.13, 0.15, 0.26, sx * 0.14, 0.08, -0.86, { color: 0x1e1a16 });
+        b.box(0.035, 0.035, 0.55, sx * 0.34, 0.03, 0.32, { color: bone, ry: sx * 0.45 });
+      }
+      b.box(0.7, 0.2, 1.8, 0, 0.1, 0, { color: bone, invisible: true, collide: true });
+      return true;
+    }
+    case 'blind': {
+      // Jagdversteck: schräge Plane auf vier Pfosten, Zweige zur Tarnung, eine Schlafmatte.
+      for (const x of [-1.05, 1.05]) {
+        b.box(0.09, 1.7, 0.09, x, 0.85, 0.75, { color: R.pole, collide: true });
+        b.box(0.08, 0.7, 0.08, x, 0.35, -0.85, { color: R.pole });
+      }
+      const ang = Math.atan2(1.0, 1.6);
+      b.box(2.4, 0.04, 1.95, 0, 1.22, -0.05, { color: 0x4a5636, rx: -ang });
+      for (let i = 0; i < 6; i++) b.box(0.05, 0.05, 2.0, -1 + i * 0.4, 1.27, -0.05, { color: R.bark, rx: -ang, ry: (rng() - 0.5) * 0.3 });
+      b.box(0.5, 0.08, 1.5, -0.78, 0.04, -0.15, { color: 0x5a3a2a });
+      return true;
+    }
     case 'stickmen': {
       // Ein toter, krummer Baum; an seinen Ästen hängen Figuren aus Zweigen, mit Schnur gebunden.
       const lean = (rng() - 0.5) * 0.12;

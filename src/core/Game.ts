@@ -57,6 +57,7 @@ import { getPerk, getSkill, PERK_LEVELS, Skills, wireSkillEvents, type PerkId } 
 import { Fear } from '../systems/Fear';
 import { NightEvents } from '../systems/NightEvents';
 import { NightBloom } from '../systems/NightBloom';
+import { WeaponSpots } from '../systems/WeaponSpots';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemCost, ItemId } from '../entities/items/ItemDefs';
@@ -125,7 +126,7 @@ const REPAIRABLE = new Set<ItemId>([
 /** Was Schrate fallen lassen können (gewichtet). */
 const ENEMY_WEAPON_DROPS: ItemId[] = ['pipeWrench', 'crowbar', 'baseballBat', 'kitchenKnife', 'machete', 'baseballBat', 'crowbar', 'fireAxe', 'sledgehammer', 'sabre', 'pistol', 'cleaver', 'golfClub', 'baton', 'pitchfork'];
 /** Chance, dass ein erlegter Schrat eine Waffe fallen lässt. */
-const ENEMY_WEAPON_CHANCE = 0.1;
+const ENEMY_WEAPON_CHANCE = 0.16;
 /** Debug-Waffenkammer (F3, dann G). */
 const ARMORY_WEAPONS: ItemId[] = ['pistol', 'revolver', 'shotgun', 'huntingRifle', 'katana', 'nailBat', 'shockBar'];
 const ARMORY_SUPPLIES: [ItemId, number][] = [['pistolAmmo', 60], ['shells', 30], ['rifleAmmo', 20], ['pipeBomb', 3]];
@@ -183,6 +184,7 @@ export class Game {
   horror!: Horror;
   nightEvents!: NightEvents;
   nightBloom!: NightBloom;
+  weaponSpots!: WeaponSpots;
   worldEvents!: WorldEvents;
   /** Die Überlebenden in der Nordbucht (fehlt, wenn die Insel keinen Platz dafür hat). */
   survivors: Survivors | null = null;
@@ -907,6 +909,8 @@ export class Game {
       seed: cfg.seed,
     });
     this.scene.add(this.atmosphere.group);
+    this.weaponSpots = new WeaponSpots(this.worldItems, this.world.landmarks, this.world.heightMap, cfg.seed);
+    this.scene.add(this.weaponSpots.group);
     this.tools.gore = this.gore;
     this.explosives = new Explosives({
       enemies: this.enemies,
@@ -1155,6 +1159,7 @@ export class Game {
       caves: this.caves.serialize(),
       ...(this.settlement ? { town: this.settlement.serialize() } : {}),
       places: this.places.serialize(),
+      weaponSpots: this.weaponSpots.serialize(),
       story: { ...this.story },
       skills: this.skills.serialize(),
       talents: this.skills.serializePerks(),
@@ -1188,6 +1193,7 @@ export class Game {
     if (d.caves) this.caves.load(d.caves);
     if (d.town) this.settlement?.load(d.town);
     if (d.places) this.places.load(d.places);
+    this.weaponSpots.load(d.weaponSpots);
     if (d.skills) this.skills.load(d.skills);
     this.skills.loadPerks(d.talents);
     if (d.worldEvents) this.worldEvents.load(d.worldEvents);
@@ -1604,6 +1610,7 @@ export class Game {
     this.nightEvents.update({ ...frame, darkness: inCave ? 1 : this.dayNight.isNight ? 1 : darkness });
     this.dayNight.extraFog = this.nightEvents.fog;
     this.nightBloom.update({ dt, night: this.dayNight.isNight && !inCave, player: p.position });
+    this.weaponSpots.update(dt, p.position, this.dayNight.isNight || inCave ? 0 : 1);
 
     // Herzschlag ab spürbarer Angst – je größer, desto schneller und lauter.
     this.heartbeatTimer -= dt;

@@ -16,17 +16,17 @@ interface LootTable {
 
 const LOOT: Record<LootKind, LootTable> = {
   fridge: { rolls: [1, 2], table: [['kitchenKnife', 1, 1, 1], ['cleaver', 1, 1, 1], ['waterBottle', 4, 1, 2], ['cannedFood', 2, 1, 1], ['bottle', 2, 1, 1], [null, 2, 0, 0]] },
-  cabinet: { rolls: [1, 2], table: [['cannedFood', 5, 1, 2], ['bottle', 2, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['lampOil', 1, 1, 1], [null, 2, 0, 0]] },
-  wardrobe: { rolls: [1, 1], table: [['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['baseballBat', 1, 1, 1], ['revolver', 0.5, 1, 1], ['shells', 1, 2, 5], ['golfClub', 1, 1, 1], ['katana', 0.3, 1, 1], [null, 3, 0, 0]] },
+  cabinet: { rolls: [1, 2], table: [['cannedFood', 5, 1, 2], ['bottle', 2, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['lampOil', 1, 1, 1], ['kitchenKnife', 0.8, 1, 1], [null, 2, 0, 0]] },
+  wardrobe: { rolls: [1, 1], table: [['jacket', 2, 1, 1], ['backpack', 1, 1, 1], ['painkillers', 1, 1, 1], ['battery', 1, 1, 1], ['baseballBat', 1, 1, 1], ['revolver', 0.8, 1, 1], ['shells', 1, 2, 5], ['golfClub', 1, 1, 1], ['katana', 0.3, 1, 1], ['shotgun', 0.4, 1, 1], [null, 2, 0, 0]] },
   shelf: { rolls: [1, 3], table: [['cannedFood', 4, 1, 2], ['nails', 1, 3, 8], ['waterBottle', 3, 1, 1], ['battery', 2, 1, 1], ['painkillers', 1, 1, 1], ['bottle', 1, 1, 1], [null, 2, 0, 0]] },
   register: { rolls: [1, 1], table: [['battery', 3, 1, 2], ['painkillers', 1, 1, 1], ['flashlight', 1, 1, 1]] },
   toolbox: { rolls: [1, 2], table: [['machete', 1, 1, 1], ['pipeWrench', 2, 1, 1], ['crowbar', 2, 1, 1], ['sledgehammer', 1, 1, 1], ['flashlight', 2, 1, 1], ['battery', 2, 1, 2], ['torch', 1, 1, 1], ['arrow', 1, 3, 6], ['lampOil', 2, 1, 1], ['modShock', 1, 1, 1], ['nails', 3, 4, 12]] },
-  car: { rolls: [1, 1], table: [['crowbar', 1, 1, 1], ['baseballBat', 1, 1, 1], ['waterBottle', 2, 1, 2], ['medkit', 2, 1, 1], ['flashlight', 1, 1, 1], ['cannedFood', 2, 1, 1], ['battery', 1, 1, 2], ['lampOil', 2, 1, 1], ['pistol', 1, 1, 1], ['pistolAmmo', 2, 4, 10], ['baton', 1, 1, 1], ['golfClub', 1, 1, 1], [null, 2, 0, 0]] },
+  car: { rolls: [1, 1], table: [['crowbar', 1, 1, 1], ['baseballBat', 1, 1, 1], ['waterBottle', 2, 1, 2], ['medkit', 2, 1, 1], ['flashlight', 1, 1, 1], ['cannedFood', 2, 1, 1], ['battery', 1, 1, 2], ['lampOil', 2, 1, 1], ['pistol', 1.5, 1, 1], ['pistolAmmo', 2, 4, 10], ['baton', 1, 1, 1], ['golfClub', 1, 1, 1], ['machete', 0.6, 1, 1], [null, 2, 0, 0]] },
   desk: { rolls: [1, 1], table: [['battery', 2, 1, 1], ['painkillers', 2, 1, 1], ['flashlight', 1, 1, 1], ['pistolAmmo', 1, 4, 8], [null, 1, 0, 0]] },
   caravan: { rolls: [1, 2], table: [['cannedFood', 3, 1, 2], ['waterBottle', 3, 1, 2], ['flashlight', 1, 1, 1], ['battery', 2, 1, 2], ['jacket', 1, 1, 1], ['medkit', 1, 1, 1], ['lampOil', 1, 1, 1], ['kitchenKnife', 1, 1, 1], [null, 2, 0, 0]] },
   pack: { rolls: [1, 3], table: [['cannedFood', 3, 1, 2], ['waterBottle', 3, 1, 1], ['jerky', 2, 1, 2], ['painkillers', 2, 1, 1], ['battery', 2, 1, 2], ['flashlight', 1, 1, 1], ['medkit', 1, 1, 1], ['arrow', 1, 3, 6], ['torch', 1, 1, 1], [null, 2, 0, 0]] },
-  ammo: { rolls: [1, 2], table: [['rifleAmmo', 4, 3, 8], ['shells', 2, 2, 5], ['jerky', 2, 1, 2], ['huntingRifle', 0.5, 1, 1], ['arrow', 2, 4, 8], ['hide', 1, 1, 1], [null, 1, 0, 0]] },
-  crate: { rolls: [1, 2], table: [['nails', 3, 4, 10], ['pitchfork', 1, 1, 1], ['shells', 1, 2, 4], ['lampOil', 2, 1, 1], ['cannedFood', 1, 1, 2], ['pipeWrench', 1, 1, 1], [null, 2, 0, 0]] },
+  ammo: { rolls: [1, 2], table: [['rifleAmmo', 4, 3, 8], ['shells', 2, 2, 5], ['jerky', 2, 1, 2], ['huntingRifle', 1, 1, 1], ['bow', 0.7, 1, 1], ['arrow', 2, 4, 8], ['hide', 1, 1, 1], [null, 1, 0, 0]] },
+  crate: { rolls: [1, 2], table: [['nails', 3, 4, 10], ['pitchfork', 1, 1, 1], ['shells', 1, 2, 4], ['lampOil', 2, 1, 1], ['cannedFood', 1, 1, 2], ['pipeWrench', 1, 1, 1], ['crowbar', 0.8, 1, 1], ['machete', 0.5, 1, 1], [null, 2, 0, 0]] },
 };
 
 /** Erste Eindrücke beim Betreten der kleinen Orte. */

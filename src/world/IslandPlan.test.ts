@@ -84,6 +84,11 @@ describe('Inselplan: Dörfer und Wege', () => {
     for (const k of ['stand', 'camp', 'totems', 'ruin', 'woodcut', 'warning', 'lost'] as const) expect(kinds.has(k), k).toBe(true);
     for (const l of plan.landmarks) {
       if (l.kind === 'warning' || l.kind === 'wreck' || l.kind === 'shrine') continue;
+      // Waffenfundstellen liegen absichtlich gern nahe am Weg (aber nie darauf).
+      if (l.cache) {
+        expect(plan.roads.distance(l.x, l.z, 20), l.kind).toBeGreaterThan(5);
+        continue;
+      }
       expect(plan.roads.distance(l.x, l.z, 20), l.kind).toBeGreaterThan(15);
     }
     // Ein Lager liegt nah beim Erwachen.

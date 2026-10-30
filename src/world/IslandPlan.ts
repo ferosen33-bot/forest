@@ -8,7 +8,7 @@ import { findHarborSite, generateHarbor, HARBOR_FLAT_BLEND, HARBOR_FLAT_RADIUS, 
 import { placeHamlets } from './Hamlets';
 import { buildRoads, type RoadNetwork, type RoadNode } from './Roads';
 import { roadsideLayout } from './Roadside';
-import { landmarkLayout, placeLandmarks, type Landmark } from './Landmarks';
+import { landmarkLayout, placeLandmarks, placeWeaponSpots, type Landmark } from './Landmarks';
 
 /**
  * Der Plan der Insel – wo Stadt, Hafen, besondere Orte, Dörfer und Wege liegen. Ebnet die Bauplätze
@@ -65,13 +65,16 @@ export function planIsland(hm: HeightMap, seed: number): IslandPlan {
     ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius * 0.8 })),
     ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 40 }] : []),
   ]);
-  const landmarks = placeLandmarks(hm, seed, roads, [
+  const avoid = [
     { x: spawn.x, z: spawn.z, radius: 20 },
     ...(town ? [{ x: town.center.x, z: town.center.z, radius: town.radius + 30 }] : []),
     ...hamlets.map((h) => ({ x: h.center.x, z: h.center.z, radius: h.radius + 25 })),
     ...places.map((p) => ({ x: p.position.x, z: p.position.z, radius: p.radius + 35 })),
     ...(harbor ? [{ x: harbor.center.x, z: harbor.center.z, radius: 90 }] : []),
-  ], spawn);
+  ];
+  const landmarks = placeLandmarks(hm, seed, roads, avoid, spawn);
+  // Waffenfundstellen kommen hinten dran (die Behälter der übrigen Fundorte behalten ihre Nummern).
+  landmarks.push(...placeWeaponSpots(hm, seed, roads, avoid, spawn, landmarks));
   const wild = landmarkLayout(landmarks, hm, seed);
   return { town, harbor, places, hamlets, roads, roadside, landmarks, wild, spawn };
 }

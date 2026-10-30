@@ -43,6 +43,10 @@ export type PropKind =
   | 'clothesline'
   | 'stump'
   | 'warnsign'
+  // Waffenfundstellen (Meilenstein 60)
+  | 'chopblock'
+  | 'remains'
+  | 'blind'
   | 'backpack'
   | 'droplight'
   | 'bones'

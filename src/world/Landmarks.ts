@@ -4,6 +4,7 @@ import type { HeightMap } from './HeightMap';
 import type { BiomeWeights } from './Biomes';
 import type { RoadNetwork } from './Roads';
 import type { TownLayout, TownProp } from './Town';
+import type { ItemId } from '../entities/items/ItemDefs';
 
 /**
  * Fundorte im Wald – kleine Orte mit einer Geschichte, verteilt über die Insel, damit zwischen Dörfern
@@ -22,6 +23,12 @@ import type { TownLayout, TownProp } from './Town';
  * - **Kadaver**: ein aufgerissener Hirsch, Fliegen, Krähen.
  * - **Pilzring**: ein Kreis bleicher Pilze, in der Mitte sitzt eine Puppe.
  * - **Nest**: viel zu groß für einen Vogel, mit Knochen, Stofffetzen und bleichen Eiern.
+ *
+ * Waffenfundstellen (Meilenstein 60), dichter verteilt und gern nahe den Wegen – man soll nicht ewig
+ * nach einer Waffe suchen müssen:
+ * - **Hackklotz**: ein Klotz mit Spänen und Brennholz, darin steckt eine Axt, Machete oder ein Beil.
+ * - **Überreste**: Jemand hat es nicht geschafft. Neben den Knochen liegt seine Waffe, dazu ein Rucksack.
+ * - **Jagdversteck**: ein Unterstand aus Ästen und Plane, auf der Kiste liegt ein Gewehr, Bogen oder Speer.
  */
 
 export type LandmarkKind =
@@ -39,7 +46,17 @@ export type LandmarkKind =
   | 'grave'
   | 'carcass'
   | 'fairyring'
-  | 'nest';
+  | 'nest'
+  // Meilenstein 60: Waffenfundstellen
+  | 'chopblock'
+  | 'remains'
+  | 'blind';
+
+/** Was an einer Waffenfundstelle liegt (die Waffe selbst legt `WeaponSpots` als echtes Item hin). */
+export interface WeaponCache {
+  weapon: ItemId;
+  ammo?: [ItemId, number];
+}
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -49,6 +66,8 @@ export interface Landmark {
   yaw: number;
   /** Freifläche (keine Bäume). */
   radius: number;
+  /** Nur Waffenfundstellen. */
+  cache?: WeaponCache;
 }
 
 type Avoid = { x: number; z: number; radius: number };
@@ -73,7 +92,109 @@ const RADIUS: Record<LandmarkKind, number> = {
   carcass: 4,
   fairyring: 4,
   nest: 4,
+  chopblock: 3,
+  remains: 3,
+  blind: 4.5,
 };
+
+/** Waffen je Fundstelle: [Waffe, Gewicht, Munition, min, max]. */
+const CACHE_TABLES: Record<'chopblock' | 'remains' | 'blind', [ItemId, number, ItemId?, number?, number?][]> = {
+  chopblock: [
+    ['axe', 3],
+    ['fireAxe', 2],
+    ['machete', 2],
+    ['cleaver', 1],
+    ['sledgehammer', 1],
+  ],
+  remains: [
+    ['baseballBat', 2],
+    ['crowbar', 2],
+    ['machete', 1.5],
+    ['pipeWrench', 1.5],
+    ['kitchenKnife', 1],
+    ['golfClub', 1],
+    ['baton', 1],
+    ['nailBat', 0.8],
+    ['pistol', 1.4, 'pistolAmmo', 6, 12],
+    ['revolver', 0.6, 'pistolAmmo', 4, 8],
+    ['shotgun', 0.5, 'shells', 3, 6],
+    ['katana', 0.25],
+  ],
+  blind: [
+    ['bow', 2, 'arrow', 6, 12],
+    ['huntingRifle', 1.2, 'rifleAmmo', 4, 8],
+    ['spear', 1.5],
+    ['shotgun', 0.8, 'shells', 3, 6],
+    ['pitchfork', 0.8],
+  ],
+};
+
+function rollCache(kind: 'chopblock' | 'remains' | 'blind', rng: RandomFn): WeaponCache {
+  const table = CACHE_TABLES[kind];
+  const total = table.reduce((s, e) => s + e[1], 0);
+  let r = rng() * total;
+  const [weapon, , ammo, min = 1, max = 1] = table.find((e) => (r -= e[1]) < 0) ?? table[0];
+  return ammo ? { weapon, ammo: [ammo, min + Math.floor(rng() * (max - min + 1))] } : { weapon };
+}
+
+/**
+ * Waffenfundstellen: eine gleich beim Erwachen, der Rest auf einem dichteren Raster als die übrigen
+ * Fundorte (eigener Zufallsstrom, damit die alten Fundorte unverändert bleiben).
+ */
+export function placeWeaponSpots(
+  hm: HeightMap,
+  seed: number,
+  roads: RoadNetwork,
+  avoid: Avoid[],
+  spawn: { x: number; z: number },
+  existing: Landmark[],
+): Landmark[] {
+  if (!hm.biomes.enabled) return [];
+  const rng = mulberry32(deriveSeed(seed, 'weaponspots'));
+  const b: BiomeWeights = { highland: 0, swamp: 0, cliffs: 0 };
+  const n: [number, number, number] = [0, 1, 0];
+  avoid = [...avoid, ...hm.islets.map((i) => ({ x: i.x, z: i.z, radius: i.radius + 30 }))];
+  const out: Landmark[] = [];
+  const ok = (x: number, z: number, r: number) => {
+    if (!hm.isInside(x, z) || Math.abs(x) > hm.half * 0.92 || Math.abs(z) > hm.half * 0.92) return false;
+    const h = hm.heightAt(x, z);
+    if (h < hm.waterLevel + 2 || h > 60) return false;
+    if (hm.normalAt(x, z, n)[1] < 0.93) return false;
+    if (avoid.some((a) => Math.hypot(a.x - x, a.z - z) < a.radius + r)) return false;
+    if (existing.some((o) => Math.hypot(o.x - x, o.z - z) < o.radius + r + 25)) return false;
+    if (out.some((o) => Math.hypot(o.x - x, o.z - z) < o.radius + r + 55)) return false;
+    // Nicht auf dem Weg, aber gern daneben.
+    return roads.distance(x, z, 8) >= 6;
+  };
+  const push = (kind: 'chopblock' | 'remains' | 'blind', x: number, z: number) =>
+    out.push({ kind, x, z, y: hm.heightAt(x, z), yaw: rng() * Math.PI * 2, radius: RADIUS[kind], cache: rollCache(kind, rng) });
+
+  // Gleich in der Nähe des Erwachens: ein Hackklotz mit einer Axt oder Machete.
+  for (let i = 0; i < 60; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = randRange(rng, 24, 45);
+    const x = spawn.x + Math.cos(a) * r;
+    const z = spawn.z + Math.sin(a) * r;
+    if (!ok(x, z, RADIUS.chopblock)) continue;
+    out.push({ kind: 'chopblock', x, z, y: hm.heightAt(x, z), yaw: rng() * Math.PI * 2, radius: RADIUS.chopblock, cache: { weapon: rng() < 0.5 ? 'machete' : 'fireAxe' } });
+    break;
+  }
+
+  const step = 115;
+  for (let z = -hm.half * 0.88; z < hm.half * 0.88; z += step) {
+    for (let x = -hm.half * 0.88; x < hm.half * 0.88; x += step) {
+      if (rng() > 0.85) continue;
+      const jx = x + rng() * step;
+      const jz = z + rng() * step;
+      hm.biomes.weights(jx, jz, b);
+      const roll = rng() * 3.5;
+      const kind = roll < 1.1 * (1 - b.highland * 0.5) ? 'chopblock' : roll < 2.5 ? 'remains' : 'blind';
+      if (!ok(jx, jz, RADIUS[kind])) continue;
+      push(kind, jx, jz);
+    }
+  }
+  return out;
+}
 
 /**
  * Sucht Plätze für die Fundorte. Läuft nach Orten und Wegen, aber vor Vegetation (für die Lichtungen).
@@ -276,6 +397,18 @@ function landmarkProps(l: Landmark, put: Put, note: (lx: number, lz: number) => 
     case 'nest':
       put('nest', 0, 0, 0);
       put('bones', -2.2, 0.8, rng() * 3);
+      break;
+    case 'chopblock':
+      put('chopblock', 0, 0, 0);
+      break;
+    case 'remains':
+      put('remains', 0, 0, 0);
+      put('backpack', -0.9, 0.7, rng() * 6, { loot: true });
+      if (rng() < 0.5) put('droplight', 0.8, -0.6, rng() * 6);
+      break;
+    case 'blind':
+      put('blind', 0, 0, 0);
+      put('crate', 0, 0.2, 0, { loot: true });
       break;
     case 'lost':
       put('backpack', 0, 0, rng() * 6, { loot: true });
