@@ -4,6 +4,31 @@ Ein First-Person-Survival-Game im Stil von *The Forest*, komplett im Browser:
 **Three.js** für das Rendering, **Rapier** (WASM) für die Physik, **Simplex-Noise** für eine prozedural
 generierte Wald-Insel und ein schlankes **HTML/CSS-HUD** über dem WebGL-Canvas.
 
+## Als Programm spielen (Windows)
+
+Wildwood gibt es auch als richtiges Windows-Programm, ohne Browser und ohne Kommandozeile:
+
+1. Auf GitHub unter **Releases → „Wildwood (aktueller Stand)“** eine der beiden Dateien herunterladen:
+   - `Wildwood-Setup-….exe` installiert das Spiel (mit Verknüpfung auf dem Desktop und im Startmenü).
+   - `Wildwood-…-portable.exe` läuft ohne Installation, einfach doppelklicken (z. B. vom USB-Stick).
+2. Beim ersten Start warnt Windows („Der Computer wurde durch Windows geschützt“), weil das Programm nicht
+   signiert ist: **Weitere Informationen → Trotzdem ausführen**.
+
+`F11` schaltet Vollbild um. Spielstände liegen im Benutzerordner des Programms.
+
+Die Dateien baut GitHub bei jedem Push automatisch (`.github/workflows/windows.yml`). Selbst bauen geht
+auch, unter Windows mit:
+
+```powershell
+npm.cmd install
+npm.cmd run dist:win      # → release\Wildwood-Setup-….exe und release\Wildwood-…-portable.exe
+npm.cmd run app           # nur ausprobieren: Spiel bauen und im Programmfenster starten
+```
+
+Technik: [Electron](https://www.electronjs.org/) (`electron/main.cjs`) öffnet das gebaute Spiel aus `dist/`
+über ein eigenes Protokoll `app://`. Verpackt wird mit `electron-builder` (Einstellungen unter `build` in der
+`package.json`, Icon in `build/icon.png`).
+
 ## Schnellstart
 
 ```bash
