@@ -90,7 +90,8 @@ export type SoundId =
   | 'chime'
   | 'creak'
   | 'buzz'
-  | 'bell';
+  | 'bell'
+  | 'buoy';
 
 export interface PlayOptions {
   volume?: number;
@@ -218,6 +219,44 @@ export class Audio {
     panner.positionZ.value = pos.z;
     panner.connect(target);
     return panner;
+  }
+
+  /**
+   * Endloses, gefiltertes Rauschen an einer Weltposition (Wasserfall, Brandung) auf dem Umgebungs-Bus.
+   * @returns Griff zum Anhalten, oder null, solange Audio noch nicht freigegeben ist.
+   */
+  loopNoise(
+    pos: { x: number; y: number; z: number },
+    o: { type: BiquadFilterType; freq: number; q: number; gain: number; range: number },
+  ): { stop(): void } | null {
+    const ctx = this.context;
+    if (!ctx || !this.noise1s || !this.ambience) return null;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise1s;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = o.type;
+    filter.frequency.value = o.freq;
+    filter.Q.value = o.q;
+    const gain = ctx.createGain();
+    gain.gain.value = o.gain;
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = o.range * 0.12;
+    panner.maxDistance = o.range;
+    panner.rolloffFactor = 1.2;
+    panner.positionX.value = pos.x;
+    panner.positionY.value = pos.y;
+    panner.positionZ.value = pos.z;
+    src.connect(filter).connect(gain).connect(panner).connect(this.ambience);
+    src.start();
+    return {
+      stop: () => {
+        src.stop();
+        panner.disconnect();
+      },
+    };
   }
 
   /**
@@ -657,6 +696,16 @@ export class Audio {
           [784, 0.06, 1.6],
         ] as [number, number, number][]) {
           this.tone(t, 'sine', f, f * 0.995, d, g);
+        }
+        break;
+      // Glockenboje: ein metallischer Schlag, schief und lange ausschwingend.
+      case 'buoy':
+        for (const [f, g] of [
+          [620, 0.3],
+          [1130, 0.12],
+          [1710, 0.07],
+        ] as [number, number][]) {
+          this.tone(t, 'sine', f * pitch, f * pitch * 0.99, 2.2, g);
         }
         break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.

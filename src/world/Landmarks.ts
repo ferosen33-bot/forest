@@ -126,6 +126,14 @@ export function placeLandmarks(hm: HeightMap, seed: number, roads: RoadNetwork, 
       push(kind, jx, jz, rng() * Math.PI * 2);
     }
   }
+  // Jede Art mit Notiz kommt mindestens einmal vor (sonst fehlte eine Seite der Geschichte).
+  for (const kind of Object.keys(LANDMARK_NOTES) as LandmarkKind[]) {
+    for (let i = 0; i < 600 && !counts.get(kind); i++) {
+      const x = (rng() - 0.5) * hm.size * 0.8;
+      const z = (rng() - 0.5) * hm.size * 0.8;
+      if (ok(x, z, RADIUS[kind], 18, Infinity)) push(kind, x, z, rng() * Math.PI * 2);
+    }
+  }
   return out;
 }
 

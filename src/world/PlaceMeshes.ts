@@ -5,6 +5,7 @@ import { injectSeason } from './SeasonShader';
 import type { PlaceKind } from './Places';
 import type { HeightMap } from './HeightMap';
 import { deriveSeed, mulberry32 } from '../utils/random';
+import { buildWonder } from './WonderMeshes';
 
 /**
  * Modelle der besonderen Orte (Absturzstelle, Zeche, Hütte im Moor, Funkstation) aus einfachen Körpern
@@ -44,8 +45,8 @@ export interface PlaceLight {
   color: THREE.Color;
   intensity: number;
   distance: number;
-  /** Laterne (flackert leicht, nur nachts), Warnlicht (blinkt), Glut (Feuer), Leuchtröhre (immer an, setzt aus). */
-  mode: 'lamp' | 'blink' | 'fire' | 'flicker';
+  /** Laterne (flackert leicht, nur nachts), Warnlicht (blinkt), Glut (Feuer), Leuchtröhre (immer an, setzt aus), Pilzglühen (atmet langsam, nachts stärker). */
+  mode: 'lamp' | 'blink' | 'fire' | 'flicker' | 'pulse';
 }
 
 export interface PlaceModel {
@@ -64,6 +65,27 @@ export interface PlaceModel {
   spinners: { object: THREE.Object3D; speed: number }[];
   /** Lichtkegel, die nur nachts sichtbar sind. */
   beams: THREE.Mesh[];
+  /** Zeit-Uniforms animierter Shader (Wasser, Sporen, Nebel). */
+  clocks: THREE.IUniform<number>[];
+  /** Leuchtende Materialien: Stärke bei Tag bzw. Nacht, optional langsam atmend (Radiant/s). */
+  glows: { material: THREE.MeshStandardMaterial; day: number; night: number; pulse?: number }[];
+  /** Deckkraft von Shader-Effekten nach Tageszeit (Regenbogen nur bei Tag, Sporen nachts heller). */
+  fades: { uniform: THREE.IUniform<number>; day: number; night: number }[];
+  /** Schaukelnde Dinge auf dem Wasser (Boje, Boot, Fahne). */
+  bobbers: { object: THREE.Object3D; base: THREE.Vector3; amp: number; speed: number; roll: number }[];
+  /** Geräuschquellen: gelegentlich (`every`) oder als Dauerrauschen (`loop`). */
+  sounds: PlaceSound[];
+}
+
+export interface PlaceSound {
+  position: THREE.Vector3;
+  /** Einmaliger Klang (Audio-Kennung) in Abständen … */
+  sound?: string;
+  every?: [number, number];
+  /** … oder ein Dauerrauschen: Filterfrequenz, Güte, Lautstärke, Reichweite. */
+  loop?: { freq: number; q: number; gain: number; range: number };
+  volume?: number;
+  when?: 'night' | 'day';
 }
 
 /** Brandfleck: dunkel in der Mitte, zum Rand hin ausgefranst. */
@@ -92,14 +114,14 @@ function scorchTexture(): THREE.Texture | null {
   return new THREE.CanvasTexture(c);
 }
 
-const std = (color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
+export const std = (color: number, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra });
 const seasonal = (m: THREE.MeshStandardMaterial, bias = 0) => {
   m.onBeforeCompile = (shader) => injectSeason(shader, { snowBias: bias });
   return m;
 };
 
-const M = {
+export const M = {
   planks: texturize(seasonal(std(0x80705a)), 'planks', 0.5),
   oldPlanks: texturize(seasonal(std(0x6a6656)), 'planks', 0.45),
   concrete: texturize(seasonal(std(0xa29e94)), 'plaster', 0.4),
@@ -127,7 +149,7 @@ const PAPER = std(0xe6dfcc, { side: THREE.DoubleSide });
 const SUITCASE_COLORS = [0x2d3c55, 0x6b2a24, 0x2b2b2b, 0x56603a, 0x7a6248].map((c) => std(c, { roughness: 0.7 }));
 
 /** Sammelt Meshes und Kollider eines Ortes. */
-class Builder {
+export class Builder {
   readonly group = new THREE.Group();
   readonly model: PlaceModel;
   /** Optionaler Rahmen (z. B. das schräg liegende Schiff): alle folgenden Teile liegen darin. */
@@ -141,7 +163,23 @@ class Builder {
     readonly ground: (x: number, z: number) => number,
   ) {
     this.group.name = name;
-    this.model = { group: this.group, colliders: [], containers: [], notes: [], lights: [], fires: [], beacons: [], uses: [], spinners: [], beams: [] };
+    this.model = {
+      group: this.group,
+      colliders: [],
+      containers: [],
+      notes: [],
+      lights: [],
+      fires: [],
+      beacons: [],
+      uses: [],
+      spinners: [],
+      beams: [],
+      clocks: [],
+      glows: [],
+      fades: [],
+      bobbers: [],
+      sounds: [],
+    };
   }
 
   /** Folgende Teile in einem gedrehten/verschobenen Rahmen bauen (null = wieder im Ortsraum). */
@@ -160,7 +198,7 @@ class Builder {
     return { p, q };
   }
 
-  private point(pos: [number, number, number]): THREE.Vector3 {
+  point(pos: [number, number, number]): THREE.Vector3 {
     const p = new THREE.Vector3(...pos);
     return this.frame ? p.applyMatrix4(this.frame) : p;
   }
@@ -1100,6 +1138,7 @@ export function buildPlace(kind: PlaceKind, seed: number, origin: THREE.Vector3,
   else if (kind === 'lab') buildLab(b, rng);
   else if (kind === 'lighthouse') buildLighthouse(b, rng);
   else if (kind === 'smugglers') buildSmugglers(b, rng);
-  else buildStones(b, rng);
+  else if (kind === 'stones') buildStones(b, rng);
+  else buildWonder(kind, b, rng);
   return b.model;
 }

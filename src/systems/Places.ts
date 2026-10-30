@@ -4,12 +4,12 @@ import type { EventBus } from '../core/EventBus';
 import type { HeightMap } from '../world/HeightMap';
 import { BIOME_LABELS, type BiomeName } from '../world/Biomes';
 import type { PlaceKind, PlaceSite } from '../world/Places';
-import { buildPlace, PLACE_LOOT_LABELS, type PlaceLight, type PlaceLootKind } from '../world/PlaceMeshes';
+import { buildPlace, PLACE_LOOT_LABELS, type PlaceLight, type PlaceLootKind, type PlaceModel, type PlaceSound } from '../world/PlaceMeshes';
 import { FireEffect } from '../entities/FireEffect';
 import type { ItemId } from '../entities/items/ItemDefs';
 import { deriveSeed, mulberry32 } from '../utils/random';
 import type { ItemService } from './ItemService';
-import type { Audio } from './Audio';
+import type { Audio, SoundId } from './Audio';
 import type { LightPool, LightRequest } from './LightPool';
 
 /**
@@ -74,6 +74,9 @@ interface PlaceRuntime {
   beacons: THREE.Mesh[];
   spinners: { object: THREE.Object3D; speed: number }[];
   beams: THREE.Mesh[];
+  model: PlaceModel;
+  /** Geräuschquellen in Weltkoordinaten (Dauerrauschen startet erst in der Nähe). */
+  sounds: (PlaceSound & { timer: number; handle: { stop(): void } | null })[];
 }
 
 export interface PlacesSave {
@@ -105,6 +108,8 @@ export class Places {
   private readonly biomesSeen = new Set<BiomeName>(['forest']);
   private biomeTimer = 0;
   private time = 0;
+  /** Weicher Übergang Tag → Nacht für leuchtende Materialien (0..1). */
+  private night = 0;
 
   constructor(private readonly d: PlacesDeps) {
     this.group.name = 'Places';
@@ -185,7 +190,8 @@ export class Places {
         mode: l.mode,
         phase: i * 1.7,
       }));
-      this.places.push({ site, group: g, discovered: false, fires, lights, beacons: model.beacons, spinners: model.spinners, beams: model.beams });
+      const sounds = model.sounds.map((snd) => ({ ...snd, position: toWorld(snd.position), timer: Math.random() * (snd.every?.[0] ?? 1), handle: null }));
+      this.places.push({ site, group: g, discovered: false, fires, lights, beacons: model.beacons, spinners: model.spinners, beams: model.beams, model, sounds });
     }
     console.info(`[Orte] ${this.places.map((p) => p.site.name).join(', ')} · ${this.containers.length} Behälter`);
   }
@@ -254,6 +260,7 @@ export class Places {
 
   update(dt: number, player: THREE.Vector3, isNight: boolean, underground: boolean): void {
     this.time += dt;
+    this.night = THREE.MathUtils.damp(this.night, isNight ? 1 : 0, 0.8, dt);
     if (!underground) {
       this.updateDiscovery(player);
       this.updateBiome(dt, player);
@@ -271,6 +278,7 @@ export class Places {
         u.value = THREE.MathUtils.damp(u.value, isNight && !underground ? 0.8 : 0, 1.5, dt);
         beam.visible = u.value > 0.005;
       }
+      this.updateWonder(p, dt, player, near && !underground);
       if (!near || underground) continue;
       for (const l of p.lights) {
         if (l.mode === 'lamp') l.intensity = isNight ? l.base * (0.9 + 0.1 * Math.sin(this.time * 7 + l.phase) * Math.sin(this.time * 3.1)) : 0;
@@ -279,10 +287,51 @@ export class Places {
           // Defekte Röhre: meist an, setzt in unregelmäßigen Abständen kurz aus.
           const n = Math.sin(this.time * 13 + l.phase) * Math.sin(this.time * 4.7 + l.phase * 2);
           l.intensity = n > 0.82 ? l.base * 0.1 : l.base * (0.85 + 0.15 * Math.sin(this.time * 50));
+        } else if (l.mode === 'pulse') {
+          // Pilzglühen: atmet langsam, bei Tag nur ein Hauch.
+          l.intensity = l.base * (0.55 + 0.45 * Math.sin(this.time * 1.1 + l.phase)) * (0.15 + 0.85 * this.night);
         }
         else l.intensity = isNight ? blink * 30 : 0;
         if (l.intensity > 0) this.d.lights.request(l);
       }
+    }
+  }
+
+  /** Animierte Shader, Glühen, Schaukeln und Geräusche der atemberaubenden Orte. */
+  private updateWonder(p: PlaceRuntime, dt: number, player: THREE.Vector3, near: boolean): void {
+    const m = p.model;
+    for (const s of p.sounds) {
+      const dist = s.position.distanceTo(player);
+      if (s.loop) {
+        // Dauerrauschen nur in Hörweite (danach wieder freigeben).
+        const inRange = near && dist < s.loop.range * 1.1;
+        if (inRange && !s.handle) s.handle = this.d.audio.loopNoise(s.position, { type: 'bandpass', ...s.loop });
+        else if (!inRange && s.handle) {
+          s.handle.stop();
+          s.handle = null;
+        }
+        continue;
+      }
+      s.timer -= dt;
+      if (s.timer > 0 || !s.every) continue;
+      s.timer = s.every[0] + Math.random() * (s.every[1] - s.every[0]);
+      if (!near || dist > 90) continue;
+      if (s.when === 'night' && this.night < 0.5) continue;
+      if (s.when === 'day' && this.night > 0.5) continue;
+      this.d.audio.play(s.sound as SoundId, { position: s.position, volume: s.volume ?? 1 });
+    }
+    if (!near) return;
+    for (const c of m.clocks) c.value += dt;
+    for (const g of m.glows) {
+      const base = THREE.MathUtils.lerp(g.day, g.night, this.night);
+      g.material.emissiveIntensity = base * (g.pulse ? 0.7 + 0.3 * Math.sin(this.time * g.pulse) : 1);
+    }
+    for (const f of m.fades) f.uniform.value = THREE.MathUtils.lerp(f.day, f.night, this.night);
+    for (const b of m.bobbers) {
+      const t = this.time * b.speed;
+      b.object.position.y = b.base.y + Math.sin(t) * b.amp;
+      b.object.rotation.z = Math.sin(t * 0.8 + 1) * b.roll;
+      b.object.rotation.x = Math.cos(t * 0.6) * b.roll * 0.6;
     }
   }
 
@@ -302,6 +351,11 @@ export class Places {
         stones: 'Ein Kreis aus aufgerichteten Steinen. Auf dem Altar in der Mitte leuchtet etwas.',
         lighthouse: 'Ein Leuchtturm. Sein Feuer dreht sich noch – jemand hat es lange am Brennen gehalten.',
         smugglers: 'Kisten unter einer Plane, ein Boot kieloben. Hier hat jemand Ware versteckt.',
+        grove: 'Weißes Gespinst überzieht die Bäume. Die Luft ist dick vor Sporen, der Boden federt wie Fleisch.',
+        falls: 'Ein Wasserfall stürzt über die Felswand. Für einen Moment klingt die Insel nicht nach Tod.',
+        wrecks: 'Rostige Rümpfe im flachen Wasser, so weit der Nebel reicht. Irgendwo läutet eine Boje.',
+        tower: 'Ein Feuerwachturm auf dem Gipfel. Von oben muss man die ganze Insel sehen.',
+        drowned: 'Ein Kirchturm ragt aus dem See. Darunter, unter dem Wasser, Dächer und Gassen.',
       };
       this.d.events.emit('hud:message', { text: `${p.site.name} – ${text[p.site.kind]}` });
       this.d.events.emit('place:discovered', { kind: p.site.kind, name: p.site.name });

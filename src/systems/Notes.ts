@@ -378,6 +378,54 @@ export const NOTES: NoteDef[] = [
       'Seit er im Keller schläft, redet Vater nachts mit Stimmen, die nicht seine sind.\n\n' +
       'Wir verlassen den Hof, sobald das Wetter es zulässt. Die Leute aus dem Dorf wollen die Grube zuschütten. Die Herren von der Gesellschaft lassen es nicht zu.\n\nDeine Schwester Hedwig',
   },
+  // --- Atemberaubende Orte (Meilenstein 53) ---
+  {
+    id: 'myzel',
+    title: 'Feldbericht P-M/7 (Myzel-Hain)',
+    style: 'paper',
+    text:
+      'PROJEKT MYZEL – Außenstelle, Probe 7\n\nDas Geflecht hat die Bäume nicht getötet. Es benutzt sie. Wurzeln als Leitungen, Stämme als Antennen. ' +
+      'Die Fruchtkörper leuchten im Takt – 11 Schläge pro Minute. So langsam schlägt ein Herz im Schlaf.\n\n' +
+      'Dr. Albrecht meint, es reagiere auf Wärme. Ich glaube, es reagiert auf Stimmen. Wenn wir sprechen, wird das Leuchten schneller.\n\n' +
+      'Seit gestern hört Kessler es auch. Er sagt, es fragt, wie wir heißen.',
+  },
+  {
+    id: 'schleier',
+    title: 'Postkarte, 1971 (Der Weiße Schleier)',
+    style: 'paper',
+    text:
+      'Grüße vom Weißen Schleier! Der schönste Wasserfall der Nordsee, sagt der Wirt in Moorwinkel, und er hat recht. ' +
+      'Wir haben auf der Bank gesessen, bis die Sonne den Regenbogen gemalt hat. H. hat unsere Namen in die Bank geritzt. Nächstes Jahr wieder!\n\n' +
+      'Darunter, viel später, mit Bleistift: „Das Wasser ist das Einzige hier, das nicht nach Schimmel schmeckt. Ich trinke nur noch von oben, von der Kante.“',
+  },
+  {
+    id: 'kutter',
+    title: 'Logbuch Kutter „Grete“ (Schiffsfriedhof)',
+    style: 'radio',
+    text:
+      '06:10 Auslaufen mit 14 Personen an Bord, Kurs Festland.\n07:40 Küstenwache auf Kanal 16: Rückkehr befohlen. Sperrgebiet.\n' +
+      '07:45 Haben nicht geantwortet.\n08:30 Warnschuss vor den Bug.\n09:15 Nebel. Kompass dreht sich. Sind im Kreis gefahren.\n' +
+      '11:00 Wieder vor Grauwasser. Wie ist das möglich.\n11:20 Wir hören eine Glockenboje. Auf der Seekarte ist hier keine Boje.\n11:22 Sie kommt näher.',
+  },
+  {
+    id: 'turm',
+    title: 'Brandwachbuch (Feuerwachturm)',
+    style: 'paper',
+    text:
+      '04.10. Sichtweite gut. Kein Rauch. Über der Zeche nachts Licht, obwohl sie stillliegt.\n' +
+      '09.10. Lichter im Wald zwischen Moorwinkel und dem Moor. Sie bewegen sich in Reihe, sehr langsam, wie eine Prozession.\n' +
+      '12.10. Die Lichter sind keine Lampen. Sie haben keinen Schein, sie leuchten nur selbst.\n' +
+      '13.10. Funkgerät tot. Bleibe oben. Von hier sieht man alles kommen.\n15.10. Sie stehen unten am Turm und schauen hoch. Alle. Die ganze Nacht.',
+  },
+  {
+    id: 'tiefensee',
+    title: 'Brief einer Enkelin (Tiefensee)',
+    style: 'paper',
+    text:
+      'Oma, du hast mir nie geglaubt, dass ich die Glocke höre.\n\n1958 hat die Bergbaugesellschaft das Tal geflutet, für das Kühlwasser der Zeche. ' +
+      'Alle sind gegangen, nur der alte Küster nicht. Er hat gesagt, die Glocke müsse weiterläuten, sonst finden die Toten nicht heim.\n\n' +
+      'Heute Nacht hat sie wieder geläutet. Und im Glockenstuhl brannte Licht. Ich nehme das Boot und sehe nach. Wenn ich nicht zurückkomme, weißt du, wo ich bin.',
+  },
 ];
 
 const BY_ID = new Map(NOTES.map((n) => [n.id, n]));
@@ -393,7 +441,25 @@ export const TOWN_NOTES = {
 } as const;
 
 /** Notizen an den besonderen Orten (Absturzstelle, Zeche, Hütte im Moor, Funkstation). */
-export const PLACE_NOTES = ['bordbuch', 'zeche', 'einsiedlerin', 'funk3', 'faehre', 'anne', 'pfarrer', 'labor1', 'labor2', 'steinkreis', 'leuchtfeuer', 'schmuggler'] as const;
+export const PLACE_NOTES = [
+  'bordbuch',
+  'zeche',
+  'einsiedlerin',
+  'funk3',
+  'faehre',
+  'anne',
+  'pfarrer',
+  'labor1',
+  'labor2',
+  'steinkreis',
+  'leuchtfeuer',
+  'schmuggler',
+  'myzel',
+  'schleier',
+  'kutter',
+  'turm',
+  'tiefensee',
+] as const;
 
 /** Notizen in den kleinen Orten (Gehöfte, Moorwinkel, Campingplatz, Sägewerk). */
 export const HAMLET_NOTES = ['hollmann', 'brinkmann', 'gasthof', 'moorwinkel1', 'moorwinkel2', 'rezeption', 'camping1', 'camping2', 'saegewerk'] as const;

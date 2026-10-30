@@ -1636,6 +1636,7 @@ export class Game {
   /** Notiz lesen: Leseansicht öffnen, beim ersten Mal ins Tagebuch übernehmen. */
   /** Hinweis am Funkgerät der Station. */
   private usePrompt(id: string): { key: 'E' | null; action: string; label?: string } {
+    if (id === 'lookout') return { key: 'E', action: 'Rundblick', label: 'Fernglas' };
     if (id !== 'transmitter') return { key: null, action: '…' };
     if (this.story.transmitted) return { key: null, action: 'Funkgerät', label: 'Nur noch Rauschen' };
     return { key: 'E', action: 'Funkspruch absetzen', label: 'Funkgerät' };
@@ -1643,6 +1644,7 @@ export class Game {
 
   /** Funkgerät benutzen: braucht Strom und einen Beweis, dann antwortet das Festland. */
   private useThing(id: string): void {
+    if (id === 'lookout') return this.lookout();
     if (id !== 'transmitter' || this.story.transmitted) return;
     const inv = this.inventory;
     if (inv.count('battery') < 2) {
@@ -1661,6 +1663,15 @@ export class Game {
     this.audio.play('radioStatic', { volume: 0.6 });
     this.events.emit('hud:message', { text: 'Verbindung zum Festland!' });
     this.readNote('funkspruch');
+  }
+
+  /** Fernglas im Feuerwachturm: deckt die Karte weit ums Land auf. */
+  private lookout(): void {
+    const site = this.places.site('tower');
+    if (!site) return;
+    this.exploration.reveal(site.position.x, site.position.z, 560);
+    this.audio.play('pickup', { volume: 0.5 });
+    this.events.emit('hud:message', { text: 'Durchs Fernglas siehst du die halbe Insel – Dächer, Wege, Rauch über der Zeche. Die Karte (M) zeigt jetzt das Umland.' });
   }
 
   /** Mit der Möwe ablegen: Abspann. Danach kann man auf der Insel weiterspielen. */

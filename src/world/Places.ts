@@ -15,12 +15,33 @@ import { deriveSeed, mulberry32 } from '../utils/random';
  * - **Steinkreis** (Kuppe im Wald): Ritualplatz der Schrate mit Altar, bewacht von einem Lager.
  * - **Leuchtturm** (erste Nachbarinsel): Turm mit drehendem Leuchtfeuer und Wärterhaus.
  * - **Schmugglerbucht** (zweite Nachbarinsel): Versteck unter einer Plane am Strand, zur Hauptinsel gewandt.
+ * - **Myzel-Hain** (Wald am Moor): Bäume unter weißem Gespinst, leuchtende Pilze, das pulsierende Herz.
+ * - **Der Weiße Schleier** (Gebirgsvorland): Wasserfall über eine Felswand in ein Becken.
+ * - **Schiffsfriedhof** (Küste): Wracks in einer flachen Bucht, eine Glockenboje.
+ * - **Feuerwachturm** (Kuppe): hoher Turm mit Rundblick über die Insel.
+ * - **Versunkenes Dorf** (Binnensee): Kirchturm und Dächer ragen aus dem Wasser.
  *
  * Hier werden nur die Bauplätze gesucht und eingeebnet (vor Gelände und Physik); Modelle, Beute und
  * Notizen baut `systems/Places`.
  */
 
-export type PlaceKind = 'crash' | 'mine' | 'hut' | 'radio' | 'ferry' | 'chapel' | 'lab' | 'stones' | 'lighthouse' | 'smugglers';
+export type PlaceKind =
+  | 'crash'
+  | 'mine'
+  | 'hut'
+  | 'radio'
+  | 'ferry'
+  | 'chapel'
+  | 'lab'
+  | 'stones'
+  | 'lighthouse'
+  | 'smugglers'
+  // Meilenstein 53: atemberaubende Orte
+  | 'grove'
+  | 'falls'
+  | 'wrecks'
+  | 'tower'
+  | 'drowned';
 
 export interface PlaceSite {
   kind: PlaceKind;
@@ -44,6 +65,11 @@ export const PLACE_NAMES: Record<PlaceKind, string> = {
   stones: 'Steinkreis',
   lighthouse: 'Leuchtturm Kaltenhuk',
   smugglers: 'Schmugglerbucht',
+  grove: 'Myzel-Hain',
+  falls: 'Der Weiße Schleier',
+  wrecks: 'Schiffsfriedhof Grauwasser',
+  tower: 'Feuerwachturm Hoher Kopf',
+  drowned: 'Versunkenes Dorf Tiefensee',
 };
 
 type Avoid = { x: number; z: number; radius: number };
@@ -272,7 +298,127 @@ export function placeSites(hm: HeightMap, seed: number, avoid: Avoid[], town?: {
     hm.flatten(x, z, 7, 6, y);
     sites.push({ kind: 'smugglers', name: PLACE_NAMES.smugglers, position: new THREE.Vector3(x, y, z), yaw, radius: 24 });
   }
+  placeWonders(hm, sites, search, taken, b, n, rng);
   return sites;
+}
+
+/**
+ * Die atemberaubenden Orte (Meilenstein 53). Hinter allen anderen, damit deren Lage und Behälter-Nummern
+ * (Spielstände) gleich bleiben.
+ */
+function placeWonders(
+  hm: HeightMap,
+  sites: PlaceSite[],
+  search: (step: number, score: (x: number, z: number) => { s: number; yaw: number; y?: number } | null) => { x: number; z: number; s: number; yaw: number; y?: number } | null,
+  taken: (x: number, z: number, r: number) => boolean,
+  b: BiomeWeights,
+  n: [number, number, number],
+  rng: () => number,
+): void {
+  const water = hm.waterLevel;
+  const coastal = (x: number, z: number) => Math.hypot(x, z) / hm.half > 0.6;
+
+  // Myzel-Hain: feuchter Wald am Rand des Moores, eben genug für einen Hain.
+  const grove = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.highland > 0.2 || b.cliffs > 0.2 || b.swamp < 0.1 || b.swamp > 0.6) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 2 || h > 30 || taken(x, z, 30)) return null;
+    const { min, max } = spread(hm, x, z, 20);
+    if (min < water + 1 || max - min > 5) return null;
+    return { s: Math.abs(b.swamp - 0.35) * 6 + (max - min) + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (grove) {
+    hm.flatten(grove.x, grove.z, 12, 14, grove.y!);
+    sites.push({ kind: 'grove', name: PLACE_NAMES.grove, position: new THREE.Vector3(grove.x, grove.y!, grove.z), yaw: grove.yaw, radius: 28 });
+  }
+
+  // Wasserfall: eine Geländestufe von 8–22 m, unten Platz für ein Becken; +Z zeigt zur Wand.
+  const falls = search(10, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.2) return null;
+    const h = hm.heightAt(x, z);
+    if (h < water + 4 || h > 70 || taken(x, z, 30)) return null;
+    const pool = spread(hm, x, z, 7);
+    if (pool.max - pool.min > 3.5) return null;
+    for (let k = 0; k < 16; k++) {
+      const yaw = (k / 16) * Math.PI * 2;
+      const dx = Math.sin(yaw);
+      const dz = Math.cos(yaw);
+      const top = hm.heightAt(x + dx * 16, z + dz * 16);
+      const lip = hm.heightAt(x + dx * 11, z + dz * 11);
+      const drop = top - h;
+      if (drop < 8 || drop > 24 || lip - h < drop * 0.45) continue;
+      // Hinter der Kante geht es weiter bergauf (Quellgebiet), nicht wieder hinab.
+      if (hm.heightAt(x + dx * 26, z + dz * 26) < top - 1) continue;
+      return { s: Math.abs(drop - 14) * 0.3 + pool.max - pool.min + rng(), yaw, y: h };
+    }
+    return null;
+  });
+  if (falls) {
+    // Becken: unten eine flache Mulde (begehbar, knietief).
+    hm.flatten(falls.x, falls.z, 6, 5, falls.y! - 1.1);
+    sites.push({ kind: 'falls', name: PLACE_NAMES.falls, position: new THREE.Vector3(falls.x, falls.y!, falls.z), yaw: falls.yaw, radius: 26 });
+  }
+
+  // Schiffsfriedhof: flache Bucht an der Außenküste, Land in Blickrichtung (+Z zeigt zum Strand).
+  const wrecks = search(14, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.3) return null;
+    const h = hm.heightAt(x, z);
+    if (h > water - 1 || h < water - 4 || !coastal(x, z) || taken(x, z, 40)) return null;
+    for (let k = 0; k < 16; k++) {
+      const yaw = (k / 16) * Math.PI * 2;
+      const dx = Math.sin(yaw);
+      const dz = Math.cos(yaw);
+      if (hm.heightAt(x + dx * 32, z + dz * 32) < water + 0.5) continue;
+      // Breite Bucht: links und rechts noch Wasser.
+      if (hm.heightAt(x + dz * 18, z - dx * 18) > water - 0.6 || hm.heightAt(x - dz * 18, z + dx * 18) > water - 0.6) continue;
+      return { s: Math.abs(h - (water - 2.4)) + rng(), yaw, y: water };
+    }
+    return null;
+  });
+  if (wrecks) sites.push({ kind: 'wrecks', name: PLACE_NAMES.wrecks, position: new THREE.Vector3(wrecks.x, water, wrecks.z), yaw: wrecks.yaw, radius: 34 });
+
+  // Feuerwachturm: die höchste freie Kuppe unterhalb der Schneegrenze.
+  const tower = search(16, (x, z) => {
+    hm.biomes.weights(x, z, b);
+    if (b.swamp > 0.2) return null;
+    const h = hm.heightAt(x, z);
+    if (h < 30 || h > 78 || taken(x, z, 30)) return null;
+    hm.normalAt(x, z, n);
+    if (n[1] < 0.9) return null;
+    let ring = 0;
+    for (let i = 0; i < 8; i++) ring += hm.heightAt(x + Math.cos(i * 0.785) * 40, z + Math.sin(i * 0.785) * 40);
+    const prominence = h - ring / 8;
+    if (prominence < 6) return null;
+    const { min, max } = spread(hm, x, z, 6);
+    if (max - min > 3) return null;
+    return { s: -prominence - h * 0.15 + rng(), yaw: rng() * Math.PI * 2, y: h };
+  });
+  if (tower) {
+    hm.flatten(tower.x, tower.z, 7, 6, tower.y!);
+    sites.push({ kind: 'tower', name: PLACE_NAMES.tower, position: new THREE.Vector3(tower.x, tower.y!, tower.z), yaw: tower.yaw, radius: 20 });
+  }
+
+  // Versunkenes Dorf: Binnensee mit 2–6 m Tiefe; +Z zeigt zum nächsten Ufer (dort der Steg).
+  const drowned = search(12, (x, z) => {
+    const h = hm.heightAt(x, z);
+    if (h > water - 2 || h < water - 7 || coastal(x, z) || taken(x, z, 35)) return null;
+    // Rundum Wasser im Umkreis des Dorfes.
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      if (hm.heightAt(x + Math.cos(a) * 11, z + Math.sin(a) * 11) > water - 0.8) return null;
+    }
+    for (let d = 16; d <= 40; d += 4) {
+      for (let k = 0; k < 16; k++) {
+        const yaw = (k / 16) * Math.PI * 2;
+        if (hm.heightAt(x + Math.sin(yaw) * d, z + Math.cos(yaw) * d) > water + 0.6) return { s: d * 0.05 + Math.abs(h - (water - 4)) + rng(), yaw, y: water };
+      }
+    }
+    return null;
+  });
+  if (drowned) sites.push({ kind: 'drowned', name: PLACE_NAMES.drowned, position: new THREE.Vector3(drowned.x, water, drowned.z), yaw: drowned.yaw, radius: 30 });
 }
 
 /** Bodenbeschaffenheit der Orte für das Gelände: zertretene Erde, Brandspuren, Schotter (0..1). */
