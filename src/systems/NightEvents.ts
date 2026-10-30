@@ -150,7 +150,7 @@ function deer(): THREE.Group {
     for (const z of [-0.45, 0.45]) g.add(mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.9, 6), DEER, s * 0.16, 0.45, z));
     g.add(mesh(new THREE.SphereGeometry(0.025, 6, 4), PALE_EYE, s * 0.09, 1.96, 0.9));
     // Augenschein: Wie bei echtem Wild werfen die Augen das wenige Licht zurück – zwei fahle Punkte im Dunkel.
-    const shine = halo(0xc8f0e0, 0.45);
+    const shine = halo(0xc8f0e0, 0.8);
     shine.position.set(s * 0.09, 1.96, 0.94);
     g.add(shine);
     const a = mesh(new THREE.CylinderGeometry(0.015, 0.025, 0.55, 5), ANTLER, s * 0.12, 2.25, 0.72);
