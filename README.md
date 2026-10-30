@@ -61,6 +61,43 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 58 – Nachtereignisse
+
+Lange, langsame Begebenheiten in der Nacht, zum Gruseln statt zum Erschrecken. Nichts springt einen an,
+nichts kreischt. Es baut sich über eine Minute oder länger auf und lässt einen mit einem unguten Gefühl
+zurück. Alle zweieinhalb bis fünf Minuten Dunkelheit geschieht eines (mit wachsender Furcht öfter),
+nie in Höhlen und nie bei Tag. Beim ersten Mal erzählt eine Zeile, was passiert.
+
+- **Prozession**: Eine Reihe Laternenträger in Kutten zieht in 40–50 m Entfernung langsam durch den
+  Wald. Die Laternen schaukeln, ihr Schein dringt durchs Unterholz, dazu leiser Gesang. Wer näher
+  kommt, sieht die Lichter eins nach dem anderen verlöschen.
+- **Feuer in der Ferne**: Zwischen den Bäumen brennt ein Lagerfeuer, jemand sitzt mit dem Rücken zu
+  dir davor, ein Umriss vor den Flammen. Es knistert. Kommt man hin, ist niemand da, nur kalte Asche
+  und ein Steinkreis, aus dem noch Rauch steigt. Die Asche bleibt liegen.
+- **Pfeifer**: Jemand pfeift, wie man einen Hund ruft. Fünfmal, jedes Mal näher und aus etwas anderer
+  Richtung. Dann Stille. Gesehen wird er nie.
+- **Nebelwand**: Dichter, fahler Nebel kriecht heran. Darin stehen Gestalten, reglos, als Umrisse.
+  Geht man auf eine zu, ist sie fort. Wenn der Nebel sich hebt, sind alle fort.
+- **Spieluhr**: Irgendwo spielt eine Spieluhr, viermal, jedes Mal näher. Wo sie zuletzt spielte, liegt
+  sie dann aufgeklappt im Gras, mit der kleinen Tänzerin.
+- **Hirsch**: Ein Hirsch steht reglos zwischen den Bäumen und sieht dich an. Seine Augen werfen das
+  Licht zurück. Er flieht nicht und dreht den Kopf mit, wenn du um ihn herumgehst. Schaust du ein paar
+  Sekunden weg, ist er fort.
+- **Fußspuren**: Vor dir erscheinen Abdrücke nackter Füße, einer nach dem anderen, mit leisen
+  Schritten, und führen ins Dunkel. Sie bleiben eine Weile.
+- **Umkreisen**: Etwas raschelt im Unterholz, immer im selben Abstand, im Kreis um dich herum.
+
+Während ein Nachtereignis läuft, schweigen die kurzen Schrecken aus Meilenstein 57. **Der Ansturm
+(eine Gestalt, die kreischend auf einen zustürzt) ist entfernt**, das Bildschirmwackeln dafür ebenso.
+
+**Technik**
+- Neues System `NightEvents` mit eigenem Zeitplan, liegenbleibenden Spuren (Asche, Spieluhr,
+  Fußspuren; sie verschwinden nach einiger Zeit oder wenn man weit weg ist) und Tests.
+- Lichter ohne echte Lichtquellen: additive Lichthöfe, ein weicher Schein, der durchs Unterholz dringt
+  (hinter Hügeln ausgeblendet), und ein Lichtkreis am Boden.
+- `DayNightCycle.extraFog` für die Nebelwand; nachts färbt er den Nebel fahl.
+- Neuer Klang: Pfiff.
+
 ### Meilenstein 57 – Das Grauen wächst
 
 Mehr Unheimliches überall, nicht nur an besonderen Orten. Je größer die Furcht, desto öfter spielt die
@@ -77,8 +114,7 @@ und dem Flüstern):
 - **Flackern**: Fackel oder Taschenlampe setzt stotternd aus, dazu ein Flüstern.
 - **Summen**: In der Ferne summt jemand ein Kinderlied.
 - **Glocke** in der Dämmerung, obwohl weit und breit keine Kirche ist.
-- **Ansturm** (nur bei großer Furcht, höchstens alle fünf Minuten): Eine Gestalt stürzt kreischend
-  auf dich zu und ist kurz vor deinem Gesicht verschwunden. Schrei, Bildschirmwackeln, Schreck.
+- ~~**Ansturm**~~ (in Meilenstein 58 wieder entfernt, das Spiel kommt ohne Jumpscares aus).
 - **Gaben**: Vor dir im Wald liegt plötzlich etwas, das vorher nicht da war, und es bleibt liegen. Ein
   Dreibein mit Strichmännchen aus Zweigen, ein Steinhaufen mit totem Vogel und Blut, eine Puppe auf
   einem Baumstumpf, die dich ansieht, oder ein Kreis brennender Kerzen um ein liegendes Strichmännchen.

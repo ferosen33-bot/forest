@@ -36,6 +36,8 @@ const FEVER_MOON = new THREE.Color(0xff5a3a);
 const CAVE_FOG = new THREE.Color(0x040506);
 const CAVE_SKY = new THREE.Color(0x2a313b);
 const CAVE_GROUND = new THREE.Color(0x0c0b0a);
+/** Nebelwand bei Nacht: fahles Grau. */
+const NIGHT_MIST = new THREE.Color(0x4a5258);
 /** Grauer Himmel bei geschlossener Wolkendecke (Tag bzw. Nacht). */
 const OVERCAST_DAY = new THREE.Color(0x6f7880);
 const OVERCAST_NIGHT = new THREE.Color(0x0a0d12);
@@ -82,6 +84,8 @@ export class DayNightCycle {
   underground = 0;
   /** 1 = Fiebernacht: roter Himmel, roter Mond (vom Spiel weich ein- und ausgeblendet). */
   fever = 0;
+  /** Zusätzlicher Nebel 0..1 (Nebelwand bei Nacht). */
+  extraFog = 0;
 
   private readonly sunDir = new THREE.Vector3();
   private readonly moonDir = new THREE.Vector3();
@@ -205,7 +209,9 @@ export class DayNightCycle {
 
     // Nebel: tagsüber lichter, nachts dichter, morgens Bodennebel.
     const morningMist = smoothstep(4.5, 6.5, this.hour) * (1 - smoothstep(7, 9.5, this.hour));
-    let density = 0.0085 + (1 - dayT) * 0.008 + morningMist * 0.014 + weather.rain * 0.012 + weather.clouds * 0.0015;
+    let density = 0.0085 + (1 - dayT) * 0.008 + morningMist * 0.014 + weather.rain * 0.012 + weather.clouds * 0.0015 + this.extraFog * 0.045;
+    // Die Nebelwand ist nachts fahl wie Mondlicht im Dunst – dunkle Gestalten stehen als Umrisse darin.
+    if (this.extraFog > 0) this.fog.color.lerp(NIGHT_MIST, this.extraFog * 0.7 * (1 - ambientT));
     if (underwater) {
       density = 0.085;
       this.fog.color.lerp(UNDERWATER, 0.85);

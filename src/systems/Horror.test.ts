@@ -56,17 +56,12 @@ describe('Horror (Meilenstein 57)', () => {
     expect(horror.offeringCount).toBe(0);
   });
 
-  it('Ansturm: stürzt heran, verschwindet kurz vor dem Gesicht und erschreckt', () => {
-    const { horror, fear, frame, played } = setup();
-    let shake = 0;
-    horror.onShake = (a) => (shake += a);
-    horror.trigger('lunge', frame());
+  it('Läufer: huscht vorbei und ist nach wenigen Sekunden fort', () => {
+    const { horror, frame } = setup();
+    horror.trigger('runner', frame());
     expect(horror.activeWatchers).toBe(1);
-    for (let i = 0; i < 20; i++) horror.update(frame({ paused: true }));
+    for (let i = 0; i < 30; i++) horror.update(frame({ paused: true }));
     expect(horror.activeWatchers).toBe(0);
-    expect(shake).toBeGreaterThan(0);
-    expect(fear.value).toBeGreaterThan(0.25);
-    expect(played).toContain('scream');
   });
 
   it('Stille: der Wald verstummt, dann atmet etwas im Nacken', () => {

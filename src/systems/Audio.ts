@@ -98,7 +98,8 @@ export type SoundId =
   | 'pound'
   | 'breath'
   | 'hum'
-  | 'rustle';
+  | 'rustle'
+  | 'pfiff';
 
 export interface PlayOptions {
   volume?: number;
@@ -781,6 +782,13 @@ export class Audio {
         }
         break;
       }
+      // Jemand pfeift, wie man einen Hund ruft: kurz hoch, lang hinauf und wieder hinab.
+      case 'pfiff':
+        this.tone(t, 'sine', 1500 * pitch, 1700 * pitch, 0.18, 0.16);
+        this.tone(t + 0.28, 'sine', 1300 * pitch, 2100 * pitch, 0.45, 0.18);
+        this.tone(t + 0.75, 'sine', 2100 * pitch, 1400 * pitch, 0.5, 0.16);
+        this.noise(t, 1.25, 'bandpass', 1800, 4, 0.03);
+        break;
       // Rascheln im Unterholz: etwas Schnelles bricht durch die Büsche.
       case 'rustle':
         for (let i = 0; i < 7; i++) this.noise(t + i * 0.07 + Math.random() * 0.03, 0.12, 'bandpass', 2400 + Math.random() * 1600, 1.4, 0.35);

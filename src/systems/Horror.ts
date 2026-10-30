@@ -34,7 +34,6 @@ export type HorrorEvent =
   | 'flicker'
   | 'hum'
   | 'bell'
-  | 'lunge'
   | 'offering';
 
 /** Eine Gestalt, die am Rand des Blickfelds steht und verschwindet, wenn man hinsieht. */
@@ -52,12 +51,11 @@ interface Eyes {
   out: number;
 }
 
-/** Gestalt in Bewegung: huscht quer durchs Bild (Läufer) oder stürzt auf den Spieler zu (Ansturm). */
+/** Gestalt in Bewegung: huscht in der Ferne quer durchs Bild. */
 interface Mover {
   mesh: THREE.Group;
   velocity: THREE.Vector3;
   life: number;
-  lunge: boolean;
 }
 
 /** Hinterlassenschaft im Wald, die liegen bleibt, bis der Spieler weit weg ist. */
@@ -72,7 +70,7 @@ const EYES_PALE = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xd8f0ff)
 const EYE_GEO = new THREE.SphereGeometry(0.035, 6, 4);
 
 /** Hagere, zu große Silhouette mit glühenden Augen (bewusst unnatürlich proportioniert). */
-function createWatcher(): THREE.Group {
+export function createWatcher(): THREE.Group {
   const g = new THREE.Group();
   const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 1.1, 6), BODY);
   torso.position.y = 1.55;
@@ -191,23 +189,18 @@ function createOffering(kind: number, rng: () => number): THREE.Group {
   return g;
 }
 
-/** Wie lange mindestens zwischen zwei Ansturm-Schrecken vergeht (s). */
-const LUNGE_COOLDOWN = 300;
-
 /**
  * Nächtlicher Horror: In der Dunkelheit spielt die Insel dem Spieler Streiche – Gestalten am
  * Waldrand, dreimaliges Klopfen, knackende Äste im Rücken, Schreie in der Ferne, Schritte, die
  * folgen, Flüstern in Höhlen. Seit Meilenstein 57 außerdem: Augen zwischen den Bäumen, etwas, das
  * vorbeihuscht, plötzliche Stille und Atem im Nacken, flackerndes Licht, Summen in der Ferne, eine
- * Glocke in der Dämmerung, Gaben auf dem Weg – und bei großer Angst etwas, das auf einen zustürzt.
+ * Glocke in der Dämmerung und Gaben auf dem Weg. Bewusst ohne Schreckmomente, die einen anspringen.
  * Je größer die Furcht, desto häufiger (und desto mehr Einbildung).
  */
 export class Horror {
   readonly group = new THREE.Group();
   /** Lampe des Spielers setzt aus (Sekunden). */
   onFlicker: ((seconds: number) => void) | null = null;
-  /** Bildschirm wackelt (Schreck). */
-  onShake: ((amount: number) => void) | null = null;
   /** Erzählende Zeile (beim ersten Mal je Ereignis). */
   onMessage: ((text: string) => void) | null = null;
   private timer = 30;
@@ -222,7 +215,6 @@ export class Horror {
   private knockAt = new THREE.Vector3();
   /** Atem im Nacken nach der Stille (s bis dahin, < 0 = nichts geplant). */
   private breathIn = -1;
-  private lungeCooldown = 120;
   private readonly told = new Set<HorrorEvent>();
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
@@ -259,7 +251,6 @@ export class Horror {
   }
 
   update(f: HorrorFrame): void {
-    this.lungeCooldown -= f.dt;
     this.updateWatchers(f);
     this.updateEyes(f);
     this.updateMovers(f);
@@ -313,7 +304,6 @@ export class Horror {
           ['flicker', f.lit ? 1 : 0],
           ['hum', 1],
           ['offering', 1.3],
-          ['lunge', this.fear.hallucinating && this.lungeCooldown <= 0 ? 1.2 : 0],
         ];
     const total = table.reduce((s, e) => s + e[1], 0);
     let r = this.rng() * total;
@@ -358,7 +348,7 @@ export class Horror {
         if (!f.inCave) this.spawnEyes(f);
         break;
       case 'runner':
-        if (!f.inCave) this.spawnMover(f, false);
+        if (!f.inCave) this.spawnRunner(f);
         break;
       case 'silence':
         // Alles verstummt – und nach ein paar Sekunden atmet etwas direkt hinter dem Spieler.
@@ -383,9 +373,6 @@ export class Horror {
         break;
       case 'bell':
         this.sound('bell', this.around(f, 120 + this.rng() * 80), 0.35);
-        break;
-      case 'lunge':
-        if (!f.inCave) this.spawnMover(f, true);
         break;
       case 'offering':
         if (!f.inCave) this.placeOffering(f);
@@ -523,32 +510,25 @@ export class Horror {
     }
   }
 
-  /** Läufer: huscht 30–40 m entfernt quer durchs Bild. Ansturm: rennt geradewegs auf den Spieler zu. */
-  private spawnMover(f: HorrorFrame, lunge: boolean): void {
+  /** Läufer: huscht 30–40 m entfernt quer durchs Bild. */
+  private spawnRunner(f: HorrorFrame): void {
     if (this.movers.length) return;
     const look = Math.atan2(f.look.x, f.look.z);
-    const at = lunge ? this.ahead(f, (this.rng() - 0.5) * 0.4, 18) : this.ahead(f, (this.rng() - 0.5) * 0.5, 30 + this.rng() * 10);
+    const at = this.ahead(f, (this.rng() - 0.5) * 0.5, 30 + this.rng() * 10);
     if (!at) return;
     const mesh = createWatcher();
     mesh.position.copy(at);
-    const velocity = new THREE.Vector3();
-    if (lunge) {
-      velocity.subVectors(f.player, at).setY(0).normalize().multiplyScalar(22);
-      this.lungeCooldown = LUNGE_COOLDOWN;
-      this.sound('shriek', at.clone().setY(at.y + 2), 0.8);
-    } else {
-      const dir = this.rng() < 0.5 ? 1 : -1;
-      velocity.set(Math.cos(look) * dir, 0, -Math.sin(look) * dir).multiplyScalar(9);
-      // Er beginnt seitlich und läuft durch die Mitte des Bilds.
-      mesh.position.addScaledVector(velocity, -0.9);
-      mesh.position.y = this.heightMap.heightAt(mesh.position.x, mesh.position.z);
-      this.sound('rustle', mesh.position, 0.8);
-      this.fear.scare(0.12);
-    }
+    const dir = this.rng() < 0.5 ? 1 : -1;
+    const velocity = new THREE.Vector3(Math.cos(look) * dir, 0, -Math.sin(look) * dir).multiplyScalar(9);
+    // Er beginnt seitlich und läuft durch die Mitte des Bilds.
+    mesh.position.addScaledVector(velocity, -0.9);
+    mesh.position.y = this.heightMap.heightAt(mesh.position.x, mesh.position.z);
+    this.sound('rustle', mesh.position, 0.8);
+    this.fear.scare(0.12);
     mesh.rotation.y = Math.atan2(velocity.x, velocity.z);
     mesh.rotation.x = 0.25;
     this.group.add(mesh);
-    this.movers.push({ mesh, velocity, life: lunge ? 2 : 2.2, lunge });
+    this.movers.push({ mesh, velocity, life: 2.2 });
   }
 
   private updateMovers(f: HorrorFrame): void {
@@ -558,14 +538,6 @@ export class Horror {
       const p = m.mesh.position;
       p.addScaledVector(m.velocity, f.dt);
       p.y = this.heightMap.heightAt(p.x, p.z) + Math.abs(Math.sin(m.life * 18)) * 0.12;
-      const near = Math.hypot(p.x - f.player.x, p.z - f.player.z);
-      if (m.lunge && near < 1.8) {
-        // Kurz vor dem Gesicht: weg – nur der Schrei bleibt.
-        this.sound('scream', this.tmp.copy(f.eye), 1);
-        this.fear.scare(0.5);
-        this.onShake?.(0.9);
-        m.life = 0;
-      }
       if (m.life <= 0) {
         this.group.remove(m.mesh);
         this.movers.splice(i, 1);

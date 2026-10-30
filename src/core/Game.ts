@@ -55,6 +55,7 @@ import { NoteUI } from '../ui/NoteUI';
 import { SkillsUI } from '../ui/SkillsUI';
 import { getPerk, getSkill, PERK_LEVELS, Skills, wireSkillEvents, type PerkId } from '../systems/Skills';
 import { Fear } from '../systems/Fear';
+import { NightEvents } from '../systems/NightEvents';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemCost, ItemId } from '../entities/items/ItemDefs';
@@ -179,6 +180,7 @@ export class Game {
   /** Furcht des Spielers und die nächtlichen Schrecken der Insel. */
   readonly fear = new Fear();
   horror!: Horror;
+  nightEvents!: NightEvents;
   worldEvents!: WorldEvents;
   /** Die Überlebenden in der Nordbucht (fehlt, wenn die Insel keinen Platz dafür hat). */
   survivors: Survivors | null = null;
@@ -954,8 +956,10 @@ export class Game {
     this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.horror.group);
     this.horror.onFlicker = (seconds) => (this.lightFailure = Math.max(this.lightFailure, seconds));
-    this.horror.onShake = (amount) => this.player.addShake(amount);
     this.horror.onMessage = (text) => this.events.emit('hud:message', { text });
+    this.nightEvents = new NightEvents(this.audio, this.world.heightMap, this.fear);
+    this.scene.add(this.nightEvents.group);
+    this.nightEvents.onMessage = (text) => this.events.emit('hud:message', { text });
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
     // Erlegte Schrate lassen ab und zu eine Waffe fallen; Bosse immer eine gute.
     this.events.on('enemy:killed', ({ position, boss }) => {
@@ -1570,7 +1574,7 @@ export class Game {
     // Große Angst lähmt: Ausdauer erholt sich langsamer.
     p.stats.regenFactor *= 1 - 0.5 * Math.max(0, fear - 0.5);
 
-    this.horror.update({
+    const frame = {
       dt,
       darkness: inCave ? 1 : darkness / (lit ? 0.35 : 1),
       inCave,
@@ -1580,7 +1584,12 @@ export class Game {
       moving: Math.hypot(p.velocity.x, p.velocity.z) > 1,
       paused: !playing || resting,
       lit: !!this.heldLight(),
-    });
+    };
+    // Läuft ein langes Nachtereignis, hält die Insel mit kleinen Streichen still.
+    this.horror.update({ ...frame, paused: frame.paused || !!this.nightEvents.current });
+    // Die Nachtereignisse rechnen mit der echten Dunkelheit (mit Licht in der Hand bleibt es Nacht).
+    this.nightEvents.update({ ...frame, darkness: inCave ? 1 : this.dayNight.isNight ? 1 : darkness });
+    this.dayNight.extraFog = this.nightEvents.fog;
 
     // Herzschlag ab spürbarer Angst – je größer, desto schneller und lauter.
     this.heartbeatTimer -= dt;
