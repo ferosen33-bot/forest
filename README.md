@@ -61,6 +61,50 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 57 – Das Grauen wächst
+
+Mehr Unheimliches überall, nicht nur an besonderen Orten. Je größer die Furcht, desto öfter spielt die
+Insel einem Streiche. Ab der Halluzinationsschwelle werden es noch mehr.
+
+**Neue Schrecken in der Nacht** (zu den bisherigen Gestalten, Klopfen, Ästen, Schreien, Schritten
+und dem Flüstern):
+- **Augen**: Zwischen den Bäumen glimmen viele Augenpaare (manche orange, manche fahl). Sie blinzeln
+  und erlöschen eins nach dem anderen, wenn man näher kommt oder mit der Lampe hinleuchtet.
+- **Läufer**: Eine hagere Gestalt huscht 30–40 m entfernt quer durchs Bild, das Unterholz raschelt.
+- **Stille**: Plötzlich verstummt der Wald, Wind und Tiere sind weg. Ein paar Sekunden später atmet
+  etwas schwer direkt hinter dir.
+- **Atem im Nacken**, auch in Höhlen.
+- **Flackern**: Fackel oder Taschenlampe setzt stotternd aus, dazu ein Flüstern.
+- **Summen**: In der Ferne summt jemand ein Kinderlied.
+- **Glocke** in der Dämmerung, obwohl weit und breit keine Kirche ist.
+- **Ansturm** (nur bei großer Furcht, höchstens alle fünf Minuten): Eine Gestalt stürzt kreischend
+  auf dich zu und ist kurz vor deinem Gesicht verschwunden. Schrei, Bildschirmwackeln, Schreck.
+- **Gaben**: Vor dir im Wald liegt plötzlich etwas, das vorher nicht da war, und es bleibt liegen. Ein
+  Dreibein mit Strichmännchen aus Zweigen, ein Steinhaufen mit totem Vogel und Blut, eine Puppe auf
+  einem Baumstumpf, die dich ansieht, oder ein Kreis brennender Kerzen um ein liegendes Strichmännchen.
+- Beim ersten Mal erzählt eine Zeile, was passiert („Kein Vogel, kein Wind. Der Wald hält den Atem
+  an.“).
+
+**Neue Fundorte überall im Wald**
+- **Strichmännchen**: Ein toter, krummer Baum, an dessen Ästen Figuren aus Zweigen hängen; dazu kleine
+  Figuren im Boden. Er knarrt, nachts flüstert es.
+- **Frisches Grab**: Erdhügel, Holzkreuz mit Hut, Schaufel, ein einzelner Schuh, verwelkte Blumen und
+  eine Laterne, die noch brennt. Nachts klopft es von unten.
+- **Kadaver**: ein Hirsch auf der Seite, der Bauch offen, Rippen, eine Blutlache. Fliegen summen, Krähen
+  sitzen darauf.
+- **Pilzring**: ein Kreis bleicher (und weniger roter) Pilze, in der Mitte sitzt eine Puppe. Nachts
+  summt jemand ein Kinderlied.
+- **Nest**: viel zu groß für jeden Vogel, aus Ästen, mit Knochen, Stofffetzen und drei bleichen Eiern.
+  Nachts raschelt und flüstert es.
+
+**Technik**
+- `Horror` hat neue Ereignisse, Rückmeldungen ans Spiel (Licht aussetzen, Bildschirmwackeln,
+  Erzählzeile) und eigene Tests.
+- Neue Klänge: Atmen, Summen, Rascheln.
+- Hintergrundgeräusche lassen sich ausblenden (`Audio.duckAmbience`).
+- Neue Fundort- und Requisiten-Arten in `Landmarks` und `RuralMeshes`, mit Licht und Geräuschen in
+  `Atmosphere`.
+
 ### Meilenstein 56 – Was im Wald wohnt (neue Gegner und Reviere)
 
 An den unheimlichen Orten haust jetzt etwas. Nähert man sich (etwa 85 m), beziehen die Bewohner ihr

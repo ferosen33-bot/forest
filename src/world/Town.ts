@@ -49,6 +49,12 @@ export type PropKind =
   | 'crate'
   | 'toolchest'
   | 'note'
+  // Unheimliches im Wald (Meilenstein 57)
+  | 'stickmen'
+  | 'grave'
+  | 'carcass'
+  | 'fairyring'
+  | 'nest'
   // An den Wegen
   | 'pole'
   | 'post'

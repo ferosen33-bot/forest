@@ -198,6 +198,8 @@ export class Game {
   worldItems!: WorldItems;
   items!: ItemService;
   harvest!: HarvestSystem;
+  /** Restzeit, in der das Licht in der Hand aussetzt (Horror). */
+  private lightFailure = 0;
   /** Kamera für die Beobachter an den Orten (wiederverwendet). */
   private readonly viewEye = new THREE.Vector3();
   private readonly viewDir = new THREE.Vector3();
@@ -951,6 +953,9 @@ export class Game {
     this.fishTraps = new FishTraps(this.building, this.events);
     this.horror = new Horror(this.audio, this.world.heightMap, this.fear);
     this.scene.add(this.horror.group);
+    this.horror.onFlicker = (seconds) => (this.lightFailure = Math.max(this.lightFailure, seconds));
+    this.horror.onShake = (amount) => this.player.addShake(amount);
+    this.horror.onMessage = (text) => this.events.emit('hud:message', { text });
     this.events.on('player:damaged', ({ amount }) => this.fear.scare(0.12 + amount / 60));
     // Erlegte Schrate lassen ab und zu eine Waffe fallen; Bosse immer eine gute.
     this.events.on('enemy:killed', ({ position, boss }) => {
@@ -1574,6 +1579,7 @@ export class Game {
       look: this.camera.getWorldDirection(this.tmpDir),
       moving: Math.hypot(p.velocity.x, p.velocity.z) > 1,
       paused: !playing || resting,
+      lit: !!this.heldLight(),
     });
 
     // Herzschlag ab spürbarer Angst – je größer, desto schneller und lauter.
@@ -2213,9 +2219,12 @@ export class Game {
 
     // Fackel in der Hand → Licht an der Flamme; Taschenlampe → ruhiges Licht ein Stück vor der Lampe.
     const light = this.heldLight();
+    // Etwas lässt das Licht aussetzen: stotternd, mal ganz dunkel.
+    this.lightFailure = Math.max(0, this.lightFailure - dt);
+    const failing = this.lightFailure > 0 ? (Math.random() < 0.55 ? 0 : 0.15 + Math.random() * 0.3) : 1;
     if (light && this.viewModel.getFlamePosition(this.torchLight.position)) {
       this.torchLight.color.set(light.color);
-      this.torchLight.intensity = light.intensity * this.viewModel.flameFlicker;
+      this.torchLight.intensity = light.intensity * this.viewModel.flameFlicker * failing;
       this.torchLight.distance = light.distance;
       this.lights.request(this.torchLight);
     }
@@ -2225,13 +2234,13 @@ export class Game {
     if (lamp) {
       this.camera.getWorldDirection(this.tmpDir);
       this.flashlight.color.set(light!.color);
-      this.flashlight.intensity = light!.intensity * 4;
+      this.flashlight.intensity = light!.intensity * 4 * failing;
       this.flashlight.distance = light!.distance * 1.5;
       this.flashlight.target.position.copy(this.flashlight.position).addScaledVector(this.tmpDir, 10);
       this.flashlight.target.updateMatrixWorld();
       this.torchLight.position.copy(this.flashlight.position).addScaledVector(this.tmpDir, 1.2);
       this.torchLight.color.set(light!.color);
-      this.torchLight.intensity = light!.intensity * 0.12;
+      this.torchLight.intensity = light!.intensity * 0.12 * failing;
       this.torchLight.distance = 7;
       this.lights.request(this.torchLight);
     }

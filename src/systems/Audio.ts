@@ -95,7 +95,10 @@ export type SoundId =
   | 'musicbox'
   | 'frog'
   | 'whistle'
-  | 'pound';
+  | 'pound'
+  | 'breath'
+  | 'hum'
+  | 'rustle';
 
 export interface PlayOptions {
   volume?: number;
@@ -142,6 +145,20 @@ export class Audio {
     this.master?.gain.setTargetAtTime(this.volume, t, 0.05);
     this.sfx?.gain.setTargetAtTime(this.sfxVolume, t, 0.05);
     this.ambience?.gain.setTargetAtTime(this.ambienceVolume, t, 0.05);
+  }
+
+  /**
+   * Der Wald verstummt: Hintergrundgeräusche für `seconds` fast ganz ausblenden, dann langsam zurück.
+   */
+  duckAmbience(seconds: number, level = 0.08): void {
+    const ctx = this.ctx;
+    const g = this.ambience?.gain;
+    if (!ctx || !g) return;
+    const t = ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.setTargetAtTime(this.ambienceVolume * level, t, 0.8);
+    g.setTargetAtTime(this.ambienceVolume, t + seconds, 2.5);
   }
 
   /** Startet bzw. reaktiviert den AudioContext (muss aus einer User-Geste kommen). */
@@ -743,6 +760,32 @@ export class Audio {
           this.noise(t + i * 0.42, 0.12, 'lowpass', 300, 1, 0.6);
         }
         break;
+      // Schweres Atmen ganz nah: Einatmen (anschwellend), Ausatmen (rauer, länger) – zweimal.
+      case 'breath':
+        for (let k = 0; k < 2; k++) {
+          const at = t + k * 2.1;
+          this.swell(at, 0.9, 'bandpass', 1400, 1.2, 0.28, 1900);
+          this.swell(at + 0.95, 1.1, 'bandpass', 900, 1.0, 0.36, 600);
+        }
+        break;
+      // Jemand summt ein Kinderlied (weich, mit Vibrato, leicht schief).
+      case 'hum': {
+        const tune = [64, 67, 69, 67, 64, 62, 60, 62, 64];
+        let at = t;
+        for (const [i, midi] of tune.entries()) {
+          const f = 440 * Math.pow(2, (midi - 69) / 12) * pitch * 0.5;
+          const len = i % 4 === 3 ? 0.9 : 0.55;
+          this.tone(at, 'triangle', f, f * 0.985, len, 0.12, 700);
+          this.tone(at, 'sine', f * 2.01, f * 1.99, len * 0.8, 0.03, 1200);
+          at += len;
+        }
+        break;
+      }
+      // Rascheln im Unterholz: etwas Schnelles bricht durch die Büsche.
+      case 'rustle':
+        for (let i = 0; i < 7; i++) this.noise(t + i * 0.07 + Math.random() * 0.03, 0.12, 'bandpass', 2400 + Math.random() * 1600, 1.4, 0.35);
+        this.noise(t, 0.5, 'lowpass', 600, 1, 0.2);
+        break;
       // Holztor: Knarren (langsamer Ton-Sweep) und dumpfer Anschlag.
       case 'door':
         this.tone(t, 'sawtooth', 150 * pitch, 95, 0.45, 0.16, 700);
@@ -819,6 +862,26 @@ export class Audio {
     env.gain.exponentialRampToValueAtTime(0.001, t + duration);
     src.connect(filter).connect(env).connect(this.out!);
     src.start(t, Math.random() * 0.5, duration + 0.05);
+  }
+
+  /** Rauschen, das anschwillt und wieder abklingt (Atem). */
+  private swell(t: number, duration: number, type: BiquadFilterType, freq: number, q: number, gain: number, sweepTo: number): void {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise1s;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.setValueAtTime(freq, t);
+    filter.frequency.linearRampToValueAtTime(sweepTo, t + duration);
+    filter.Q.value = q;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.linearRampToValueAtTime(gain, t + duration * 0.55);
+    env.gain.linearRampToValueAtTime(0.0001, t + duration);
+    src.connect(filter).connect(env).connect(this.out!);
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + duration + 0.05);
   }
 
   /** Oszillator mit Tonhöhen-Rampe und Abkling-Hüllkurve. */

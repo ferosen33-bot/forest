@@ -94,6 +94,29 @@ export class Atmosphere {
           case 'droplight':
             this.glow('torch', propPoint(t, p, 0, 0.25, 0.6), 0xdfe8ff, 3.2, 9);
             break;
+          // Unheimliches im Wald (Meilenstein 57)
+          case 'stickmen':
+            perches.push(propPoint(t, p, 0, 5.0, 0));
+            this.emit(propPoint(t, p, 0, 3, 0), 'creak', 18, [6, 14], 0.35);
+            this.emit(propPoint(t, p, 0, 2, 0), 'whisper', 20, [16, 32], 0.4, 'night');
+            break;
+          case 'grave':
+            // Die Laterne auf dem Grab brennt – wer hat sie angezündet?
+            this.glow('candle', propPoint(t, p, 0.5, 0.35, 0.9), 0xffb060, 2.4, 7);
+            this.emit(propPoint(t, p, 0, 0.5, 0), 'knock', 16, [25, 50], 0.35, 'night');
+            break;
+          case 'carcass':
+            perches.push(propPoint(t, p, 0, 0.65, 0.2), propPoint(t, p, 0.9, 0.4, 0));
+            this.emit(propPoint(t, p, 0, 0.6, 0.2), 'buzz', 10, [1.2, 2.4], 0.18);
+            break;
+          case 'fairyring':
+            this.emit(propPoint(t, p, 0, 0.5, 0), 'hum', 40, [45, 90], 0.4, 'night');
+            this.emit(propPoint(t, p, 0, 0.5, 0), 'whisper', 18, [15, 30], 0.4, 'night');
+            break;
+          case 'nest':
+            this.emit(propPoint(t, p, 0, 0.8, 0), 'whisper', 20, [12, 26], 0.45, 'night');
+            this.emit(propPoint(t, p, 0, 1.0, 0), 'rustle', 22, [18, 40], 0.5, 'night');
+            break;
           case 'lamp':
             lamps.push(p);
             break;

@@ -17,9 +17,29 @@ import type { TownLayout, TownProp } from './Town';
  * - **Holzfällerplatz**: Stümpfe, Stammholz, eine Werkzeugkiste.
  * - **Warnschild**: handgemalt, an den Waldrändern der Wege.
  * - **Verschwunden**: ein Rucksack, eine Taschenlampe, die noch leuchtet, und sonst nichts.
+ * - **Strichmännchen**: ein toter Baum, an dem Figuren aus Zweigen hängen.
+ * - **Frisches Grab**: Erdhügel, Kreuz mit Hut, Schaufel, eine Laterne, die noch brennt.
+ * - **Kadaver**: ein aufgerissener Hirsch, Fliegen, Krähen.
+ * - **Pilzring**: ein Kreis bleicher Pilze, in der Mitte sitzt eine Puppe.
+ * - **Nest**: viel zu groß für einen Vogel, mit Knochen, Stofffetzen und bleichen Eiern.
  */
 
-export type LandmarkKind = 'stand' | 'camp' | 'wreck' | 'shrine' | 'totems' | 'ruin' | 'woodcut' | 'warning' | 'lost';
+export type LandmarkKind =
+  | 'stand'
+  | 'camp'
+  | 'wreck'
+  | 'shrine'
+  | 'totems'
+  | 'ruin'
+  | 'woodcut'
+  | 'warning'
+  | 'lost'
+  // Meilenstein 57: Unheimliches im Wald
+  | 'effigies'
+  | 'grave'
+  | 'carcass'
+  | 'fairyring'
+  | 'nest';
 
 export interface Landmark {
   kind: LandmarkKind;
@@ -38,7 +58,22 @@ export const LANDMARK_NOTES = { camp: ['wald1', 'wald2'], lost: ['wald3'], stand
 
 const WARNINGS = ['UMKEHREN', 'NICHT NACHTS', 'SIE RUFEN MIT UNSEREN STIMMEN', 'NICHT ANTWORTEN', 'HIER NICHT SCHLAFEN', 'LICHT AN LASSEN', 'GEHT WEG'];
 
-const RADIUS: Record<LandmarkKind, number> = { stand: 8, camp: 7, wreck: 5, shrine: 3.5, totems: 7, ruin: 8, woodcut: 8, warning: 1.5, lost: 3 };
+const RADIUS: Record<LandmarkKind, number> = {
+  stand: 8,
+  camp: 7,
+  wreck: 5,
+  shrine: 3.5,
+  totems: 7,
+  ruin: 8,
+  woodcut: 8,
+  warning: 1.5,
+  lost: 3,
+  effigies: 6,
+  grave: 3,
+  carcass: 4,
+  fairyring: 4,
+  nest: 4,
+};
 
 /**
  * Sucht Plätze für die Fundorte. Läuft nach Orten und Wegen, aber vor Vegetation (für die Lichtungen).
@@ -115,8 +150,13 @@ export function placeLandmarks(hm: HeightMap, seed: number, roads: RoadNetwork, 
         ['ruin', 1.2 * (1 - b.swamp)],
         ['woodcut', 1.6 * (1 - b.highland) * (1 - b.swamp)],
         ['lost', 1],
+        ['effigies', 1.2 + b.swamp],
+        ['grave', 1],
+        ['carcass', 1 * (1 - b.highland * 0.5)],
+        ['fairyring', 0.8 * (1 - b.highland)],
+        ['nest', 0.7 + b.swamp * 0.6],
       ];
-      const max: Partial<Record<LandmarkKind, number>> = { stand: 8, camp: 6, shrine: 5, totems: 6, ruin: 4, woodcut: 5, lost: 4 };
+      const max: Partial<Record<LandmarkKind, number>> = { stand: 8, camp: 6, shrine: 5, totems: 6, ruin: 4, woodcut: 5, lost: 4, effigies: 6, grave: 5, carcass: 5, fairyring: 4, nest: 3 };
       const total = w.reduce((s, e) => s + e[1], 0);
       let roll = rng() * total;
       const kind = w.find((e) => (roll -= e[1]) < 0)?.[0] ?? 'camp';
@@ -217,6 +257,25 @@ function landmarkProps(l: Landmark, put: Put, note: (lx: number, lz: number) => 
       break;
     case 'warning':
       put('warnsign', 0, 0, 0, { text: [WARNINGS[Math.floor(rng() * WARNINGS.length)]], tilt: randRange(rng, -0.15, 0.15) });
+      break;
+    case 'effigies':
+      put('stickmen', 0, 0, 0);
+      if (rng() < 0.6) put('stickmen', randRange(rng, 3, 4.5) * (rng() < 0.5 ? -1 : 1), randRange(rng, -3, 3), rng() * 6);
+      put('bones', 1.2, 1.8, rng() * 3);
+      break;
+    case 'grave':
+      put('grave', 0, 0, 0);
+      break;
+    case 'carcass':
+      put('carcass', 0, 0, 0);
+      put('bones', randRange(rng, 1.5, 2.5), randRange(rng, -1, 1), rng() * 3);
+      break;
+    case 'fairyring':
+      put('fairyring', 0, 0, 0);
+      break;
+    case 'nest':
+      put('nest', 0, 0, 0);
+      put('bones', -2.2, 0.8, rng() * 3);
       break;
     case 'lost':
       put('backpack', 0, 0, rng() * 6, { loot: true });

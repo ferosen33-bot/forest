@@ -777,6 +777,117 @@ export function ruralProp(b: Builder, p: TownProp, rng: RandomFn, signs: THREE.G
     case 'note':
       b.note((p.text ?? [''])[0], 0, 0.01, 0, 0);
       return true;
+    case 'stickmen': {
+      // Ein toter, krummer Baum; an seinen Ästen hängen Figuren aus Zweigen, mit Schnur gebunden.
+      const lean = (rng() - 0.5) * 0.12;
+      b.mesh(new THREE.CylinderGeometry(0.14, 0.26, 5, 7), 0, 2.5, 0, R.bark, 'out', lean, 0, lean, 'bark');
+      b.box(0.5, 2.5, 0.5, 0, 1.25, 0, { color: R.bark, invisible: true, collide: true });
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + rng();
+        const y = 2.6 + i * 0.45;
+        const len = 1.4 + rng() * 0.8;
+        b.box(0.07, 0.07, len, Math.cos(a) * len * 0.45, y + 0.25, Math.sin(a) * len * 0.45, { color: R.bark, ry: -a + Math.PI / 2, rx: -0.35, bucket: 'out' });
+        if (i === 4) continue;
+        // Figur an der Schnur
+        const fx = Math.cos(a) * len * 0.7;
+        const fz = Math.sin(a) * len * 0.7;
+        const hang = 0.6 + rng() * 0.7;
+        const top = y + 0.35;
+        const cy = top - hang - 0.55;
+        b.box(0.012, hang, 0.012, fx, top - hang / 2, fz, { color: 0xb8a878, bucket: 'out' });
+        b.box(0.045, 1.1, 0.045, fx, cy, fz, { color: 0x8a7458, bucket: 'out' });
+        b.box(0.8, 0.045, 0.045, fx, cy + 0.3, fz, { color: 0x8a7458, ry: -a, bucket: 'out' });
+        for (const s of [-1, 1]) b.box(0.04, 0.7, 0.04, fx + Math.cos(a + Math.PI / 2) * s * 0.13, cy - 0.78, fz + Math.sin(a + Math.PI / 2) * s * 0.13, { color: 0x8a7458, rz: s * 0.3, ry: -a, bucket: 'out' });
+        b.box(0.09, 0.06, 0.09, fx, cy + 0.3, fz, { color: 0xb8a878, bucket: 'out' });
+        b.box(0.09, 0.06, 0.09, fx, cy - 0.35, fz, { color: 0xb8a878, bucket: 'out' });
+      }
+      // Kleine Figuren im Boden gesteckt, wie eine Warnung
+      for (let i = 0; i < 4; i++) {
+        const a = rng() * Math.PI * 2;
+        const r = 1.6 + rng() * 1.5;
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r;
+        b.box(0.025, 0.9, 0.025, x, 0.45, z, { color: 0x6a5640, rz: (rng() - 0.5) * 0.3 });
+        b.box(0.4, 0.025, 0.025, x, 0.7, z, { color: 0x6a5640, ry: rng() * 3 });
+      }
+      return true;
+    }
+    case 'grave': {
+      // Frisch aufgeworfener Erdhügel, Holzkreuz mit Hut, Schaufel, Laterne, ein Schuh
+      b.box(0.95, 0.35, 2.0, 0, 0.12, 0, { color: R.soilDark, rx: 0.03, collide: true });
+      b.box(0.8, 0.12, 1.8, 0, 0.32, 0, { color: R.soil, rx: 0.03 });
+      b.box(0.08, 1.2, 0.07, 0, 0.6, -1.15, { color: R.plankDark, rz: 0.06, collide: true });
+      b.box(0.55, 0.07, 0.07, 0, 0.92, -1.15, { color: R.plankDark, rz: 0.06 });
+      b.mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 12), 0.03, 1.22, -1.15, 0x2a2622, 'out', 0.15, 0, 0.1);
+      b.mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.13, 12), 0.03, 1.29, -1.15, 0x2a2622, 'out', 0.15, 0, 0.1);
+      b.box(0.04, 1.0, 0.04, 0.7, 0.45, 0.6, { color: R.plankDark, rz: -0.35, rx: 0.1 });
+      b.box(0.22, 0.28, 0.02, 0.88, 0.02, 0.62, { color: 0x6a6e70, rz: -0.35 });
+      b.box(0.14, 0.2, 0.14, 0.5, 0.1, 0.9, { color: 0x2a2a2a });
+      b.box(0.1, 0.12, 0.1, 0.5, 0.26, 0.9, { color: 0xffd8a0, bucket: 'out' });
+      b.box(0.12, 0.09, 0.26, -0.7, 0.05, 0.4, { color: 0x3a2a1e, ry: 0.7 });
+      for (let i = 0; i < 4; i++) b.box(0.02, 0.3, 0.02, -0.15 + i * 0.1, 0.42, 0.75, { color: [0x5a2a3a, 0x6a6a3a][i % 2], rz: (rng() - 0.5) * 0.9 });
+      return true;
+    }
+    case 'carcass': {
+      // Hirsch auf der Seite: heller Pelz, Hals und Kopf mit Geweih, steife Beine, offener Bauch mit Rippen
+      const fur = 0x8a6a48;
+      const furDark = 0x6a4e34;
+      b.mesh(new THREE.SphereGeometry(0.5, 14, 10).scale(1.35, 0.6, 0.75), 0, 0.32, 0, fur, 'out');
+      b.box(1.3, 0.55, 0.7, 0, 0.3, 0, { color: fur, invisible: true, collide: true });
+      b.mesh(new THREE.CylinderGeometry(0.13, 0.18, 0.55, 8), 0.82, 0.45, -0.05, fur, 'out', 0, 0, -1.05);
+      b.mesh(new THREE.SphereGeometry(0.16, 10, 8).scale(1.5, 0.9, 0.9), 1.18, 0.62, -0.05, furDark, 'out', 0, 0, -0.2);
+      b.box(0.18, 0.14, 0.16, 1.45, 0.56, -0.05, { color: 0x3a2a1e });
+      // Geweih
+      for (const s2 of [-1, 1]) {
+        b.box(0.04, 0.6, 0.04, 1.12, 0.98, -0.05 + s2 * 0.12, { color: 0xd8d0bc, rx: s2 * 0.5, rz: 0.3 });
+        b.box(0.03, 0.3, 0.03, 1.22, 1.08, -0.05 + s2 * 0.3, { color: 0xd8d0bc, rx: s2 * 0.2, rz: -0.4 });
+        b.box(0.03, 0.25, 0.03, 1.02, 1.22, -0.05 + s2 * 0.26, { color: 0xd8d0bc, rx: s2 * 0.3, rz: 0.6 });
+      }
+      // Beine, steif vom Körper weg
+      for (const [x, z, r] of [[-0.45, 0.42, 0.3], [-0.3, 0.5, -0.2], [0.4, 0.45, 0.25], [0.55, 0.38, -0.3]]) {
+        b.box(0.08, 0.08, 0.9, x, 0.2, z + 0.35, { color: furDark, ry: r });
+        b.box(0.1, 0.1, 0.1, x + Math.sin(r) * 0.45, 0.2, z + 0.8, { color: 0x1a1410 });
+      }
+      // Offener Bauch: rotes Fleisch, gebogene Rippen, Blut
+      b.box(0.95, 0.06, 0.5, -0.05, 0.6, 0.12, { color: 0x7a1414 });
+      for (let i = 0; i < 7; i++) b.mesh(new THREE.TorusGeometry(0.24, 0.022, 4, 10, Math.PI), -0.45 + i * 0.14, 0.6, 0.12, 0xe8dcc4, 'out', 0, Math.PI / 2, 0);
+      b.box(2.4, 0.01, 1.8, 0.1, 0.012, 0.5, { color: 0x3a0606 });
+      return true;
+    }
+    case 'fairyring': {
+      // Ein Kreis bleicher Pilze; in der Mitte sitzt eine Puppe mit dem Rücken zur Welt.
+      for (let i = 0; i < 26; i++) {
+        const a = (i / 26) * Math.PI * 2 + (rng() - 0.5) * 0.1;
+        const r = 2.1 + (rng() - 0.5) * 0.2;
+        const h = 0.08 + rng() * 0.12;
+        b.mesh(new THREE.CylinderGeometry(0.02, 0.03, h, 6), Math.cos(a) * r, h / 2, Math.sin(a) * r, 0xe8e0d0, 'out');
+        b.mesh(new THREE.SphereGeometry(0.07 + rng() * 0.05, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), Math.cos(a) * r, h, Math.sin(a) * r, i % 5 === 0 ? 0x9a2a22 : 0xd8ccb8, 'out');
+      }
+      b.mesh(new THREE.CylinderGeometry(0.08, 0.18, 0.3, 8), 0, 0.15, 0, 0x4a5a7a, 'out');
+      b.mesh(new THREE.SphereGeometry(0.1, 12, 10), 0, 0.4, 0, 0xe8ddd0, 'out');
+      b.mesh(new THREE.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), 0, 0.41, -0.01, 0x2a1a12, 'out', -0.35);
+      for (const s of [-1, 1]) {
+        b.mesh(new THREE.CylinderGeometry(0.025, 0.022, 0.22, 6), s * 0.1, 0.18, 0.02, 0xe8ddd0, 'out', 0, 0, s * 0.2);
+        b.mesh(new THREE.CylinderGeometry(0.028, 0.025, 0.24, 6), s * 0.05, 0.04, 0.12, 0xe8ddd0, 'out', Math.PI / 2);
+      }
+      return true;
+    }
+    case 'nest': {
+      // Ein Nest aus Ästen, viel zu groß für jeden Vogel, mit Knochen, Stofffetzen und bleichen Eiern
+      for (let i = 0; i < 46; i++) {
+        const a = (i / 46) * Math.PI * 2 * 2 + rng() * 0.3;
+        const r = 1.35 + rng() * 0.4;
+        const y = 0.15 + (i % 4) * 0.17;
+        b.box(0.07, 0.07, 1.3 + rng() * 0.6, Math.cos(a) * r, y, Math.sin(a) * r, { color: [R.bark, 0x5e4a36, 0x3e3024][i % 3], ry: -a + (rng() - 0.5) * 0.9, rx: (rng() - 0.5) * 0.4, bucket: 'out' });
+      }
+      b.box(3.4, 0.7, 3.4, 0, 0.35, 0, { color: R.bark, invisible: true, collide: true });
+      b.box(2.4, 0.05, 2.4, 0, 0.2, 0, { color: 0x3a2e22 });
+      for (let i = 0; i < 3; i++) b.mesh(new THREE.SphereGeometry(0.22, 12, 10), -0.3 + i * 0.32, 0.45, (rng() - 0.5) * 0.4, 0xe8e4d8, 'out');
+      for (let i = 0; i < 6; i++) b.box(0.04, 0.04, 0.4, (rng() - 0.5) * 1.6, 0.27, (rng() - 0.5) * 1.6, { color: 0xd0c8b2, ry: rng() * 3 });
+      b.mesh(new THREE.SphereGeometry(0.13, 8, 6), 0.6, 0.32, 0.5, 0xd8d0bc, 'out');
+      for (let i = 0; i < 4; i++) b.box(0.4, 0.01, 0.3, (rng() - 0.5) * 1.4, 0.24 + i * 0.01, (rng() - 0.5) * 1.4, { color: [0x3a4a6a, 0x7a2a2a, 0xc8c2b0, 0x4a5a3a][i], ry: rng() * 3 });
+      return true;
+    }
     default:
       return false;
   }
