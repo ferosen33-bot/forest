@@ -382,5 +382,45 @@ describe('Enemy (KI)', () => {
       h.dispose();
       p.dispose();
     });
+
+    it('Porzellankind: unter Blicken regungslos, unbeobachtet rasend schnell', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 10)));
+      const d = spawnKind('porzellan', 0);
+      const ctx = makeCtx(p.target, [d]);
+      let watched = true;
+      ctx.watched = () => watched;
+      d.alertedBy(p.target.position, ctx);
+      const start = d.feet.clone();
+      run(d, ctx, 2);
+      expect(d.frozen).toBe(true);
+      expect(d.feet.distanceTo(start)).toBeLessThan(0.05);
+      expect(p.hits.length).toBe(0);
+      // Weggeschaut: im Nu beim Spieler.
+      watched = false;
+      expect(run(d, ctx, 4, () => p.hits.length > 0)).toBe(true);
+      expect(d.frozen).toBe(false);
+      d.dispose();
+      p.dispose();
+    });
+
+    it('Der Gehängte springt nur, wenn ihn niemand ansieht', () => {
+      const p = makePlayer(w.origin.clone().add(new THREE.Vector3(0, 0, 14)));
+      const h = spawnKind('gehenkter', 0);
+      const ctx = makeCtx(p.target, [h]);
+      let blinks = 0;
+      let watched = true;
+      ctx.watched = () => watched;
+      ctx.blink = () => void blinks++;
+      h.alertedBy(p.target.position, ctx);
+      run(h, ctx, 8);
+      expect(blinks).toBe(0);
+      // Zurück auf Abstand (er ist inzwischen herangekommen), dann wegsehen.
+      h.teleport(w.origin);
+      watched = false;
+      run(h, ctx, 3);
+      expect(blinks).toBeGreaterThan(0);
+      h.dispose();
+      p.dispose();
+    });
   });
 });
