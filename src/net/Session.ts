@@ -117,7 +117,7 @@ export class Session {
       const timeout = setTimeout(() => {
         link.close();
         reject(new Error('Der Gastgeber antwortet nicht.'));
-      }, 15000);
+      }, 25000);
       link.onMessage = (data) => {
         const msg = parseMessage(data);
         if (!msg) return;

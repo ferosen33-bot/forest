@@ -52,7 +52,7 @@ export class PeerTransport implements Transport {
     const peer = await this.open();
     return new Promise((resolve, reject) => {
       const conn = peer.connect(id, { reliable: true, serialization: 'json' });
-      const timer = setTimeout(() => reject(new Error('Keine Verbindung – stimmt der Code, und ist die Lobby noch offen?')), 15000);
+      const timer = setTimeout(() => reject(new Error('Keine Verbindung – stimmt der Code, und ist die Lobby noch offen?')), 25000);
       conn.on('open', () => {
         clearTimeout(timer);
         resolve(wrap(conn));
