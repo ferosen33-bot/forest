@@ -35,6 +35,12 @@ export class PeerTransport implements Transport {
         peer.off('error', fail);
         // Spätere Fehler (Server weg) nur melden – laufende Verbindungen bleiben bestehen.
         peer.on('error', (err) => console.warn('[Koop]', err));
+        // Vermittlungsserver weg (Netzwackler): Spiele laufen weiter, für Neue wieder erreichbar werden.
+        peer.on('disconnected', () => {
+          setTimeout(() => {
+            if (!peer.destroyed && peer.disconnected) peer.reconnect();
+          }, 2000);
+        });
         resolve(peer);
       });
       peer.once('error', fail);

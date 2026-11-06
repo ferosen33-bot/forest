@@ -87,4 +87,25 @@ describe('Koop-Lobby', () => {
     expect(parseMessage({ t: 'unbekannt' })).toBeNull();
     expect(parseMessage({ t: 'hurt', amount: 5, from: [0, 0, 0] })).not.toBeNull();
   });
+
+  it('verstummte Mitspieler fliegen nach zehn Sekunden aus der Lobby', async () => {
+    const net = new MemoryNetwork();
+    const host = new Session(net.transport());
+    let t = 0;
+    host.now = () => t;
+    const code = await host.host('A', 1);
+    const guest = new Session(net.transport());
+    await guest.join(code, 'B');
+    let left = '';
+    host.onLeave = (id) => (left = id);
+    t = 5000;
+    guest.send({ t: 'state', s: state() });
+    t = 12000;
+    host.prune();
+    expect(host.guestCount).toBe(1);
+    t = 16000;
+    host.prune();
+    expect(host.guestCount).toBe(0);
+    expect(left).toBe('p1');
+  });
 });

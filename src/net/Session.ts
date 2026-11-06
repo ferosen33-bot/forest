@@ -40,7 +40,12 @@ interface Guest {
   link: Link;
   name: string;
   state: PlayerState | null;
+  /** Zeitpunkt der letzten Nachricht (ms). */
+  heard: number;
 }
+
+/** Wer so lange nichts schickt (abgestürzt, Fenster geschlossen), fliegt aus der Lobby. */
+export const GUEST_TIMEOUT = 10000;
 
 export class Session {
   role: SessionRole | null = null;
@@ -172,13 +177,15 @@ export class Session {
         }
         id = `p${this.nextGuest++}`;
         const name = cleanName(msg.name);
-        this.guests.set(id, { link, name, state: null });
+        this.guests.set(id, { link, name, state: null, heard: this.now() });
         link.send({ t: 'welcome', v: PROTOCOL, id, seed: this.seed, host: this.hostName });
         this.broadcast({ t: 'notice', text: `${name} ist beigetreten.` }, id);
         this.onNotice?.(`${name} ist beigetreten.`);
         this.setStatus(this.hostStatus());
         return;
       }
+      const known = this.guests.get(id);
+      if (known) known.heard = this.now();
       if (msg.t === 'state') {
         const g = this.guests.get(id);
         // Die Kennung vergibt der Gastgeber – niemand spricht für einen anderen.
@@ -202,6 +209,15 @@ export class Session {
   private hostStatus(): string {
     const names = [...this.guests.values()].map((g) => g.name);
     return names.length ? `Lobby ${this.code} · mit ${names.join(', ')}` : `Lobby ${this.code} offen – warte auf Mitspieler …`;
+  }
+
+  /** Uhr (für Tests austauschbar). */
+  now: () => number = () => Date.now();
+
+  /** Gastgeber: Verstummte Mitspieler entfernen (ihre Verbindung ist ohne Abschied abgerissen). */
+  prune(): void {
+    const now = this.now();
+    for (const g of [...this.guests.values()]) if (now - g.heard > GUEST_TIMEOUT) g.link.close();
   }
 
   /** Mitspieler → Gastgeber. */

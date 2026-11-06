@@ -171,6 +171,7 @@ export class Coop {
       } else s.send({ t: 'state', s: own });
     }
     if (s.isHost) {
+      s.prune();
       this.enemyTimer -= real;
       if (this.enemyTimer <= 0) {
         this.enemyTimer = ENEMY_INTERVAL;
