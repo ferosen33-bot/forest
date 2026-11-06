@@ -58,6 +58,7 @@ export class Coop {
   private enemyTimer = 0;
   private worldTimer = 0;
   private shots = 0;
+  private lastTick = 0;
   /** Mitspieler: einmal neben den Gastgeber stellen, sobald seine Position bekannt ist. */
   private placed = false;
   private lastPlayers: PlayerState[] = [];
@@ -154,8 +155,12 @@ export class Coop {
       if (this.remotes.size || Enemy.relay) this.afterLeave();
       return;
     }
+    // Gesendet wird nach echter Zeit: Die Spielzeit steht bei Trefferstopps fast still und ist je Bild gedeckelt.
+    const now = performance.now();
+    const real = this.lastTick ? Math.min((now - this.lastTick) / 1000, 1) : dt;
+    this.lastTick = now;
     const s = this.session;
-    this.stateTimer -= dt;
+    this.stateTimer -= real;
     if (this.stateTimer <= 0) {
       this.stateTimer = STATE_INTERVAL;
       const own = this.ownState();
@@ -166,7 +171,7 @@ export class Coop {
       } else s.send({ t: 'state', s: own });
     }
     if (s.isHost) {
-      this.enemyTimer -= dt;
+      this.enemyTimer -= real;
       if (this.enemyTimer <= 0) {
         this.enemyTimer = ENEMY_INTERVAL;
         for (const g of s.guestStates()) {
@@ -174,7 +179,7 @@ export class Coop {
           s.sendTo(g.id, { t: 'enemies', list: this.d.enemies.snapshotsNear(at, ENEMY_RADIUS) });
         }
       }
-      this.worldTimer -= dt;
+      this.worldTimer -= real;
       if (this.worldTimer <= 0) {
         this.worldTimer = WORLD_INTERVAL;
         s.broadcast({ t: 'world', day: this.d.dayNight.day, hour: this.d.dayNight.hour, weather: this.d.weather.serialize() });
