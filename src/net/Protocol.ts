@@ -88,7 +88,9 @@ export type NetMessage =
   /** Gastgeber → Mitspieler: Dein Treffer hat diesen Gegner erledigt. */
   | { t: 'kill'; enemy: number; name: string; boss: boolean; p: [number, number, number]; headshot: boolean }
   /** Hinweis für alle (beigetreten, gegangen …). */
-  | { t: 'notice'; text: string };
+  | { t: 'notice'; text: string }
+  /** Mitspieler → Gastgeber: „Bin noch da“ (auch wenn das Fenster minimiert ist und nicht gezeichnet wird). */
+  | { t: 'ping' };
 
 // ---------------------------------------------------------------------------
 // Lobby-Codes
@@ -178,6 +180,8 @@ export function parseMessage(data: unknown): NetMessage | null {
       return isNum(m.enemy) && isStr(m.name, 80) && isVec(m.p) ? m : null;
     case 'notice':
       return isStr(m.text, 300) ? m : null;
+    case 'ping':
+      return m;
     default:
       return null;
   }

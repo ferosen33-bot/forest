@@ -88,7 +88,7 @@ describe('Koop-Lobby', () => {
     expect(parseMessage({ t: 'hurt', amount: 5, from: [0, 0, 0] })).not.toBeNull();
   });
 
-  it('verstummte Mitspieler fliegen nach zehn Sekunden aus der Lobby', async () => {
+  it('verstummte Mitspieler fliegen nach 30 Sekunden aus der Lobby, Lebenszeichen halten sie drin', async () => {
     const net = new MemoryNetwork();
     const host = new Session(net.transport());
     let t = 0;
@@ -98,12 +98,12 @@ describe('Koop-Lobby', () => {
     await guest.join(code, 'B');
     let left = '';
     host.onLeave = (id) => (left = id);
-    t = 5000;
-    guest.send({ t: 'state', s: state() });
-    t = 12000;
+    t = 20000;
+    guest.send({ t: 'ping' });
+    t = 45000;
     host.prune();
     expect(host.guestCount).toBe(1);
-    t = 16000;
+    t = 51000;
     host.prune();
     expect(host.guestCount).toBe(0);
     expect(left).toBe('p1');

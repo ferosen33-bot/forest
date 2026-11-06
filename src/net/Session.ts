@@ -45,7 +45,7 @@ interface Guest {
 }
 
 /** Wer so lange nichts schickt (abgestürzt, Fenster geschlossen), fliegt aus der Lobby. */
-export const GUEST_TIMEOUT = 10000;
+export const GUEST_TIMEOUT = 30000;
 
 export class Session {
   role: SessionRole | null = null;
@@ -68,6 +68,7 @@ export class Session {
   private readonly guests = new Map<string, Guest>();
   private hostLink: Link | null = null;
   private nextGuest = 1;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly transport: Transport) {}
 
@@ -141,6 +142,8 @@ export class Session {
           this.seed = msg.seed;
           this.hostName = msg.host;
           this.setStatus(`Verbunden mit ${msg.host} (Lobby ${code})`);
+          // Lebenszeichen nach Uhr, nicht nach Bildern: Auch minimiert bleibt man in der Lobby.
+          this.heartbeat = setInterval(() => link.send({ t: 'ping' }), 1000);
           resolve(msg.seed);
           return;
         }
@@ -186,6 +189,7 @@ export class Session {
       }
       const known = this.guests.get(id);
       if (known) known.heard = this.now();
+      if (msg.t === 'ping') return;
       if (msg.t === 'state') {
         const g = this.guests.get(id);
         // Die Kennung vergibt der Gastgeber – niemand spricht für einen anderen.
@@ -243,6 +247,8 @@ export class Session {
   }
 
   private reset(status: string): void {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
     this.guests.clear();
     this.hostLink = null;
     this.role = null;
