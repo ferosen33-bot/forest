@@ -9,6 +9,7 @@ import { aimBallistic } from '../../utils/ballistics';
 import { createStatus, statusSlow, vulnerability } from '../items/Elements';
 import { armFactor, CRAWL_SPEED, isLeg, type Limb } from './Gore';
 import { clamp, damp } from '../../utils/math';
+import type { EnemyNet, RemoteHit } from '../../net/Protocol';
 
 export type EnemyState =
   | 'idle'
@@ -146,6 +147,18 @@ export class Enemy {
   frozen = false;
   private blinkCooldown = 3 + Math.random() * 3;
 
+  /**
+   * Koop-Mitspieler: Dieser Gegner ist nur das Abbild eines Gegners beim Gastgeber. Er denkt nicht
+   * selbst, folgt den gemeldeten Positionen und leitet Treffer über `Enemy.relay` weiter.
+   */
+  puppet = false;
+  static relay: ((enemy: Enemy, hit: RemoteHit) => void) | null = null;
+  /** Zählt erlittene Treffer (das Abbild zuckt bei jeder Änderung). */
+  hits = 0;
+  private readonly netTarget = new THREE.Vector3();
+  private netYaw = 0;
+  private netSpeed = 0;
+
   // Pfad
   private path: NavPoint[] | null = null;
   private pathIndex = 0;
@@ -281,6 +294,13 @@ export class Enemy {
    */
   takeDamage(amount: number, from: THREE.Vector3, ctx: EnemyContext, flinch = true): boolean {
     if (this.isDead) return false;
+    if (this.puppet) {
+      Enemy.relay?.(this, { op: 'damage', amount, from: [from.x, from.y, from.z], flinch });
+      this.lastDamage = amount * vulnerability(this.status);
+      this.rig.anim.hit = 1;
+      return false;
+    }
+    this.hits++;
     // Verätzte nehmen mehr Schaden.
     amount *= vulnerability(this.status);
     this.lastDamage = amount;
@@ -327,6 +347,10 @@ export class Enemy {
   /** In eine Fallgrube gestürzt: steckt eine Weile fest. */
   stun(seconds: number): void {
     if (this.isDead) return;
+    if (this.puppet) {
+      Enemy.relay?.(this, { op: 'stun', seconds });
+      return;
+    }
     this.knockback.set(0, 0, 0);
     this.velocity.set(0, 0, 0);
     this.rig.anim.attack = -1;
@@ -350,6 +374,7 @@ export class Enemy {
    */
   sever(limb: Limb): boolean {
     if (this.severed.has(limb)) return false;
+    if (this.puppet) Enemy.relay?.(this, { op: 'sever', limb });
     const wasCrawling = this.crawling;
     this.severed.add(limb);
     this.rig.sever(limb);
@@ -378,6 +403,10 @@ export class Enemy {
    */
   knockdown(seconds: number, from: THREE.Vector3, force = 6): boolean {
     if (this.isDead || this.kind.boss) return false;
+    if (this.puppet) {
+      Enemy.relay?.(this, { op: 'knockdown', seconds, from: [from.x, from.y, from.z], force });
+      return true;
+    }
     this.push(from, force);
     this.velocity.set(0, 0, 0);
     this.rig.anim.attack = -1;
@@ -391,6 +420,10 @@ export class Enemy {
   /** Weggestoßen (Tritt): Rückstoß und kurz aus dem Tritt – schwere Gegner wanken nur. */
   shove(from: THREE.Vector3, force: number, seconds: number): void {
     if (this.isDead) return;
+    if (this.puppet) {
+      Enemy.relay?.(this, { op: 'shove', force, seconds, from: [from.x, from.y, from.z] });
+      return;
+    }
     const heavy = this.kind.staggerThreshold > 0;
     this.push(from, heavy ? force * 0.35 : force);
     if (heavy || this.downed) return;
@@ -443,6 +476,10 @@ export class Enemy {
   fixedUpdate(dt: number, ctx: EnemyContext): void {
     if (this.isDead) {
       this.deadFor += dt;
+      return;
+    }
+    if (this.puppet) {
+      this.followNet(dt);
       return;
     }
     this.perceive(dt, ctx);
@@ -945,6 +982,79 @@ export class Enemy {
     this.rig.anim.attack = -1;
     this.rig.anim.death = 0;
     this.physics.world.removeRigidBody(this.body);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Koop
+  // ---------------------------------------------------------------------------
+
+  /** Gastgeber: Zustand zum Verschicken. */
+  snapshot(): EnemyNet {
+    const a = this.rig.anim;
+    const r = (v: number) => Math.round(v * 100) / 100;
+    return {
+      id: this.id,
+      kind: this.kind.kind,
+      p: [r(this.curr.x), r(this.curr.y), r(this.curr.z)],
+      yaw: r(this.yaw),
+      state: this.state,
+      speed: r(a.speed),
+      attack: r(a.attack),
+      alert: r(a.alert),
+      down: r(a.down),
+      rise: r(a.rise),
+      hits: this.hits,
+      health: Math.round(this.health),
+      maxHealth: Math.round(this.maxHealth),
+      tone: this.tone,
+      scale: r(this.rig.scale),
+      frozen: this.frozen,
+      severed: [...this.severed],
+    };
+  }
+
+  /** Mitspieler: Zustand vom Gastgeber übernehmen. */
+  applySnapshot(s: EnemyNet): void {
+    if (this.isDead) return;
+    this.netTarget.set(s.p[0], s.p[1], s.p[2]);
+    // Weit daneben (eben erst gemeldet, Sprung des Gehängten): gleich hin.
+    if (this.netTarget.distanceTo(this.curr) > 6) this.teleport(this.netTarget.clone().setY(s.p[1] - 0.05));
+    this.netYaw = s.yaw;
+    this.netSpeed = s.speed;
+    const a = this.rig.anim;
+    a.attack = s.attack;
+    a.alert = s.alert;
+    a.down = s.down;
+    a.rise = s.rise;
+    if (s.hits !== this.hits) {
+      this.hits = s.hits;
+      a.hit = 1;
+    }
+    this.frozen = s.frozen;
+    this.health = s.health;
+    this.suspicion = s.state === 'idle' || s.state === 'patrol' ? 0 : 1;
+    for (const limb of s.severed) {
+      if (this.severed.has(limb)) continue;
+      // Ohne Weiterleiten (das hat der Gastgeber ja schon verrechnet).
+      const relay = this.puppet;
+      this.puppet = false;
+      const was = this.state;
+      this.sever(limb);
+      this.state = was;
+      this.puppet = relay;
+    }
+    if (s.state === 'dead') this.die();
+    else this.state = s.state;
+  }
+
+  /** Mitspieler: weich zur gemeldeten Position gleiten. */
+  private followNet(dt: number): void {
+    const k = Math.min(1, dt * 12);
+    const next = this.tmp.copy(this.curr).lerp(this.netTarget, k);
+    this.body.setNextKinematicTranslation({ x: next.x, y: next.y, z: next.z });
+    const d = Math.atan2(Math.sin(this.netYaw - this.yaw), Math.cos(this.netYaw - this.yaw));
+    this.yaw += d * Math.min(1, dt * 10);
+    this.rig.anim.speed = this.netSpeed;
   }
 
   /** Physik freigeben (nach dem Verschwinden der Leiche bzw. beim Entfernen). */

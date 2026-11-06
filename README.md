@@ -86,6 +86,45 @@ Im Dev-Modus ist die Spielinstanz als `window.game` in der Konsole erreichbar.
 > (alle gemeinsam gegen die Insel). Jetzt geht es um den Inhalt: Überlebende und Aufträge, Wölfe und Winter,
 > Verteidigung in der Fiebernacht, neue Schrecken. Der Mehrspieler-Teil folgt danach.
 
+### Meilenstein 61 – Koop: zusammen auf der Insel
+
+Zu zweit (bis zu viert) dieselbe Insel erkunden und gegen dieselben Gegner kämpfen. Ohne eigenen Server:
+Ein öffentlicher Vermittlungsserver (PeerJS) bringt die Rechner zusammen, danach laufen die Daten direkt
+zwischen euch (WebRTC). Klappt der direkte Weg nicht, springt ein Relais ein.
+
+**So geht's**
+1. Beide starten Wildwood (Programm oder Browser) und klicken im Menü auf **Mit Freunden spielen**.
+2. Einer klickt **Lobby eröffnen** und bekommt einen Code (z. B. `K7M2QX`). Mit **Kopieren** landet er in
+   der Zwischenablage.
+3. Der andere gibt den Code ein und klickt **Beitreten**. Spielt der Gastgeber auf einer anderen Insel
+   (anderer Seed), lädt das Spiel sie kurz neu und tritt dann von selbst bei.
+4. Beide klicken **Spielen**. Wer beitritt, steht gleich neben dem Gastgeber.
+
+**Was geteilt wird**
+- **Die Gegner**: Der Gastgeber rechnet sie, jeder Gegner nimmt sich den nächsten Spieler vor. Beide
+  sehen dieselben Schrate, und beide können sie schlagen, beschießen, umtreten und zerstückeln. Wer den
+  letzten Treffer setzt, bekommt Beute, Tagebuch-Fortschritt und Erfahrung.
+- **Tageszeit und Wetter** (vom Gastgeber), damit die Nacht für alle gleich dunkel ist.
+- **Die Mitspieler selbst**: animierte Figuren, die gehen, rennen, sich ducken, zuschlagen und den
+  Gegenstand in der Hand tragen. Über dem Kopf stehen Name und Lebensleiste, auch durch Wände sichtbar,
+  damit man sich im Wald nicht verliert. Auf der Karte (`M`) sind sie als blaue Punkte eingezeichnet.
+- Kommen und Gehen wird angesagt. Im Menü steht, wer in der Lobby ist. Im Koop läuft die Welt weiter,
+  auch wenn einer im Pausenmenü ist.
+
+**Was (noch) jeder für sich hat**: Inventar, Spielstand, gefällte Bäume, Bauwerke, liegende Gegenstände,
+Kisten, Fundorte, Höhlen (wer eine betritt, verschwindet für die anderen) und die kleinen Schrecken der
+Nacht. Feindliche Wurfgeschosse treffen nur den Gastgeber.
+
+**Technik**
+- `src/net/Protocol.ts`: Nachrichten, Lobby-Codes, Prüfung eingehender Daten.
+- `src/net/Session.ts`: Lobby-Logik (Gastgeber als Stern, bis zu vier Spieler), mit Tests über ein
+  Netz im Speicher.
+- `src/net/PeerTransport.ts`: WebRTC über PeerJS. `?peer=host:port` nutzt einen eigenen
+  Vermittlungsserver (z. B. `npx peerjs --port 9000`).
+- `src/net/RemotePlayers.ts`: die Figuren der Mitspieler. `src/net/Coop.ts` verbindet alles mit dem Spiel.
+- `EnemyDirector`: Gegner wählen ihr Ziel unter allen Spielern. Beim Mitspieler sind sie Abbilder, und
+  Treffer gehen an den Gastgeber (`Enemy.puppet`, `Enemy.relay`).
+
 ### Meilenstein 60 – Waffen auf der Insel
 
 Man soll nicht ewig nach einer Waffe suchen müssen. Überall liegen jetzt welche, aber nicht an jeder Ecke.

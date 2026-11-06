@@ -44,6 +44,8 @@ const COOKED = new Set<ItemId>(['cookedMeat', 'cookedFish', 'jerky', 'stew']);
 export class ToolController {
   /** Ausgewählter Slot der Schnellzugriffsleiste. */
   selected = 0;
+  /** Zählt begonnene Schläge (Koop: die Mitspieler sehen den Hieb). */
+  swings = 0;
 
   /** Laufender Schlag; `heavy` 0 = normal, sonst Stärke des schweren Schlags (0,5 … 1). */
   private swing: { tool: ToolStats; time: number; impactDone: boolean; heavy: number } | null = null;
@@ -245,11 +247,13 @@ export class ToolController {
       // Schwerer Schlag: mehr Wucht, etwas langsamer.
       const t = { ...tool, damage: tool.damage * (1.25 + 0.75 * heavy), treeDamage: tool.treeDamage * (1 + heavy), swingTime: tool.swingTime * 1.1, impactAt: 0.3 };
       this.swing = { tool: t, time: 0, impactDone: false, heavy };
+      this.swings++;
       this.viewModel.playSwing(t.swingTime, t.animation, true);
       this.audio.play('heavySwing');
       return;
     }
     this.swing = { tool, time: 0, impactDone: false, heavy: 0 };
+    this.swings++;
     this.viewModel.playSwing(tool.swingTime, tool.animation);
   }
 

@@ -35,6 +35,11 @@ export class Menu {
   onPlay: ((wantsFullscreen: boolean) => void) | null = null;
   /** "Neues Spiel" (nur sichtbar, wenn ein Spielstand existiert). */
   onNewGame: (() => void) | null = null;
+  /** Koop: Lobby eröffnen (liefert den Code), beitreten, verlassen, Namen ändern. */
+  onCoopHost: (() => Promise<string>) | null = null;
+  onCoopJoin: ((code: string) => Promise<void>) | null = null;
+  onCoopLeave: (() => void) | null = null;
+  onCoopName: ((name: string) => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.el = collectRefs(root, [
@@ -52,6 +57,19 @@ export class Menu {
       'mainPanel',
       'title',
       'kicker',
+      'coopButton',
+      'coop',
+      'coopName',
+      'coopHost',
+      'coopCodeBox',
+      'coopCode',
+      'coopCopy',
+      'coopJoinCode',
+      'coopJoin',
+      'coopStatus',
+      'coopPlayers',
+      'coopBack',
+      'coopLeave',
     ] as const);
     this.el.settingsButton.addEventListener('click', () => this.toggleSettings(true));
     this.el.settingsBack.addEventListener('click', () => this.toggleSettings(false));
@@ -59,6 +77,100 @@ export class Menu {
       this.onPlay?.((this.el.fullscreen as HTMLInputElement).checked);
     });
     this.el.newGame.addEventListener('click', () => this.onNewGame?.());
+    this.wireCoop();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Koop
+  // ---------------------------------------------------------------------------
+
+  private wireCoop(): void {
+    const el = this.el;
+    el.coopButton.addEventListener('click', () => this.toggleCoop(true));
+    el.coopBack.addEventListener('click', () => this.toggleCoop(false));
+    const name = el.coopName as HTMLInputElement;
+    name.addEventListener('change', () => this.onCoopName?.(name.value));
+    el.coopHost.addEventListener('click', async () => {
+      if (!this.onCoopHost) return;
+      this.onCoopName?.(name.value);
+      this.setCoopBusy(true);
+      try {
+        const code = await this.onCoopHost();
+        this.showCoopCode(code);
+      } catch (err) {
+        this.setCoopStatus(err instanceof Error ? err.message : String(err), true);
+      } finally {
+        this.setCoopBusy(false);
+      }
+    });
+    const join = async () => {
+      if (!this.onCoopJoin) return;
+      this.onCoopName?.(name.value);
+      this.setCoopBusy(true);
+      try {
+        await this.onCoopJoin((el.coopJoinCode as HTMLInputElement).value);
+        this.showCoopCode(null);
+      } catch (err) {
+        this.setCoopStatus(err instanceof Error ? err.message : String(err), true);
+      } finally {
+        this.setCoopBusy(false);
+      }
+    };
+    el.coopJoin.addEventListener('click', join);
+    el.coopJoinCode.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') join();
+    });
+    el.coopCopy.addEventListener('click', () => {
+      const code = el.coopCode.textContent ?? '';
+      navigator.clipboard?.writeText(code).then(
+        () => this.setCoopStatus('Code kopiert – schick ihn deinem Kumpel.'),
+        () => this.setCoopStatus('Kopieren ging nicht – bitte abschreiben.'),
+      );
+    });
+    el.coopLeave.addEventListener('click', () => {
+      this.onCoopLeave?.();
+      this.showCoopCode(null);
+    });
+  }
+
+  private toggleCoop(open: boolean): void {
+    this.el.coop.classList.toggle('hidden', !open);
+    this.el.mainPanel.classList.toggle('hidden', open);
+    this.root.classList.toggle('is-coop', open);
+  }
+
+  /** Öffnet die Lobby-Ansicht (z. B. nach dem Neuladen mit Beitritts-Code). */
+  openCoop(): void {
+    this.toggleCoop(true);
+  }
+
+  setCoopName(name: string): void {
+    (this.el.coopName as HTMLInputElement).value = name;
+  }
+
+  setCoopJoinCode(code: string): void {
+    (this.el.coopJoinCode as HTMLInputElement).value = code;
+  }
+
+  setCoopStatus(text: string, error = false): void {
+    this.el.coopStatus.textContent = text;
+    this.el.coopStatus.classList.toggle('is-error', error);
+  }
+
+  /** In der Lobby: wer ist da? */
+  setCoopPlayers(text: string, inLobby: boolean): void {
+    this.el.coopPlayers.textContent = text;
+    this.el.coopLeave.classList.toggle('hidden', !inLobby);
+    this.el.coopButton.textContent = inLobby ? 'Lobby' : 'Mit Freunden spielen';
+  }
+
+  private showCoopCode(code: string | null): void {
+    this.el.coopCodeBox.classList.toggle('hidden', !code);
+    this.el.coopCode.textContent = code ?? '';
+  }
+
+  private setCoopBusy(busy: boolean): void {
+    for (const b of [this.el.coopHost, this.el.coopJoin] as HTMLButtonElement[]) b.disabled = busy;
   }
 
   /** Container, in den das Einstellungsformular gebaut wird. */
@@ -131,7 +243,9 @@ export class Menu {
     this.el.controls.classList.toggle('hidden', !interactive || this.state === 'dead');
     this.el.fullscreenOption.classList.toggle('hidden', !interactive || this.state === 'dead');
     this.el.settingsButton.classList.toggle('hidden', !interactive || this.state === 'dead');
+    this.el.coopButton.classList.toggle('hidden', !interactive || this.state === 'dead');
     this.toggleSettings(false);
+    this.toggleCoop(false);
   }
 }
 

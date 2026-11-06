@@ -25,6 +25,7 @@ import { NavGrid, type NavQuery } from './NavGrid';
 import { CAMP_OBSTACLES, createCampModel } from './CampModel';
 import { deriveSeed, mulberry32 } from '../../utils/random';
 import { lerp } from '../../utils/math';
+import type { EnemyNet, RemoteHit } from '../../net/Protocol';
 
 export type HitZone = 'head' | 'body';
 
@@ -185,6 +186,17 @@ export class EnemyDirector {
   private readonly watchCache = new WeakMap<Enemy, { t: number; v: boolean }>();
   private readonly viewDir = new THREE.Vector3();
 
+  /**
+   * Koop (Gastgeber): weitere Spieler. Jeder Gegner nimmt sich den nächsten lebenden Spieler vor;
+   * die Gegner denken über `ctx.player`, das während seines Takts auf dieses Ziel zeigt.
+   */
+  readonly remoteTargets = new Map<string, PlayerTarget>();
+  private focus: PlayerTarget | null = null;
+  private readonly focusOf = new WeakMap<Enemy, string>();
+  private localTarget!: PlayerTarget;
+  /** Koop (Mitspieler): Gegner sind nur Abbilder dessen, was der Gastgeber meldet. */
+  puppetMode = false;
+
   constructor(private readonly d: DirectorDeps) {
     this.cfg = d.config.ai;
     this.rng = mulberry32(deriveSeed(d.config.seed, 'enemies'));
@@ -205,7 +217,7 @@ export class EnemyDirector {
     d.events.on('noise', ({ position, radius }) => this.propagateNoise(position, radius, 0.55));
 
     const player = d.player;
-    const target: PlayerTarget = {
+    const local: PlayerTarget = (this.localTarget = {
       get position() {
         return player.position;
       },
@@ -230,6 +242,29 @@ export class EnemyDirector {
         if (outcome === 'hit' || outcome === 'blocked') d.audio.play('hurt');
         return outcome;
       },
+    });
+    // Zeigt auf den Spieler, den der gerade denkende Gegner verfolgt (allein: immer der eigene).
+    const self = this;
+    const target: PlayerTarget = {
+      get position() {
+        return (self.focus ?? local).position;
+      },
+      get eye() {
+        return (self.focus ?? local).eye;
+      },
+      get collider() {
+        return (self.focus ?? local).collider;
+      },
+      get isDead() {
+        return (self.focus ?? local).isDead;
+      },
+      get stealthy() {
+        return (self.focus ?? local).stealthy;
+      },
+      get velocity() {
+        return (self.focus ?? local).velocity;
+      },
+      receiveHit: (amount, from) => (self.focus ?? local).receiveHit(amount, from),
     };
 
     this.ctx = {
@@ -371,7 +406,7 @@ export class EnemyDirector {
   }
 
   private spawnAt(camp: Camp, kind = this.missingKind(camp)): Enemy | null {
-    if (this.enemies.length >= MAX_ENEMIES) return null;
+    if (this.enemies.length >= MAX_ENEMIES || this.puppetMode) return null;
     for (let i = 0; i < 10; i++) {
       const a = this.rng() * Math.PI * 2;
       const r = 2.5 + this.rng() * 4;
@@ -533,6 +568,7 @@ export class EnemyDirector {
    */
   spawnHorde(count: number, around: THREE.Vector3, fever: number): number {
     let spawned = 0;
+    if (this.puppetMode) return 0;
     for (let n = 0; n < count && this.hordeCount < MAX_HORDE; n++) {
       for (let attempt = 0; attempt < 20; attempt++) {
         const a = this.rng() * Math.PI * 2;
@@ -575,6 +611,7 @@ export class EnemyDirector {
   /** Gruppe ohne Lager an einem Ort (z. B. Ritual); wird nicht gespeichert. */
   spawnGroup(center: THREE.Vector3, kinds: EnemyKind[]): Enemy[] {
     const out: Enemy[] = [];
+    if (this.puppetMode) return out;
     for (const kind of kinds) {
       if (this.enemies.length >= MAX_ENEMIES + MAX_HORDE) break;
       for (let attempt = 0; attempt < 12; attempt++) {
@@ -725,7 +762,12 @@ export class EnemyDirector {
     this.ctx.time += dt;
     this.pathPlansThisTick = 0;
     // Tote erhalten den Takt weiter (Leichen-Timer), pausierte Gegner nicht.
-    for (const e of this.enemies) if (e.active || e.isDead) e.fixedUpdate(dt, this.ctx);
+    for (const e of this.enemies) {
+      if (!e.active && !e.isDead) continue;
+      this.focus = this.remoteTargets.size && !e.isDead && !e.puppet ? this.pickTarget(e) : null;
+      e.fixedUpdate(dt, this.ctx);
+    }
+    this.focus = null;
     const cave = this.cave;
     if (cave) {
       cave.ctx.time = this.ctx.time;
@@ -760,11 +802,13 @@ export class EnemyDirector {
       if (r > 0) this.propagateNoise(player.position, r, player.sprinting ? 0.4 : 0.18);
     }
 
-    this.updateHunts(dt, night);
-    this.updateStalkers(dt);
-    this.updateLairs(dt);
+    if (!this.puppetMode) {
+      this.updateHunts(dt, night);
+      this.updateStalkers(dt);
+      this.updateLairs(dt);
+      this.updateHorde(dt);
+    }
     this.updateCamps(dt);
-    this.updateHorde(dt);
 
     // Höhle: kurze Sicht (mit Fackel etwas weiter – Licht verrät), Schritte tragen im Fels weit.
     const cave = this.cave;
@@ -800,7 +844,9 @@ export class EnemyDirector {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       const dist = e.feet.distanceTo(player.position);
-      e.active = !e.isDead && (dist < this.cfg.activeRadius || e.isAggressive || e.state === 'investigate');
+      // Koop: Auch in der Nähe der Mitspieler wird gedacht.
+      const near = this.remoteTargets.size ? this.nearestPlayerDistance(e.feet) : dist;
+      e.active = e.puppet || (!e.isDead && (near < this.cfg.activeRadius || e.isAggressive || e.state === 'investigate'));
       if (e.isDead && e.deadFor > 48) {
         this.removeEnemy(i);
         continue;
@@ -882,6 +928,9 @@ export class EnemyDirector {
   get activeBoss(): Enemy | null {
     for (const e of this.cave?.enemies ?? []) if (e.kind.boss && !e.isDead && e.isAggressive) return e;
     const player = this.d.player.position;
+    if (this.puppetMode) {
+      for (const e of this.enemies) if (e.kind.boss && !e.isDead && e.isAggressive && e.feet.distanceTo(player) < 60) return e;
+    }
     for (const l of this.lairs) for (const e of l.members) if (e.kind.boss && !e.isDead && e.isAggressive && e.feet.distanceTo(player) < 60) return e;
     return null;
   }
@@ -1032,6 +1081,129 @@ export class EnemyDirector {
     for (const e of [...this.enemies, ...(this.cave?.enemies ?? [])]) {
       if (!e.isDead && e.feet.distanceTo(position) < radius) e.hear(position, strength);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Koop
+  // ---------------------------------------------------------------------------
+
+  /** Nächster lebender Spieler für diesen Gegner (mit etwas Treue: gewechselt wird erst bei 5 m Vorsprung). */
+  private pickTarget(e: Enemy): PlayerTarget | null {
+    const local = this.localTarget;
+    const prev = this.focusOf.get(e) ?? '';
+    let bestId = '';
+    let best: PlayerTarget | null = null;
+    let bestDist = Infinity;
+    const consider = (id: string, t: PlayerTarget) => {
+      if (t.isDead) return;
+      const d = t.position.distanceTo(e.feet) - (id === prev ? 5 : 0);
+      if (d < bestDist) {
+        bestDist = d;
+        best = t;
+        bestId = id;
+      }
+    };
+    consider('', local);
+    for (const [id, t] of this.remoteTargets) consider(id, t);
+    this.focusOf.set(e, bestId);
+    return best === local ? null : best;
+  }
+
+  private nearestPlayerDistance(p: THREE.Vector3): number {
+    let d = p.distanceTo(this.d.player.position);
+    for (const t of this.remoteTargets.values()) d = Math.min(d, t.position.distanceTo(p));
+    return d;
+  }
+
+  /** Gastgeber: Gegner im Umkreis `radius` um `around` zum Verschicken. */
+  snapshotsNear(around: THREE.Vector3, radius: number): EnemyNet[] {
+    const out: EnemyNet[] = [];
+    for (const e of this.enemies) {
+      if (e.isDead && e.deadFor > 30) continue;
+      if (e.feet.distanceTo(around) < radius) out.push(e.snapshot());
+    }
+    return out;
+  }
+
+  /**
+   * Gastgeber: Treffer eines Mitspielers auf einen Gegner verrechnen.
+   * @returns der Gegner, falls er dadurch gestorben ist.
+   */
+  applyRemoteHit(id: number, hit: RemoteHit, attacker: string): Enemy | null {
+    const e = this.enemies.find((x) => x.id === id);
+    if (!e || e.isDead) return null;
+    const v = (p: [number, number, number]) => new THREE.Vector3(p[0], p[1], p[2]);
+    const at = this.remoteTargets.get(attacker);
+    // Der Getroffene wendet sich dem Angreifer zu.
+    this.focus = at ?? null;
+    this.focusOf.set(e, at ? attacker : '');
+    let killed = false;
+    switch (hit.op) {
+      case 'damage':
+        killed = e.takeDamage(THREE.MathUtils.clamp(hit.amount, 0, 500), v(hit.from), this.ctx, hit.flinch !== false);
+        break;
+      case 'knockdown':
+        e.knockdown(THREE.MathUtils.clamp(hit.seconds, 0, 5), v(hit.from), THREE.MathUtils.clamp(hit.force, 0, 12));
+        break;
+      case 'shove':
+        e.shove(v(hit.from), THREE.MathUtils.clamp(hit.force, 0, 12), THREE.MathUtils.clamp(hit.seconds, 0, 3));
+        break;
+      case 'stun':
+        e.stun(THREE.MathUtils.clamp(hit.seconds, 0, 6));
+        break;
+      case 'sever':
+        if (['head', 'armL', 'armR', 'legL', 'legR'].includes(hit.limb)) e.sever(hit.limb);
+        break;
+    }
+    this.focus = null;
+    if (!killed) return null;
+    this.afterKill(e);
+    return e;
+  }
+
+  /** Mitspieler: ab jetzt nur noch Abbilder; die eigenen Gegner verschwinden. */
+  becomePuppet(): void {
+    this.puppetMode = true;
+    for (let i = this.enemies.length - 1; i >= 0; i--) this.removeEnemy(i);
+    for (const c of this.camps) c.members.clear();
+    this.horde.clear();
+    this.stalkers.clear();
+    for (const l of this.lairs) {
+      l.members = [];
+      l.spawned = false;
+    }
+  }
+
+  /** Mitspieler: Gegnerliste des Gastgebers übernehmen (fehlende anlegen, verschwundene entfernen). */
+  applyNet(list: EnemyNet[]): void {
+    const seen = new Set<number>();
+    for (const s of list) {
+      if (!isEnemyKind(s.kind)) continue;
+      seen.add(s.id);
+      let e = this.enemies.find((x) => x.id === s.id);
+      if (!e) {
+        const pos = new THREE.Vector3(s.p[0], s.p[1] - 0.05, s.p[2]);
+        e = new Enemy(s.id, this.d.physics, pos, pos, this.cfg, s.tone, s.scale, s.kind);
+        e.puppet = true;
+        e.yaw = s.yaw;
+        this.enemies.push(e);
+        if (s.state === 'dead') {
+          e.applySnapshot(s);
+          continue;
+        }
+        this.byCollider.set(e.collider.handle, { enemy: e, zone: 'body' });
+        this.byCollider.set(e.headCollider.handle, { enemy: e, zone: 'head' });
+      }
+      const wasDead = e.isDead;
+      e.applySnapshot(s);
+      if (e.isDead && !wasDead) {
+        this.byCollider.delete(e.collider.handle);
+        this.byCollider.delete(e.headCollider.handle);
+        this.playAt('enemyDeath', e.feet);
+        this.d.blood?.pool(e.feet, e.kind.boss ? 2.4 : 1.7);
+      }
+    }
+    for (let i = this.enemies.length - 1; i >= 0; i--) if (!seen.has(this.enemies[i].id)) this.removeEnemy(i);
   }
 
   private removeEnemy(index: number): void {

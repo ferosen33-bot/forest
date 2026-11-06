@@ -1333,6 +1333,65 @@ kbd {
 }
 .settings__value { text-align: right; font-variant-numeric: tabular-nums; color: var(--bone); }
 
+/* Koop-Lobby (Meilenstein 61) */
+#menu.is-coop .menu__controls { display: none; }
+.coop { width: min(560px, 100%); }
+.coop__box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 18px 20px;
+  clip-path: var(--cut);
+  background: rgba(8, 9, 8, 0.7);
+  font-size: 16px;
+  color: var(--ui-muted);
+  pointer-events: auto;
+}
+.coop__field { display: flex; align-items: center; gap: 12px; width: 100%; }
+.coop__field span { min-width: 6em; }
+.coop input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(232, 223, 202, 0.3);
+  background: rgba(20, 22, 18, 0.95);
+  color: var(--ui-text);
+  font: 500 18px/1 var(--ui-font);
+  letter-spacing: 0.06em;
+}
+.coop input:focus { outline: none; border-color: var(--bone); }
+.coop__section {
+  width: 100%;
+  margin-top: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--ui-line);
+  font: 600 13px/1 var(--font-display);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.coop__hint { margin: 0; font-size: 15px; line-height: 1.3; }
+.coop__action { font-size: 16px; padding: 10px 44px 9px 18px; }
+.coop__join { display: flex; align-items: center; gap: 12px; width: 100%; }
+.coop__join input { text-transform: uppercase; }
+.coop__code { display: flex; align-items: baseline; gap: 14px; }
+.coop__code strong { font: 600 34px/1 var(--font-display); letter-spacing: 0.22em; color: var(--bone); user-select: text; }
+.coop__copy {
+  cursor: pointer;
+  border: 1px solid rgba(232, 223, 202, 0.35);
+  background: transparent;
+  color: var(--ui-muted);
+  font: 500 14px/1 var(--ui-font);
+  padding: 5px 9px;
+}
+.coop__copy:hover { color: var(--bone); border-color: var(--bone); }
+.coop__status { margin: 4px 0 0; min-height: 1.2em; font: 15px/1.3 var(--font-type); color: var(--bone); }
+.coop__status.is-error { color: var(--blood-bright); }
+.coop__players { margin: 0; font-size: 15px; color: var(--moss); }
+.coop__buttons { display: flex; align-items: center; gap: 18px; }
+
 /* =============================================================== Abspann */
 .ending {
   position: fixed;

@@ -22,6 +22,8 @@ export interface MapMarkers {
   harbor?: { x: number; z: number } | null;
   /** Entdeckte besondere Orte (mit Namen). */
   places?: { x: number; z: number; name: string; kind: PlaceKind; sighted?: boolean }[];
+  /** Koop: Mitspieler mit Namen. */
+  friends?: { x: number; z: number; name: string; dead: boolean }[];
 }
 
 const RES = 512;
@@ -388,6 +390,24 @@ export class MapUI {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+    }
+    // Mitspieler: blauer Punkt mit Namen
+    for (const f of m.friends ?? []) {
+      const [fx, fy] = this.px(f.x, f.z);
+      ctx.fillStyle = f.dead ? '#a3231b' : '#4a92c9';
+      ctx.strokeStyle = '#f2ead6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = '600 13px Oswald, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(20, 18, 14, 0.8)';
+      ctx.strokeText(f.name, fx, fy - 11);
+      ctx.fillStyle = '#f2ead6';
+      ctx.fillText(f.name, fx, fy - 11);
     }
     // Spieler: Pfeil in Blickrichtung
     const [px, py] = this.px(m.player.x, m.player.z);

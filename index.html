@@ -161,6 +161,7 @@
           <nav class="menu__nav">
             <button class="menu__button hidden" data-ref="play">Spielen</button>
             <button class="menu__button menu__button--secondary hidden" data-ref="newGame">Neues Spiel</button>
+            <button class="menu__button menu__button--secondary hidden" data-ref="coopButton">Mit Freunden spielen</button>
             <button class="menu__button menu__button--secondary hidden" data-ref="settingsButton">Einstellungen</button>
           </nav>
           <p class="menu__save hidden" data-ref="saveInfo"></p>
@@ -191,6 +192,30 @@
           <div><kbd>F3</kbd> Debug-Anzeige</div>
           <div><kbd>Esc</kbd> Pause</div>
         </aside>
+        <div class="menu__panel coop hidden" data-ref="coop">
+          <h2 class="settings__title">Mit Freunden spielen</h2>
+          <div class="coop__box">
+            <label class="coop__field"><span>Dein Name</span><input data-ref="coopName" maxlength="18" spellcheck="false" /></label>
+            <div class="coop__section">Lobby eröffnen</div>
+            <p class="coop__hint">Du bist Gastgeber: Bei dir laufen Gegner, Tageszeit und Wetter. Gib deinem Kumpel den Code.</p>
+            <button class="menu__button coop__action" data-ref="coopHost">Lobby eröffnen</button>
+            <div class="coop__code hidden" data-ref="coopCodeBox">
+              <span>Lobby-Code</span><strong data-ref="coopCode"></strong>
+              <button class="coop__copy" data-ref="coopCopy">Kopieren</button>
+            </div>
+            <div class="coop__section">Beitreten</div>
+            <div class="coop__join">
+              <input data-ref="coopJoinCode" maxlength="9" placeholder="Code, z. B. K7M2QX" spellcheck="false" autocomplete="off" />
+              <button class="menu__button coop__action" data-ref="coopJoin">Beitreten</button>
+            </div>
+            <p class="coop__status" data-ref="coopStatus"></p>
+            <p class="coop__players" data-ref="coopPlayers"></p>
+          </div>
+          <div class="coop__buttons">
+            <button class="menu__button" data-ref="coopBack">Zurück</button>
+            <button class="menu__button menu__button--secondary hidden" data-ref="coopLeave">Lobby verlassen</button>
+          </div>
+        </div>
         <div class="menu__panel settings hidden" data-ref="settings">
           <h2 class="settings__title">Einstellungen</h2>
           <div class="settings__grid" data-ref="settingsForm"></div>

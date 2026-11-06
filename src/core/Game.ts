@@ -58,6 +58,7 @@ import { Fear } from '../systems/Fear';
 import { NightEvents } from '../systems/NightEvents';
 import { NightBloom } from '../systems/NightBloom';
 import { WeaponSpots } from '../systems/WeaponSpots';
+import { Coop } from '../net/Coop';
 import { Horror } from '../systems/Horror';
 import { feverLabel, feverNumber, feverPhase, waveInterval, waveSize, type FeverPhase } from '../systems/FeverNight';
 import type { ItemCost, ItemId } from '../entities/items/ItemDefs';
@@ -185,6 +186,8 @@ export class Game {
   nightEvents!: NightEvents;
   nightBloom!: NightBloom;
   weaponSpots!: WeaponSpots;
+  coop!: Coop;
+  private coopUiTimer = 0;
   worldEvents!: WorldEvents;
   /** Die Überlebenden in der Nordbucht (fehlt, wenn die Insel keinen Platz dafür hat). */
   survivors: Survivors | null = null;
@@ -911,6 +914,22 @@ export class Game {
     this.scene.add(this.atmosphere.group);
     this.weaponSpots = new WeaponSpots(this.worldItems, this.world.landmarks, this.world.heightMap, cfg.seed);
     this.scene.add(this.weaponSpots.group);
+    this.coop = new Coop({
+      scene: this.scene,
+      physics: this.physics,
+      characters: this.characters,
+      player: this.player,
+      camera: this.camera,
+      tools: this.tools,
+      enemies: this.enemies,
+      dayNight: this.dayNight,
+      weather: this.climate.weather,
+      events: this.events,
+      audio: this.audio,
+      seed: cfg.seed,
+      inCave: () => !!this.caves.current,
+      heightAt: (x, z) => this.world.heightMap.heightAt(x, z),
+    });
     this.tools.gore = this.gore;
     this.explosives = new Explosives({
       enemies: this.enemies,
@@ -1252,6 +1271,46 @@ export class Game {
     return Math.atan2(p.x, p.z);
   }
 
+  /** Koop-Lobby im Menü. */
+  private wireCoop(): void {
+    const coop = this.coop;
+    const menu = this.menu;
+    menu.setCoopName(coop.name);
+    menu.onCoopName = (name) => {
+      coop.setName(name);
+      menu.setCoopName(coop.name);
+    };
+    coop.onStatus = (text) => menu.setCoopStatus(text);
+    menu.onCoopHost = () => coop.host();
+    menu.onCoopJoin = async (code) => {
+      const result = await coop.join(code);
+      if (result === 'ok') return;
+      // Der Gastgeber spielt auf einer anderen Insel: mit deren Seed neu laden und dann beitreten.
+      menu.setCoopStatus('Lade die Insel des Gastgebers …');
+      this.saveNow();
+      const params = new URLSearchParams(window.location.search);
+      params.set('seed', String(result));
+      params.set('join', code.trim());
+      params.delete('autostart');
+      window.location.search = params.toString();
+      await new Promise(() => undefined);
+    };
+    menu.onCoopLeave = () => coop.leave();
+    // Nach dem Neuladen (andere Insel): gleich wieder beitreten.
+    const join = new URLSearchParams(window.location.search).get('join');
+    if (join && !this.opts.autostart) {
+      menu.openCoop();
+      menu.setCoopJoinCode(join);
+      menu.setCoopStatus('Verbinde …');
+      coop.join(join).then(
+        (r) => {
+          if (r !== 'ok') menu.setCoopStatus('Der Gastgeber hat die Insel gewechselt – bitte erneut beitreten.', true);
+        },
+        (err: unknown) => menu.setCoopStatus(err instanceof Error ? err.message : String(err), true),
+      );
+    }
+  }
+
   private wireEvents(): void {
     this.menu.onNewGame = () => {
       if (!window.confirm('Den Spielstand verwerfen und eine neue Insel-Expedition beginnen?')) return;
@@ -1265,6 +1324,8 @@ export class Game {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.saveNow();
     });
+
+    this.wireCoop();
 
     this.menu.onPlay = (wantsFullscreen) => {
       if (this.mode === 'dead') {
@@ -2112,7 +2173,15 @@ export class Game {
     }
 
     // Trefferstopp und Zeitlupe verlangsamen die Spielwelt, nicht aber Menüs und Anzeige.
-    if (this.mode === 'playing' || this.mode === 'inventory') this.simulate(dt * this.combat.timeScale(dt));
+    // Im Koop läuft die Welt weiter, auch wenn einer im Menü ist oder gestorben ist.
+    const coopRunning = this.coop.active && (this.mode === 'paused' || this.mode === 'dead');
+    if (this.mode === 'playing' || this.mode === 'inventory' || coopRunning) this.simulate(dt * this.combat.timeScale(dt));
+    this.coopUiTimer -= dt;
+    if (this.coopUiTimer <= 0 && this.menu.current !== 'hidden') {
+      this.coopUiTimer = 0.5;
+      const names = this.coop.others.map((p) => p.name);
+      this.menu.setCoopPlayers(this.coop.active ? (names.length ? `In der Lobby: ${names.join(', ')}` : 'Noch allein in der Lobby.') : '', this.coop.active);
+    }
 
     this.render();
     const building = this.building.isActive;
@@ -2238,6 +2307,7 @@ export class Game {
     this.dayNight.update(dt, this.elapsed, player.position, player.headUnderwater, this.climate.look);
     this.scene.environmentIntensity = environmentIntensity(this.dayNight.daylight, this.dayNight.underground, this.climate.look.clouds);
     this.world.update(dt, this.elapsed, player.position);
+    this.coop.update(dt);
     this.world.water.setEnvironment(
       this.dayNight.lightDirection(this.tmpWaterDir),
       this.dayNight.light.color,
@@ -2376,6 +2446,7 @@ export class Game {
       events: this.worldEvents.markers(),
       harbor: this.survivors?.marker() ?? null,
       places: this.places.markers,
+      friends: this.coop.others.filter((o) => !o.hidden).map((o) => ({ x: o.p[0], z: o.p[2], name: o.name, dead: o.dead })),
     });
     const explored = document.querySelector('[data-ref="mapExplored"]');
     if (explored) explored.textContent = `${Math.round(this.exploration.fraction * 100)} % der Karte erkundet`;
